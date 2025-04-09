@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SnipSummary</title>
+  <style>
+    body {
+      width: 300px;
+      font-family: sans-serif;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    #summary-container {
+      margin-top: 15px;
+    }
+    #loading {
+        display: none;
+        text-align: center;
+    }
+    #error {
+        display: none;
+        color: red;
+        text-align: center;
+    }
+    h3 {
+        margin-top: 10px;
+        margin-bottom: 5px;
+    }
+    ul {
+        margin-top: 5px;
+        padding-left: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h2>SnipSummary</h2>
+  <button id="summarize-button">Summarize This Page</button>
+  <div id="loading">Loading...</div>
+  <div id="error">An error occurred.</div>
+  <div id="summary-container" style="display: none;">
+    <h3>TL;DR</h3>
+    <p id="tldr"></p>
+    <h3>Key Points</h3>
+    <ul id="key-points"></ul>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html> 
