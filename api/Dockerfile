@@ -13,12 +13,14 @@ WORKDIR /app
 
 # Install pip dependencies
 # Copy only requirements first to leverage Docker cache
-COPY requirements.txt requirements.txt
+# The source path is relative to the build context root (snipsummary/)
+COPY api/requirements.txt requirements.txt
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code into the container
-COPY . .
+# Copy the rest of the application code from the api directory into the container's /app directory
+# The source path is relative to the build context root (snipsummary/)
+COPY api/ . 
 
 # Expose the port the app runs on
 EXPOSE 8000
