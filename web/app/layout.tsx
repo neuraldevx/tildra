@@ -17,12 +17,7 @@ export const metadata = {
   title: "Tildra - AI-Powered Article Summarizer",
   description: "Get the essence of articles in seconds with AI-generated summaries and key points",
   icons: {
-    icon: [
-      {
-        url: "/images/tildra-logo.png",
-        href: "/images/tildra-logo.png",
-      },
-    ],
+    icon: "/images/icon128.png",
   },
     generator: 'v0.dev'
 }
