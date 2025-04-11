@@ -70,11 +70,9 @@ async def get_authenticated_user_id(request: Request) -> str:
         token = auth_header.split(' ')[1]
 
         # Verify the token using the clients submodule and verify method (matching README example)
-        verify_response = clerk.clients.verify(request=models.VerifyClientRequest(token=token))
+        verify_response = clerk.clients.verify(request={"token": token})
         
-        # Extract user ID - This part is speculative based on potential response structure
-        # We might need to inspect the actual structure of verify_response if this fails.
-        # Try accessing user ID through a potential session object in the response.
+        # Extract user ID - Still speculative based on potential response structure
         user_id = None
         if hasattr(verify_response, 'session') and verify_response.session and hasattr(verify_response.session, 'user_id'):
              user_id = verify_response.session.user_id
@@ -85,10 +83,8 @@ async def get_authenticated_user_id(request: Request) -> str:
         #     user_id = verify_response.claims.get('sub')
 
         if not user_id:
-            # If user_id is still None, verification might have passed but didn't return the ID in the expected way.
             logger.error("Authentication successful (token verified) but could not extract User ID from response.")
-            # Log the response structure for debugging if needed
-            # logger.debug(f"Clerk verify response structure: {verify_response}")
+            # logger.debug(f"Clerk verify response structure: {verify_response}") # Keep this commented for now
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not extract User ID after token verification")
 
         logger.info(f"Authenticated user: {user_id}")
