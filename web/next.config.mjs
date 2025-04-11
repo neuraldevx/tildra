@@ -27,6 +27,8 @@ const nextConfig = {
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
   },
+  output: 'standalone',
+  reactStrictMode: true,
 }
 
 if (userConfig) {
