@@ -71,11 +71,8 @@ async def get_authenticated_user_id(request: Request) -> str:
             # authorized_parties=[FRONTEND_URL]
         )
         
-        # Note: The SDK function might be synchronous or async. 
-        # Assuming it's synchronous based on the example, but might need 'await' if it's async.
-        # Let's wrap in await just in case, as FastAPI supports both in Depends.
-        request_state = await authenticate_request(request, options) 
-        # If sync: request_state = authenticate_request(request, options)
+        # Note: The SDK function is synchronous based on error log.
+        request_state = authenticate_request(request, options) # REMOVED await 
 
         if not request_state or not request_state.is_signed_in:
             # Use the reason provided by the SDK if available
