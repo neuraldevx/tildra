@@ -7,9 +7,7 @@ from dotenv import load_dotenv
 from typing import Annotated
 import logging
 import google.generativeai as genai
-from clerk_backend_api.client import ClerkClient
-from clerk_backend_api.models import ClerkErrors, RequestState
-from clerk_backend_api.api.authentication_api import AuthenticationApi
+from clerk_backend import ClerkClient, ClerkErrors, RequestState
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,7 +23,7 @@ if not CLERK_SECRET_KEY:
     raise ValueError("CLERK_SECRET_KEY environment variable is required for authentication.")
 
 clerk_client = ClerkClient(secret_key=CLERK_SECRET_KEY)
-auth_api = AuthenticationApi(clerk_client.api_client)
+auth_api = clerk_client.authenticate_api
 
 # Configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -64,7 +62,7 @@ app.add_middleware(
 async def get_authenticated_user_id(request: Request) -> str:
     """Dependency to authenticate the request using Clerk's v2 method."""
     try:
-        # Use the async v2 authentication method
+        # Use the async v2 authentication method from the auth_api instance
         request_state: RequestState = await auth_api.authenticate_request_v2(request=request)
 
         if request_state.status != "signed_in":
@@ -85,7 +83,8 @@ async def get_authenticated_user_id(request: Request) -> str:
         logger.info(f"Authenticated user: {user_id}") # Log successful authentication
         return user_id
 
-    # Keep specific Clerk error handling
+    # Adjust exception handling if needed for the new library structure
+    # Checking specific error types from ClerkErrors
     except ClerkErrors.TokenExpiredError:
         logger.warning("Authentication failed: Token expired")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
@@ -95,7 +94,6 @@ async def get_authenticated_user_id(request: Request) -> str:
     except ClerkErrors.APIError as e:
         logger.error(f"Clerk API Error during authentication: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Clerk API error during authentication")
-    # Catch unexpected errors during auth
     except Exception as e:
         logger.exception("Unexpected Authentication Error") # Log full traceback for unexpected errors
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unexpected error during authentication")
