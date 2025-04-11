@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const keyPointsElement = document.getElementById('key-points');
   const loadingElement = document.getElementById('loading');
   const errorElement = document.getElementById('error');
+  const copyButton = document.getElementById('copy-button');
 
   summarizeButton.addEventListener('click', () => {
     // Hide previous results/errors and show loading
@@ -70,6 +71,33 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
+  // --- Copy Button Logic --- 
+  copyButton.addEventListener('click', () => {
+    const summary = tldrElement.textContent;
+    const points = Array.from(keyPointsElement.querySelectorAll('li')).map(li => `• ${li.textContent}`).join('\n');
+    const textToCopy = `TL;DR:\n${summary}\n\nKey Points:\n${points}`;
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        // --- Visual Feedback --- 
+        const originalIcon = copyButton.innerHTML; // Store original SVG
+        // Replace with a checkmark icon (example SVG)
+        copyButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+        copyButton.disabled = true; // Briefly disable
+
+        // Revert after a short delay
+        setTimeout(() => {
+            copyButton.innerHTML = originalIcon;
+            copyButton.disabled = false;
+        }, 1500); // 1.5 seconds
+        // -----------------------
+
+    }).catch(err => {
+        console.error('Failed to copy text: ', err);
+        // Optional: Show a brief error state on the button or near it
+    });
+  });
+  // -------------------------
+
   function displaySummary(tldr, keyPoints) {
     loadingElement.style.display = 'none';
     errorElement.style.display = 'none';
@@ -83,6 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
       keyPointsElement.appendChild(li);
     });
     summaryContainer.style.display = 'block';
+    copyButton.style.display = 'inline-block'; // Ensure copy button is visible
   }
 
   function showError(message) {
@@ -91,5 +120,6 @@ document.addEventListener('DOMContentLoaded', function() {
     summarizeButton.disabled = false;
     errorElement.textContent = message;
     errorElement.style.display = 'block';
+    copyButton.style.display = 'none'; // Hide copy button on error
   }
 }); 
