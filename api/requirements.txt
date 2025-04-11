@@ -19,3 +19,4 @@ typing_extensions==4.13.1
 urllib3==2.3.0
 uvicorn[standard]
 clerk-backend-api
+google-generativeai
