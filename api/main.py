@@ -6,11 +6,11 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Annotated
 
-# --- Clerk Backend API SDK Imports --- 
-from clerk_backend_api import Clerk
-from clerk_backend_api.models.requests import AuthenticateRequestOptions
-from clerk_backend_api.models.errors import ClerkAPIError
-# -------------------------------------
+# --- Clerk Backend API SDK Imports (Corrected based on docs) --- 
+# from clerk_backend_api import Clerk # We might not need the main Clerk client for just auth
+from clerk_backend_api.jwks_helpers import authenticate_request, AuthenticateRequestOptions
+from clerk_backend_api.models import ClerkAPIError # Keep error model
+# ---------------------------------------------------------------
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,10 +21,9 @@ if not CLERK_SECRET_KEY:
     print("Error: CLERK_SECRET_KEY environment variable not set.")
     raise ValueError("CLERK_SECRET_KEY environment variable is required for authentication.")
 
-# --- Clerk SDK Instance ---
-# Initialize using the secret key for backend operations
-clerk_sdk = Clerk(bearer_auth=CLERK_SECRET_KEY)
-# -------------------------
+# --- Remove Clerk SDK Instance (Not needed for jwks_helpers.authenticate_request) ---
+# clerk_sdk = Clerk(bearer_auth=CLERK_SECRET_KEY)
+# ---------------------------------------------------------------------------------
 
 # Configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -43,9 +42,9 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.tildra.xyz")
 
 # Configure CORS
 origins = [
-    # Get extension ID from chrome://extensions (Developer mode)
-    # Example: "chrome-extension://your_extension_id_here",
-    os.getenv("EXTENSION_ORIGIN", "chrome-extension://*"), # Use env var or default
+    # Replace YOUR_EXTENSION_ID_HERE with the actual ID from chrome://extensions
+    "chrome-extension://hcibldlopaogbnnfiofgkcgccfhifede", # Set user's actual extension ID
+    # os.getenv("EXTENSION_ORIGIN", "chrome-extension://*"), # Use env var or default - Replaced with specific ID
     "http://localhost:3000",
     FRONTEND_URL,
     "null"
@@ -59,24 +58,29 @@ app.add_middleware(
     allow_headers=["*"], # Includes Authorization
 )
 
-# --- Authentication Dependency using clerk-backend-api --- 
+# --- Authentication Dependency using jwks_helpers.authenticate_request --- 
 async def get_authenticated_user_id(request: Request) -> str:
-    """FastAPI dependency to authenticate request using Clerk SDK and return user ID."""
+    """FastAPI dependency to authenticate request using Clerk SDK (jwks_helpers) and return user ID."""
     try:
-        # Adapt FastAPI Request for the SDK. We primarily need headers.
-        # The SDK might have direct integration later, but this works for now.
-        request_state = await clerk_sdk.authenticate_request_async(
-            request=request, # Pass the FastAPI request object
-            options=AuthenticateRequestOptions(
-                # Add your frontend URL to authorized parties
-                # This helps prevent token misuse
-                # authorized_parties=[FRONTEND_URL]
-                # Other options like jwt_key, satellite_url etc. can be added if needed
-            )
+        # The authenticate_request function likely needs specific parts of the request,
+        # primarily headers (for Bearer token) and possibly cookies.
+        # We pass the whole FastAPI request object; the SDK function should extract what it needs.
+        options = AuthenticateRequestOptions(
+            secret_key=CLERK_SECRET_KEY, # Use secret key for verification
+            # Add your frontend URL to authorized parties for audience validation
+            # authorized_parties=[FRONTEND_URL]
         )
+        
+        # Note: The SDK function might be synchronous or async. 
+        # Assuming it's synchronous based on the example, but might need 'await' if it's async.
+        # Let's wrap in await just in case, as FastAPI supports both in Depends.
+        request_state = await authenticate_request(request, options) 
+        # If sync: request_state = authenticate_request(request, options)
 
         if not request_state or not request_state.is_signed_in:
-            raise HTTPException(status_code=401, detail="User is not signed in")
+            # Use the reason provided by the SDK if available
+            reason = request_state.reason if request_state else "Unknown"
+            raise HTTPException(status_code=401, detail=f"User is not signed in. Reason: {reason}")
 
         if not request_state.claims or not request_state.claims.sub:
              raise HTTPException(status_code=401, detail="User ID (sub) not found in token claims")
@@ -86,16 +90,17 @@ async def get_authenticated_user_id(request: Request) -> str:
         return request_state.claims.sub
 
     except ClerkAPIError as e:
-        # Handle specific Clerk validation errors
         print(f"Clerk Authentication Error: {e}")
         raise HTTPException(status_code=401, detail=f"Clerk Auth Error: {e.errors}")
+    except HTTPException as e:
+        # Re-raise HTTPExceptions raised within the try block
+        raise e
     except Exception as e:
-        # Handle unexpected errors during authentication
         print(f"Unexpected Authentication Error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error during authentication")
 
 AuthenticatedUser = Annotated[str, Depends(get_authenticated_user_id)]
-# ------------------------------------------------------
+# --------------------------------------------------------------------
 
 # --- Pydantic Models ---
 class SummarizeRequest(BaseModel):
