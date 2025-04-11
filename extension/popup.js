@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
           }
 
           // Send the text to the backend
-          fetch('http://localhost:8000/summarize', {
+          fetch('https://snipsummary.fly.dev/summarize', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
