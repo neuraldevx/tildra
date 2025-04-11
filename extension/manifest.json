@@ -6,7 +6,9 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "cookies",
+    "cookies"
+  ],
+  "host_permissions": [
     "https://snipsummary.fly.dev/*",
     "*://*.tildra.xyz/"
   ],
