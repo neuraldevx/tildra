@@ -6,7 +6,9 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "https://snipsummary.fly.dev/*"
+    "cookies",
+    "https://snipsummary.fly.dev/*",
+    "*://*.tildra.xyz/"
   ],
   "action": {
     "default_popup": "popup.html",

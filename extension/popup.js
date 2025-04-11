@@ -45,27 +45,60 @@ document.addEventListener('DOMContentLoaded', function() {
               return;
           }
 
-          // Send the text to the backend
-          fetch('https://snipsummary.fly.dev/summarize', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ article_text: articleText }),
-          })
-          .then(response => {
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-          })
-          .then(data => {
-            displaySummary(data.tldr, data.key_points);
-          })
-          .catch(error => {
-            console.error('Error fetching summary:', error);
-            showError('Failed to fetch summary from backend.');
-          });
+          // --- Get Clerk Token and Fetch Summary --- 
+          // Try to get the session token from cookies for tildra.xyz
+          chrome.cookies.get({ url: "https://www.tildra.xyz", name: "__session" }, (cookie) => {
+              let authToken = null;
+              if (cookie && cookie.value) {
+                  authToken = cookie.value;
+                  console.log("Clerk session token found.");
+              } else {
+                  console.log("Clerk session token cookie (__session) not found for tildra.xyz. Proceeding without authentication.");
+                  // Optional: Show a message asking the user to log in on the website?
+                  // showError("Please log in to tildra.xyz first.");
+                  // return; // Or decide to proceed unauthenticated if backend allows?
+                  // For now, we proceed, expecting a 401 from backend if no token
+              }
+
+              const fetchOptions = {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ article_text: articleText }),
+              };
+
+              // Add Authorization header if token exists
+              if (authToken) {
+                  fetchOptions.headers['Authorization'] = `Bearer ${authToken}`;
+              }
+
+              // Send the text to the backend
+              fetch('https://snipsummary.fly.dev/summarize', fetchOptions)
+              .then(response => {
+                  if (response.status === 401) {
+                       showError("Authentication failed. Please ensure you are logged in on www.tildra.xyz.");
+                       throw new Error('Authentication required'); // Prevent further processing
+                  }
+                  if (!response.ok) {
+                       // Handle other HTTP errors
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                  }
+                  return response.json();
+              })
+              .then(data => {
+                  // This part only runs if response.ok was true
+                  displaySummary(data.tldr, data.key_points);
+              })
+              .catch(error => {
+                  console.error('Error fetching summary:', error);
+                  // Avoid overwriting specific auth error message if it was thrown
+                  if (error.message !== 'Authentication required') {
+                     showError('Failed to fetch summary from backend.');
+                  }
+              });
+          }); // End of chrome.cookies.get callback
+          // -----------------------------------------
         }
       );
     });
