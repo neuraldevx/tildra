@@ -1,39 +1,101 @@
 import os
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from typing import Annotated
+
+# --- Clerk Backend API SDK Imports --- 
+from clerk_backend_api import Clerk
+from clerk_backend_api.models.requests import AuthenticateRequestOptions
+from clerk_backend_api.models.errors import ClerkAPIError
+# -------------------------------------
 
 # Load environment variables from .env file
 load_dotenv()
 
+# Load Clerk Secret Key
+CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
+if not CLERK_SECRET_KEY:
+    print("Error: CLERK_SECRET_KEY environment variable not set.")
+    raise ValueError("CLERK_SECRET_KEY environment variable is required for authentication.")
+
+# --- Clerk SDK Instance ---
+# Initialize using the secret key for backend operations
+clerk_sdk = Clerk(bearer_auth=CLERK_SECRET_KEY)
+# -------------------------
+
 # Configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions" # Replace with actual endpoint if different
+DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 # --- FastAPI App Setup ---
 app = FastAPI(
-    title="SnipSummary API",
-    description="Provides summarization services for the SnipSummary extension and dashboard.",
-    version="1.0.0"
+    title="Tildra API",
+    description="Provides summarization services for the Tildra extension and dashboard.",
+    version="1.1.0"
 )
+
+# --- Define Frontend URL (for authorized parties) --- 
+# Ensure this matches your frontend URL exactly
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.tildra.xyz")
 
 # Configure CORS
 origins = [
-    "chrome-extension://*",  # Allow any Chrome extension (restrict in production)
-    "http://localhost:3000",  # Allow Next.js dev server
-    "null" # Allow local file testing for the extension popup
-    # Add your frontend deployment URL here in production
+    # Get extension ID from chrome://extensions (Developer mode)
+    # Example: "chrome-extension://your_extension_id_here",
+    os.getenv("EXTENSION_ORIGIN", "chrome-extension://*"), # Use env var or default
+    "http://localhost:3000",
+    FRONTEND_URL,
+    "null"
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["POST"], # Only allow POST for the summarize endpoint
-    allow_headers=["*"],
+    allow_methods=["POST", "GET"],
+    allow_headers=["*"], # Includes Authorization
 )
+
+# --- Authentication Dependency using clerk-backend-api --- 
+async def get_authenticated_user_id(request: Request) -> str:
+    """FastAPI dependency to authenticate request using Clerk SDK and return user ID."""
+    try:
+        # Adapt FastAPI Request for the SDK. We primarily need headers.
+        # The SDK might have direct integration later, but this works for now.
+        request_state = await clerk_sdk.authenticate_request_async(
+            request=request, # Pass the FastAPI request object
+            options=AuthenticateRequestOptions(
+                # Add your frontend URL to authorized parties
+                # This helps prevent token misuse
+                # authorized_parties=[FRONTEND_URL]
+                # Other options like jwt_key, satellite_url etc. can be added if needed
+            )
+        )
+
+        if not request_state or not request_state.is_signed_in:
+            raise HTTPException(status_code=401, detail="User is not signed in")
+
+        if not request_state.claims or not request_state.claims.sub:
+             raise HTTPException(status_code=401, detail="User ID (sub) not found in token claims")
+
+        # Successfully authenticated, return the user ID (subject claim)
+        print(f"Authenticated user: {request_state.claims.sub}")
+        return request_state.claims.sub
+
+    except ClerkAPIError as e:
+        # Handle specific Clerk validation errors
+        print(f"Clerk Authentication Error: {e}")
+        raise HTTPException(status_code=401, detail=f"Clerk Auth Error: {e.errors}")
+    except Exception as e:
+        # Handle unexpected errors during authentication
+        print(f"Unexpected Authentication Error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error during authentication")
+
+AuthenticatedUser = Annotated[str, Depends(get_authenticated_user_id)]
+# ------------------------------------------------------
 
 # --- Pydantic Models ---
 class SummarizeRequest(BaseModel):
@@ -45,11 +107,16 @@ class SummarizeResponse(BaseModel):
 
 # --- API Endpoints ---
 @app.post("/summarize", response_model=SummarizeResponse)
-async def summarize_article(request: SummarizeRequest):
+async def summarize_article(
+    request: SummarizeRequest,
+    user_id: AuthenticatedUser # Dependency verifies token and provides user_id
+):
     """
     Accepts article text and returns a TL;DR summary and key points
-    generated by the DeepSeek API.
+    generated by the DeepSeek API. Requires valid Clerk Authentication.
     """
+    print(f"User {user_id} requested summarization.")
+
     if not DEEPSEEK_API_KEY:
         raise HTTPException(status_code=500, detail="DeepSeek API key not configured on server.")
 
@@ -129,7 +196,7 @@ Respond ONLY with the JSON object.""" # Ensure only JSON is returned
         raise HTTPException(status_code=500, detail=f"An internal server error occurred: {e}")
 
 
-# --- Health Check Endpoint ---
+# --- Health Check Endpoint (Does not require authentication) ---
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
@@ -137,6 +204,6 @@ def health_check():
 # --- Run Instruction (for local development) ---
 if __name__ == "__main__":
     import uvicorn
-    print("Starting FastAPI server on http://localhost:8000")
-    print("Ensure DEEPSEEK_API_KEY is set in your .env file.")
+    print("Starting Tildra API server on http://localhost:8000")
+    print("Ensure DEEPSEEK_API_KEY and CLERK_SECRET_KEY are set in your .env file.")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
