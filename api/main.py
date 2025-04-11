@@ -7,9 +7,8 @@ from dotenv import load_dotenv
 from typing import Annotated
 import logging
 import google.generativeai as genai
-from clerk_backend_api import ClerkClient
-from clerk_backend_api import errors as clerk_errors
-from clerk_backend_api.types import RequestState
+from clerk_backend_api import Clerk
+from clerk_backend_api import models
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +23,7 @@ if not CLERK_SECRET_KEY:
     logger.critical("CLERK_SECRET_KEY environment variable not set")
     raise ValueError("CLERK_SECRET_KEY environment variable is required for authentication.")
 
-clerk_client = ClerkClient(secret_key=CLERK_SECRET_KEY)
+clerk = Clerk(secret_key=CLERK_SECRET_KEY)
 
 # Configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -59,12 +58,11 @@ app.add_middleware(
     allow_headers=["*"], # Includes Authorization
 )
 
-# --- Authentication Dependency using Clerk SDK v2.x --- 
+# --- Authentication Dependency using Clerk SDK v2.x (README structure) --- 
 async def get_authenticated_user_id(request: Request) -> str:
-    """Dependency to authenticate the request using Clerk SDK v2.x."""
+    """Dependency to authenticate the request using Clerk SDK v2.x (README structure)."""
     try:
-        # In v2.x, verification is often done directly on the client instance.
-        # We need to extract the token from the request headers first.
+        # --- Start Edit: Extract token and verify using Clerk instance --- 
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             logger.warning("Authentication failed: Missing or malformed Bearer token")
@@ -72,14 +70,13 @@ async def get_authenticated_user_id(request: Request) -> str:
         
         token = auth_header.split(' ')[1]
 
-        # Verify the token using the client
-        # Note: The exact method might vary slightly in v2, consulting docs or examples
-        # is best, but `verify_token` or similar is common.
-        # This call returns the claims directly if successful.
-        claims = clerk_client.verify_token(token)
+        # Verify the token using the Clerk instance
+        # Assuming verify_token exists based on standard practice & previous attempts
+        claims = clerk.verify_token(token)
         
         # Access the user ID (subject claim)
         user_id = claims.get('sub')
+        # --- End Edit ---
 
         if not user_id:
             logger.error("Authentication successful but User ID (sub) not found in token claims.")
@@ -88,15 +85,27 @@ async def get_authenticated_user_id(request: Request) -> str:
         logger.info(f"Authenticated user: {user_id}") # Log successful authentication
         return user_id
 
-    except clerk_errors.TokenExpiredError:
-        logger.warning("Authentication failed: Token expired")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
-    except clerk_errors.TokenInvalidError as e:
-        logger.warning(f"Authentication failed: Token invalid - {e}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Token invalid: {e}")
-    except clerk_errors.APIError as e:
-        logger.error(f"Clerk API Error during authentication: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Clerk API error during authentication")
+    # --- Start Edit: Update exception handling using models --- 
+    except models.ClerkErrors as e:
+        # Log the specific Clerk error data if available
+        error_detail = str(e) 
+        if hasattr(e, 'data') and e.data is not None and hasattr(e.data, 'errors') and e.data.errors:
+            # Assuming e.data.errors is a list of error objects
+            try:
+                first_error = e.data.errors[0]
+                error_detail = f"{first_error.message} (Code: {first_error.code}, Meta: {first_error.meta})"
+            except (IndexError, AttributeError):
+                 pass # Fallback to default string representation
+
+        logger.warning(f"Clerk Authentication Error: {error_detail}")
+        # Determine status code based on error (e.g., 401 for bad token, 400 for bad request)
+        # For simplicity, using 401 for auth-related Clerk errors
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Authentication Error: {error_detail}")
+    except models.SDKError as e:
+        # Catch broader SDK errors (like network issues talking to Clerk API)
+        logger.error(f"Clerk SDK Error during authentication: {e.message} (Status: {e.status_code})")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Clerk SDK error: {e.message}")
+    # --- End Edit ---
     except Exception as e:
         logger.exception("Unexpected Authentication Error") # Log full traceback for unexpected errors
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unexpected error during authentication")
