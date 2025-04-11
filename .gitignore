@@ -1,5 +1,7 @@
 # Environment variables
 api/.env
+web/.env
+web/.env.local
 
 # Python virtual environment
 api/venv/
@@ -8,7 +10,22 @@ api/venv/
 **/__pycache__/
 **/*.pyc
 
+# Node Modules
+web/node_modules
+/node_modules # Ignore node_modules at the root
+
+# Lockfiles / Package Files at Root (should not exist)
+/package.json
+/package-lock.json
+/pnpm-lock.yaml
+
 # OS generated files
 .DS_Store 
 
-web/node_modules
+# App auth api keys
+# app/.env.local # Old path, keep commented or remove
+
+# Web auth api keys
+# web/node_modules # Covered above
+# web/.env # Covered above
+# web/.env.local # Covered above
