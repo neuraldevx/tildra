@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from typing import Annotated
 import logging
 import google.generativeai as genai
-from clerk_backend import ClerkClient, ClerkErrors, RequestState
+from clerk_backend_api import ClerkClient, ClerkErrors, RequestState
+from clerk_backend_api.api.authentication_api import AuthenticationApi
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +24,7 @@ if not CLERK_SECRET_KEY:
     raise ValueError("CLERK_SECRET_KEY environment variable is required for authentication.")
 
 clerk_client = ClerkClient(secret_key=CLERK_SECRET_KEY)
-auth_api = clerk_client.authenticate_api
+auth_api = AuthenticationApi(clerk_client.api_client)
 
 # Configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
