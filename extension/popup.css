@@ -57,10 +57,13 @@ body {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    align-items: center;
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--border-primary);
 }
 
 .container {
-    padding: var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-lg);
     display: flex;
     flex-direction: column;
     gap: var(--spacing-lg);
@@ -78,6 +81,7 @@ body {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
+    line-height: 1;
 }
 
 .action-section {
@@ -285,4 +289,19 @@ button:disabled {
     stroke-dasharray: 90, 150;
     stroke-dashoffset: -124;
   }
+}
+
+/* --- Logo Styling --- */
+#logo {
+    height: 24px; /* Adjust size as needed */
+    width: auto;
+    margin-right: var(--spacing-sm);
+}
+/* ------------------- */
+
+.header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1;
 } 
