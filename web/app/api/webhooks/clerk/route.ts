@@ -5,14 +5,27 @@ import { WebhookEvent } from '@clerk/nextjs/server';
 // import { prisma } from '@/lib/prisma'; // Remove singleton import for this pattern
 import { NextResponse } from 'next/server';
 
-// Remove top-level prisma instance
-// const prisma = new PrismaClient();
+// --- Dynamically import and instantiate Prisma Client at module level ---
+let prisma: any; // Use 'any' or a more specific type if needed after import
+import('@prisma/client').then((mod) => {
+  prisma = new mod.PrismaClient();
+}).catch((err) => {
+  console.error("Failed to dynamically import Prisma Client:", err);
+  // Handle initialization error, maybe prevent the function from running?
+});
+// ------------------------------------------------------------------------
 
 export async function POST(req: Request) {
-  // --- Dynamically import Prisma Client --- 
-  const { PrismaClient } = await import('@prisma/client');
-  const prisma = new PrismaClient();
+  // --- Remove dynamic import from here ---
+  // const { PrismaClient } = await import('@prisma/client');
+  // const prisma = new PrismaClient();
   // -----------------------------------------
+
+  // Ensure Prisma Client initialized before proceeding
+  if (!prisma) {
+    console.error("Prisma Client is not initialized. Cannot process webhook.");
+    return new NextResponse('Internal Server Error: Database client not ready', { status: 500 });
+  }
 
   // Get the necessary secret from environment variables
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
