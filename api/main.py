@@ -1,16 +1,19 @@
 import os
 import httpx
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Annotated
+import logging
+import google.generativeai as genai
+from clerk_backend_api.client import ClerkClient
+from clerk_backend_api.models import ClerkErrors, RequestState
+from clerk_backend_api.api.authentication_api import AuthenticationApi
 
-# --- Clerk Backend API SDK Imports (Corrected based on docs) --- 
-# from clerk_backend_api import Clerk # We might not need the main Clerk client for just auth
-from clerk_backend_api.jwks_helpers import authenticate_request, AuthenticateRequestOptions
-from clerk_backend_api.models import ClerkErrors # Import ClerkErrors instead of ClerkAPIError based on docs
-# ---------------------------------------------------------------
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -18,12 +21,11 @@ load_dotenv()
 # Load Clerk Secret Key
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
 if not CLERK_SECRET_KEY:
-    print("Error: CLERK_SECRET_KEY environment variable not set.")
+    logger.critical("CLERK_SECRET_KEY environment variable not set")
     raise ValueError("CLERK_SECRET_KEY environment variable is required for authentication.")
 
-# --- Remove Clerk SDK Instance (Not needed for jwks_helpers.authenticate_request) ---
-# clerk_sdk = Clerk(bearer_auth=CLERK_SECRET_KEY)
-# ---------------------------------------------------------------------------------
+clerk_client = ClerkClient(secret_key=CLERK_SECRET_KEY)
+auth_api = AuthenticationApi(clerk_client.api_client)
 
 # Configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -58,47 +60,45 @@ app.add_middleware(
     allow_headers=["*"], # Includes Authorization
 )
 
-# --- Authentication Dependency using jwks_helpers.authenticate_request --- 
+# --- Authentication Dependency using Clerk SDK's authenticate_request_v2 --- 
 async def get_authenticated_user_id(request: Request) -> str:
-    """FastAPI dependency to authenticate request using Clerk SDK (jwks_helpers) and return user ID."""
+    """Dependency to authenticate the request using Clerk's v2 method."""
     try:
-        # The authenticate_request function likely needs specific parts of the request,
-        # primarily headers (for Bearer token) and possibly cookies.
-        # We pass the whole FastAPI request object; the SDK function should extract what it needs.
-        options = AuthenticateRequestOptions(
-            secret_key=CLERK_SECRET_KEY, # Use secret key for verification
-            # Add your frontend URL to authorized parties for audience validation
-            # authorized_parties=[FRONTEND_URL]
-        )
-        
-        # Note: The SDK function is synchronous based on error log.
-        request_state = authenticate_request(request, options) # REMOVED await 
+        # Use the async v2 authentication method
+        request_state: RequestState = await auth_api.authenticate_request_v2(request=request)
 
-        if not request_state or not request_state.is_signed_in:
-            # Use the reason provided by the SDK if available
-            reason = request_state.reason if request_state else "Unknown"
-            raise HTTPException(status_code=401, detail=f"User is not signed in. Reason: {reason}")
+        if request_state.status != "signed_in":
+            # Handle different states like signed_out, handshake
+            detail = "Not authenticated"
+            if request_state.reason:
+                detail += f": {request_state.reason}" # e.g., SESSION_TOKEN_MISSING
+            logger.warning(f"Authentication failed: {detail}") # Log failed attempts
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
-        if not request_state.claims or not request_state.claims.sub:
-             raise HTTPException(status_code=401, detail="User ID (sub) not found in token claims")
+        # Access the user ID from the claims
+        # Claims are directly available on the RequestState object
+        user_id = request_state.claims.get('sub')
+        if not user_id:
+            logger.error("Authentication successful but User ID (sub) not found in token claims.")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID (sub) not found in token claims")
 
-        # Successfully authenticated, return the user ID (subject claim)
-        print(f"Authenticated user: {request_state.claims.sub}")
-        return request_state.claims.sub
+        logger.info(f"Authenticated user: {user_id}") # Log successful authentication
+        return user_id
 
-    except ClerkErrors as e: # Catch ClerkErrors instead of ClerkAPIError
-        # Handle specific Clerk validation errors
-        print(f"Clerk Authentication Error: {e}")
-        # e.data might contain more specific info if needed, but e.errors is often useful
-        detail = f"Clerk Auth Error: {e.errors}" if hasattr(e, 'errors') and e.errors else str(e)
-        raise HTTPException(status_code=401, detail=detail)
-    except HTTPException as e:
-        # Re-raise HTTPExceptions raised within the try block
-        raise e
+    # Keep specific Clerk error handling
+    except ClerkErrors.TokenExpiredError:
+        logger.warning("Authentication failed: Token expired")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+    except ClerkErrors.TokenInvalidError as e:
+        logger.warning(f"Authentication failed: Token invalid - {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Token invalid: {e}")
+    except ClerkErrors.APIError as e:
+        logger.error(f"Clerk API Error during authentication: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Clerk API error during authentication")
+    # Catch unexpected errors during auth
     except Exception as e:
-        # Handle unexpected errors during authentication
-        print(f"Unexpected Authentication Error: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error during authentication")
+        logger.exception("Unexpected Authentication Error") # Log full traceback for unexpected errors
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unexpected error during authentication")
 
 AuthenticatedUser = Annotated[str, Depends(get_authenticated_user_id)]
 # --------------------------------------------------------------------
@@ -121,7 +121,7 @@ async def summarize_article(
     Accepts article text and returns a TL;DR summary and key points
     generated by the DeepSeek API. Requires valid Clerk Authentication.
     """
-    print(f"User {user_id} requested summarization.")
+    logger.info(f"User {user_id} requested summarization.")
 
     if not DEEPSEEK_API_KEY:
         raise HTTPException(status_code=500, detail="DeepSeek API key not configured on server.")
@@ -206,6 +206,15 @@ Respond ONLY with the JSON object.""" # Ensure only JSON is returned
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+# Generic Exception Handler (Good Practice)
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    logger.exception(f"Unhandled exception for request {request.method} {request.url}") # Log traceback
+    return JSONResponse(
+        status_code=500,
+        content={"message": "An unexpected internal server error occurred."},
+    )
 
 # --- Run Instruction (for local development) ---
 if __name__ == "__main__":
