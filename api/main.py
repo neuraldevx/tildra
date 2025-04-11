@@ -7,8 +7,9 @@ from dotenv import load_dotenv
 from typing import Annotated
 import logging
 import google.generativeai as genai
-from clerk_backend_api import ClerkClient, ClerkErrors, RequestState
-from clerk_backend_api.api.authentication_api import AuthenticationApi
+from clerk_backend_api import ClerkClient
+from clerk_backend_api import errors as clerk_errors
+from clerk_backend_api.types import RequestState
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +25,6 @@ if not CLERK_SECRET_KEY:
     raise ValueError("CLERK_SECRET_KEY environment variable is required for authentication.")
 
 clerk_client = ClerkClient(secret_key=CLERK_SECRET_KEY)
-auth_api = AuthenticationApi(clerk_client.api_client)
 
 # Configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -59,24 +59,28 @@ app.add_middleware(
     allow_headers=["*"], # Includes Authorization
 )
 
-# --- Authentication Dependency using Clerk SDK's authenticate_request_v2 --- 
+# --- Authentication Dependency using Clerk SDK v2.x --- 
 async def get_authenticated_user_id(request: Request) -> str:
-    """Dependency to authenticate the request using Clerk's v2 method."""
+    """Dependency to authenticate the request using Clerk SDK v2.x."""
     try:
-        # Use the async v2 authentication method from the auth_api instance
-        request_state: RequestState = await auth_api.authenticate_request_v2(request=request)
+        # In v2.x, verification is often done directly on the client instance.
+        # We need to extract the token from the request headers first.
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            logger.warning("Authentication failed: Missing or malformed Bearer token")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or malformed Bearer token")
+        
+        token = auth_header.split(' ')[1]
 
-        if request_state.status != "signed_in":
-            # Handle different states like signed_out, handshake
-            detail = "Not authenticated"
-            if request_state.reason:
-                detail += f": {request_state.reason}" # e.g., SESSION_TOKEN_MISSING
-            logger.warning(f"Authentication failed: {detail}") # Log failed attempts
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+        # Verify the token using the client
+        # Note: The exact method might vary slightly in v2, consulting docs or examples
+        # is best, but `verify_token` or similar is common.
+        # This call returns the claims directly if successful.
+        claims = clerk_client.verify_token(token)
+        
+        # Access the user ID (subject claim)
+        user_id = claims.get('sub')
 
-        # Access the user ID from the claims
-        # Claims are directly available on the RequestState object
-        user_id = request_state.claims.get('sub')
         if not user_id:
             logger.error("Authentication successful but User ID (sub) not found in token claims.")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID (sub) not found in token claims")
@@ -84,15 +88,13 @@ async def get_authenticated_user_id(request: Request) -> str:
         logger.info(f"Authenticated user: {user_id}") # Log successful authentication
         return user_id
 
-    # Adjust exception handling if needed for the new library structure
-    # Checking specific error types from ClerkErrors
-    except ClerkErrors.TokenExpiredError:
+    except clerk_errors.TokenExpiredError:
         logger.warning("Authentication failed: Token expired")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
-    except ClerkErrors.TokenInvalidError as e:
+    except clerk_errors.TokenInvalidError as e:
         logger.warning(f"Authentication failed: Token invalid - {e}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Token invalid: {e}")
-    except ClerkErrors.APIError as e:
+    except clerk_errors.APIError as e:
         logger.error(f"Clerk API Error during authentication: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Clerk API error during authentication")
     except Exception as e:
