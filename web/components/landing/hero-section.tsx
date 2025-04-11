@@ -68,6 +68,7 @@ export function HeroSection() {
                   repeat: Number.POSITIVE_INFINITY,
                   repeatType: "reverse",
                   ease: "easeInOut",
+                  type: "tween"
                 }}
               >
                 <ArrowRight size={18} />
@@ -165,7 +166,12 @@ export function HeroSection() {
               rotate: [3, 2, 3],
               scale: [1.05, 1.03, 1.05],
             }}
-            transition={{ duration: 8, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+            transition={{ 
+                duration: 8, 
+                repeat: Number.POSITIVE_INFINITY, 
+                ease: "easeInOut", 
+                type: "tween"
+            }}
           ></motion.div>
         </motion.div>
       </div>
