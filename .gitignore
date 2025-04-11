@@ -10,3 +10,5 @@ api/venv/
 
 # OS generated files
 .DS_Store 
+
+web/node_modules
