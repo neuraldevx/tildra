@@ -27,6 +27,7 @@ export function Logo({ size = "md", animated = false, href = "/" }: LogoProps) {
             duration: 3,
             repeat: Number.POSITIVE_INFINITY,
             ease: "easeInOut",
+            type: "tween"
           }}
         >
           <div className="absolute inset-0 bg-gradient-to-br from-primary to-secondary opacity-90"></div>

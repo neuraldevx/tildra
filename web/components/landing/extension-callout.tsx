@@ -72,7 +72,7 @@ export function ExtensionCallout() {
                 className="absolute -top-3 -right-3 bg-yellow-400 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full"
                 initial={{ scale: 0 }}
                 animate={isInView ? { scale: 1, rotate: [0, 10, 0] } : { scale: 0 }}
-                transition={{ duration: 0.4, delay: 0.6, type: "spring" }}
+                transition={{ duration: 0.4, delay: 0.6, type: "tween" }}
               >
                 FREE
               </motion.div>
