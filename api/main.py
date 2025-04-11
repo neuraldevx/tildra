@@ -23,7 +23,7 @@ if not CLERK_SECRET_KEY:
     logger.critical("CLERK_SECRET_KEY environment variable not set")
     raise ValueError("CLERK_SECRET_KEY environment variable is required for authentication.")
 
-clerk = Clerk(secret_key=CLERK_SECRET_KEY)
+clerk = Clerk()
 
 # Configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
