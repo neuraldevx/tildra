@@ -9,7 +9,7 @@ from typing import Annotated
 # --- Clerk Backend API SDK Imports (Corrected based on docs) --- 
 # from clerk_backend_api import Clerk # We might not need the main Clerk client for just auth
 from clerk_backend_api.jwks_helpers import authenticate_request, AuthenticateRequestOptions
-from clerk_backend_api.models import ClerkAPIError # Keep error model
+from clerk_backend_api.models import ClerkErrors # Import ClerkErrors instead of ClerkAPIError based on docs
 # ---------------------------------------------------------------
 
 # Load environment variables from .env file
@@ -89,13 +89,17 @@ async def get_authenticated_user_id(request: Request) -> str:
         print(f"Authenticated user: {request_state.claims.sub}")
         return request_state.claims.sub
 
-    except ClerkAPIError as e:
+    except ClerkErrors as e: # Catch ClerkErrors instead of ClerkAPIError
+        # Handle specific Clerk validation errors
         print(f"Clerk Authentication Error: {e}")
-        raise HTTPException(status_code=401, detail=f"Clerk Auth Error: {e.errors}")
+        # e.data might contain more specific info if needed, but e.errors is often useful
+        detail = f"Clerk Auth Error: {e.errors}" if hasattr(e, 'errors') and e.errors else str(e)
+        raise HTTPException(status_code=401, detail=detail)
     except HTTPException as e:
         # Re-raise HTTPExceptions raised within the try block
         raise e
     except Exception as e:
+        # Handle unexpected errors during authentication
         print(f"Unexpected Authentication Error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error during authentication")
 
