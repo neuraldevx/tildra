@@ -1,11 +1,11 @@
 import { Webhook } from 'svix';
 import { headers } from 'next/headers';
 import { WebhookEvent } from '@clerk/nextjs/server';
-import { PrismaClient } from '@prisma/client'; // Import generated client
+// import { PrismaClient } from '@prisma/client'; // Remove direct import
+import { prisma } from '@/lib/prisma'; // Import singleton instance
 import { NextResponse } from 'next/server';
 
-// Initialize Prisma Client
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient(); // Remove direct instantiation
 
 export async function POST(req: Request) {
   // Get the necessary secret from environment variables
