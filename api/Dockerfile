@@ -45,7 +45,7 @@ CMD ["sh", "-c", "\
     echo 'Python Path (sys.path):'; python -c 'import sys; import pprint; pprint.pprint(sys.path)'; \
     echo 'Installed Packages (pip freeze):'; pip freeze; \
     echo 'Attempting Clerk import...'; \
-    python -c 'from clerk_backend_api.clerk import Clerk; print(\"SUCCESS: Clerk module imported successfully!\")' || echo 'FAILURE: Clerk module import failed!'; \
+    python -c 'from clerk_backend_api.sdk import Clerk; print(\"SUCCESS: Clerk module imported successfully!\")' || echo 'FAILURE: Clerk module import failed!'; \
     echo '--- Runtime Diagnostics End ---'; \
     echo 'Starting Uvicorn...'; \
     exec uvicorn main:app --host 0.0.0.0 --port 8000 \

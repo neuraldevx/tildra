@@ -7,8 +7,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Header, Background
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import google.generativeai as genai
-from clerk_backend_api.clerk import Clerk
-from clerk_backend_api.types.clerk_error import ClerkAPIError, ClerkSDKError
+from clerk_backend_api.sdk import Clerk
 from typing import Annotated, Optional
 
 # Local imports (if any, add here)
