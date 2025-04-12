@@ -28,9 +28,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install Node.js dependencies (including prisma CLI)
 RUN pnpm install --frozen-lockfile
 
-# Generate Prisma Client (now prisma CLI and prisma-client-py executable are both available)
+# Generate Prisma Client using Python's module execution directly
+# This avoids PATH issues between Node CLI and Python executable
 # Output location is defined in prisma/schema.prisma
-RUN pnpm dlx prisma generate --schema ./prisma/schema.prisma
+RUN python -m prisma generate --schema ./prisma/schema.prisma
 
 # Debug: List the generated client directory (relative to WORKDIR /app)
 # Expected path based on schema output = "../generated/prisma"
