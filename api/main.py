@@ -7,8 +7,11 @@ from dotenv import load_dotenv
 from typing import Annotated
 import logging
 import google.generativeai as genai
-from clerk_backend_api import Clerk
-from clerk_backend_api import models
+# --- Start Edit: Manual JWT Verification Imports ---
+import jwt # Import PyJWT
+from jwt import PyJWKClient # For fetching JWKS keys
+# --- End Edit ---
+from fastapi.responses import JSONResponse # Keep this
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +26,15 @@ if not CLERK_SECRET_KEY:
     logger.critical("CLERK_SECRET_KEY environment variable not set")
     raise ValueError("CLERK_SECRET_KEY environment variable is required for authentication.")
 
-clerk = Clerk()
+# --- Clerk JWKS Configuration (Manual Verification) ---
+# Determine this from the 'iss' claim in your JWTs
+CLERK_ISSUER = "https://actual-marmot-36.clerk.accounts.dev"
+CLERK_JWKS_URL = f"{CLERK_ISSUER}/.well-known/jwks.json"
+
+# JWK Client to fetch and cache Clerk's public keys
+# Use verify_ssl=True in production (default)
+# Add a User-Agent header as recommended practice
+jwks_client = PyJWKClient(CLERK_JWKS_URL, headers={"User-Agent": "SnipSummaryAPI/1.0"})
 
 # Configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -58,42 +69,72 @@ app.add_middleware(
     allow_headers=["*"], # Includes Authorization
 )
 
-# --- Authentication Dependency using clerk.authenticate_api.authenticate_request_v2 --- 
+# --- Authentication Dependency (Manual JWT Verification) --- 
 async def get_authenticated_user_id(request: Request) -> str:
-    """Dependency to authenticate the request using clerk.authenticate_api.authenticate_request_v2."""
+    """Dependency to authenticate the request using manual JWT verification."""
     try:
-        # Use the async v2 authentication method via the authenticate_api property
-        # Expect claims dictionary directly on success, or an exception on failure
-        claims = await clerk.authenticate_api.authenticate_request_v2(request=request)
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            logger.warning("Auth failed: Missing/malformed Bearer token")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or malformed Bearer token")
         
-        # Access the user ID from the claims
-        user_id = claims.get('sub')
+        token = auth_header.split(' ')[1]
+
+        # --- Start Edit: Manual JWT Verification Steps --- 
+        try:
+            # Get the signing key from JWKS using the kid from the token header
+            signing_key = jwks_client.get_signing_key_from_jwt(token)
+            
+            # Decode and validate the token
+            claims = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["RS256"], # Algorithm used by Clerk
+                issuer=CLERK_ISSUER, # Verify the issuer matches your Clerk instance
+                # audience= # Optional: Add audience verification if needed (e.g., your API endpoint)
+            )
+
+            # Extract user ID from the 'sub' claim
+            user_id = claims.get('sub')
+
+        except jwt.exceptions.PyJWKClientError as e:
+            logger.error(f"Auth failed: Error fetching/finding JWKS key - {e}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error retrieving signing key")
+        except jwt.exceptions.ExpiredSignatureError:
+            logger.warning("Auth failed: Token has expired")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+        except jwt.exceptions.InvalidIssuerError:
+            logger.warning("Auth failed: Invalid token issuer")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token issuer")
+        except jwt.exceptions.InvalidAudienceError:
+            logger.warning("Auth failed: Invalid token audience")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token audience")
+        except jwt.exceptions.InvalidSignatureError:
+             logger.warning("Auth failed: Token signature is invalid")
+             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token signature")
+        except jwt.exceptions.DecodeError as e:
+            logger.warning(f"Auth failed: Token decoding error - {e}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Token decode error: {e}")
+        except Exception as e: # Catch other potential errors during decode/validation
+            logger.exception(f"Auth failed: Unexpected error during JWT validation - {e}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unexpected token validation error")
+        # --- End Edit ---
 
         if not user_id:
-            # If verification succeeded but no user_id in claims
-            logger.error("Authentication successful but User ID ('sub') not found in token claims.")
-            # logger.debug(f"Clerk auth claims: {claims}") # Optional: log claims
+            # This should technically not happen if decode succeeds and 'sub' is always present
+            logger.error("Auth successful (token verified) but 'sub' claim missing.")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID ('sub' claim) not found in verified token")
 
         logger.info(f"Authenticated user: {user_id}")
         return user_id
 
-    except models.ClerkErrors as e:
-        error_detail = str(e) 
-        if hasattr(e, 'data') and e.data is not None and hasattr(e.data, 'errors') and e.data.errors:
-            try:
-                first_error = e.data.errors[0]
-                error_detail = f"{first_error.message} (Code: {first_error.code}, Meta: {first_error.meta})"
-            except (IndexError, AttributeError):
-                 pass
-        logger.warning(f"Clerk Authentication Error: {error_detail}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Authentication Error: {error_detail}")
-    except models.SDKError as e:
-        logger.error(f"Clerk SDK Error during authentication: {e.message} (Status: {e.status_code})")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Clerk SDK error: {e.message}")
+    except HTTPException as e:
+        # Re-raise HTTPExceptions raised within the try block
+        raise e
     except Exception as e:
-        logger.exception("Unexpected Authentication Error")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unexpected error during authentication")
+        # Catch errors outside the JWT validation block (e.g., header parsing)
+        logger.exception("Unexpected Authentication Error (Outer Scope)")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unexpected error during authentication setup")
 
 AuthenticatedUser = Annotated[str, Depends(get_authenticated_user_id)]
 # --------------------------------------------------------------------
@@ -211,9 +252,13 @@ async def generic_exception_handler(request: Request, exc: Exception):
         content={"message": "An unexpected internal server error occurred."},
     )
 
-# --- Run Instruction (for local development) ---
+# --- Run the server (for local development) ---
 if __name__ == "__main__":
     import uvicorn
-    print("Starting Tildra API server on http://localhost:8000")
-    print("Ensure DEEPSEEK_API_KEY and CLERK_SECRET_KEY are set in your .env file.")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
+    # Correctly check for environment variable and only then run uvicorn
+    # This prevents running locally by default when imported elsewhere or in production
+    if os.environ.get("RUN_LOCALLY") == "true":
+        logger.info("Starting server locally with reload enabled...")
+        uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    else:
+        logger.info("Not running locally, set RUN_LOCALLY=true to start development server.") 
