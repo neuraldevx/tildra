@@ -8,18 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import google.generativeai as genai
 from clerk_backend_api.sdk import Clerk
+# Import specific exceptions from the Clerk SDK
+from clerk_backend_api.errors import ClerkAPIError, ClerkSDKError
 from typing import Annotated, Optional
-
-# Define exception classes that might be missing from the Clerk SDK
-class ClerkAPIError(Exception):
-    """Custom exception for Clerk API errors"""
-    def __init__(self, message, errors=None):
-        super().__init__(message)
-        self.errors = errors or []
-
-class ClerkSDKError(Exception):
-    """Custom exception for Clerk SDK errors"""
-    pass
 
 # --- Configuration ---
 # Setup logging
@@ -69,8 +60,8 @@ async def get_authenticated_user_id(request: Request) -> str:
     """FastAPI dependency to verify Clerk token and return user ID."""
     try:
         logger.info("Attempting to authenticate request v2...")
-        # Use authenticate_request_v2 for Backend API v2
-        claims = await clerk.authenticate_api.authenticate_request_v2(request=request)
+        # Corrected call: Call authenticate_request_v2 directly on the clerk object
+        claims = await clerk.authenticate_request_v2(request=request) 
         
         # Check if claims are valid (not None and contain 'sub')
         if claims and 'sub' in claims:
