@@ -25,15 +25,18 @@ COPY api/prisma ./prisma/
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Find the Python scripts directory and add it to the PATH
-# This ensures subsequent commands can find executables installed by pip
-RUN PYTHON_SCRIPTS_PATH=$(python -c "import sysconfig; print(sysconfig.get_path('scripts'))") \
-    && echo "Python scripts path: $PYTHON_SCRIPTS_PATH"
-# Use ENV to make the PATH update persistent for subsequent RUN commands
-ENV PATH="${PYTHON_SCRIPTS_PATH}:${PATH}"
+# --- Debug: Confirm location of prisma-client-py ---
+RUN echo "Default Python scripts path: $(python -c 'import sysconfig; print(sysconfig.get_path("scripts"))')"
+RUN echo "Searching for prisma-client-py executable..."
+RUN find /usr/local -name prisma-client-py -ls || echo "prisma-client-py not found via find"
 
-# Verify prisma-client-py is now in PATH (optional debug)
-# RUN which prisma-client-py
+# Explicitly add the standard scripts path to the PATH environment variable
+# /usr/local/bin is the common location for scripts in python images
+ENV PATH="/usr/local/bin:${PATH}"
+
+# --- Debug: Check PATH and executable access BEFORE prisma generate ---
+RUN echo "Updated PATH: $PATH"
+RUN which prisma-client-py || echo "prisma-client-py STILL NOT found in PATH by which"
 
 # Install Node.js dependencies (which installs the prisma CLI locally)
 RUN pnpm install --frozen-lockfile
