@@ -16,10 +16,16 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Copy ALL application code first (including requirements, package.json, prisma schema, main.py etc.)
+# Copy ALL application code first
 COPY api/ . /app/
 
-# Install Python dependencies
+# Install Node.js dependencies (including prisma CLI)
+RUN pnpm install --frozen-lockfile
+
+# Generate Prisma Client BEFORE installing Python dependencies
+RUN pnpm dlx prisma generate --schema ./prisma/schema.prisma
+
+# Install Python dependencies (AFTER prisma generate)
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
