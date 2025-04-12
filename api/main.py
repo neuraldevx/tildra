@@ -83,17 +83,16 @@ async def get_authenticated_user_id(request: Request) -> str:
             logger.warning(f"Authentication failed: Could not decode token - {e}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Could not decode token: {e}")
 
-        # Verify the session using the Clerk sessions API
-        # This is the recommended way for backend session verification
-        session = clerk.sessions.verify_session(session_id=session_id, token=token)
+        # Verify/retrieve the session using the Clerk sessions API and the session ID
+        session = clerk.sessions.get_session(session_id=session_id)
         
         # Extract user ID from the verified session object
         user_id = session.user_id
 
         if not user_id:
-            # This case should be less likely now if verify_session succeeds
-            logger.error("Authentication successful (session verified) but could not extract User ID from session object.")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not extract User ID after session verification")
+            # This case should be less likely now if get_session succeeds
+            logger.error("Authentication successful (session retrieved) but could not extract User ID from session object.")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not extract User ID after session retrieval")
 
         logger.info(f"Authenticated user: {user_id}")
         return user_id
