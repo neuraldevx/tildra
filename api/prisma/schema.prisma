@@ -14,10 +14,10 @@ generator client_js {
 // --- Add Python Generator --- 
 generator client_py {
   provider = "prisma-client-py"
-  // Explicit output path relative to this schema file
-  output   = "../generated/prisma"
-  // You might need specific binaryTargets depending on your deployment OS
-  // For Fly.io Debian Bullseye (python:3.11-slim), debian-openssl-1.1.x is usually needed
+  # Remove explicit output path, rely on default behavior
+  # output   = "../generated/prisma" 
+  # You might need specific binaryTargets depending on your deployment OS
+  # For Fly.io Debian Bullseye (python:3.11-slim), debian-openssl-1.1.x is usually needed
   binaryTargets = ["native", "debian-openssl-1.1.x"]
 }
 // --- End Add Python Generator ---

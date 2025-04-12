@@ -25,30 +25,17 @@ COPY api/prisma ./prisma/
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# --- Debug: Confirm location of prisma-client-py ---
-RUN echo "Default Python scripts path: $(python -c 'import sysconfig; print(sysconfig.get_path("scripts"))')"
-RUN echo "Searching for prisma-client-py executable..."
-RUN find /usr/local -name prisma-client-py -ls || echo "prisma-client-py not found via find"
-
 # Explicitly add the standard scripts path to the PATH environment variable
 # /usr/local/bin is the common location for scripts in python images
 ENV PATH="/usr/local/bin:${PATH}"
-
-# --- Debug: Check PATH and executable access BEFORE prisma generate ---
-RUN echo "Updated PATH: $PATH"
-RUN which prisma-client-py || echo "prisma-client-py STILL NOT found in PATH by which"
 
 # Install Node.js dependencies (which installs the prisma CLI locally)
 RUN pnpm install --frozen-lockfile
 
 # Generate Prisma Client using the executable from the local node_modules
 # The prisma CLI should now be able to find prisma-client-py in the updated PATH
-# Output location is defined in prisma/schema.prisma
+# Output location is now the default (within site-packages/prisma)
 RUN ./node_modules/.bin/prisma generate --schema ./prisma/schema.prisma
-
-# Debug: List the generated client directory (relative to WORKDIR /app)
-# Expected path based on schema output = "../generated/prisma"
-RUN echo "Listing generated Prisma Client files within /app/generated/prisma/client:" && ls -R ./generated/prisma/client
 
 # Copy the rest of the application code
 COPY api/main.py .
