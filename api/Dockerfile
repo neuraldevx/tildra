@@ -14,6 +14,9 @@ COPY api/requirements.txt requirements.txt
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
+# --- Debug: Verify installed packages ---
+RUN echo "Installed packages:" && pip freeze
+
 # Copy the rest of the application code
 COPY api/main.py .
 # Add other necessary python files if any
