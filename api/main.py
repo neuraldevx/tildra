@@ -9,6 +9,7 @@ import logging
 import google.generativeai as genai
 from clerk_backend_api import Clerk
 from clerk_backend_api import models
+import jwt # Added for decoding
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -58,9 +59,9 @@ app.add_middleware(
     allow_headers=["*"], # Includes Authorization
 )
 
-# --- Authentication Dependency using Clerk SDK v2.x --- 
+# --- Authentication Dependency using clerk.sessions.verify_session --- 
 async def get_authenticated_user_id(request: Request) -> str:
-    """Dependency to authenticate the request using Clerk SDK v2.x."""
+    """Dependency to authenticate the request using clerk.sessions.verify_session."""
     try:
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
@@ -69,23 +70,30 @@ async def get_authenticated_user_id(request: Request) -> str:
         
         token = auth_header.split(' ')[1]
 
-        # Verify the token using the clients submodule and verify method (matching README example)
-        verify_response = clerk.clients.verify(request={"token": token})
+        # Decode the token locally (without verification) to get the session ID (sid)
+        try:
+            # Use options={'verify_signature': False} if public key isn't easily available
+            # Note: This assumes the key ID (kid) is in the header, needed by clerk.sessions.verify_session
+            decoded_token = jwt.decode(token, options={"verify_signature": False, "verify_exp": False, "verify_aud": False})
+            session_id = decoded_token.get('sid')
+            if not session_id:
+                logger.error("Authentication failed: 'sid' claim missing in token.")
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="'sid' claim missing in token")
+        except jwt.exceptions.DecodeError as e:
+            logger.warning(f"Authentication failed: Could not decode token - {e}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Could not decode token: {e}")
+
+        # Verify the session using the Clerk sessions API
+        # This is the recommended way for backend session verification
+        session = clerk.sessions.verify_session(session_id=session_id, token=token)
         
-        # Extract user ID - Still speculative based on potential response structure
-        user_id = None
-        if hasattr(verify_response, 'session') and verify_response.session and hasattr(verify_response.session, 'user_id'):
-             user_id = verify_response.session.user_id
-        # Fallback or alternative: Check if claims/subject are directly available (less likely for verify_client)
-        # elif hasattr(verify_response, 'subject'):
-        #     user_id = verify_response.subject
-        # elif hasattr(verify_response, 'claims') and verify_response.claims:
-        #     user_id = verify_response.claims.get('sub')
+        # Extract user ID from the verified session object
+        user_id = session.user_id
 
         if not user_id:
-            logger.error("Authentication successful (token verified) but could not extract User ID from response.")
-            # logger.debug(f"Clerk verify response structure: {verify_response}") # Keep this commented for now
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not extract User ID after token verification")
+            # This case should be less likely now if verify_session succeeds
+            logger.error("Authentication successful (session verified) but could not extract User ID from session object.")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not extract User ID after session verification")
 
         logger.info(f"Authenticated user: {user_id}")
         return user_id
@@ -110,7 +118,8 @@ async def get_authenticated_user_id(request: Request) -> str:
         logger.error(f"Clerk SDK Error during authentication: {e.message} (Status: {e.status_code})")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Clerk SDK error: {e.message}")
     except Exception as e:
-        logger.exception("Unexpected Authentication Error") # Log full traceback for unexpected errors
+        # Catch local decoding errors or other unexpected issues
+        logger.exception("Unexpected Authentication Error")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unexpected error during authentication")
 
 AuthenticatedUser = Annotated[str, Depends(get_authenticated_user_id)]
