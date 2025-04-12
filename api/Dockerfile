@@ -1,30 +1,13 @@
-# Stage 1: Build Node.js dependencies and generate Prisma client
-FROM node:18-slim AS builder
-
-# Install pnpm
-RUN npm install -g pnpm
-
-WORKDIR /build
-
-# Copy only package files first for better caching
-COPY api/package.json api/pnpm-lock.yaml ./
-
-# Install Node.js dependencies (including prisma CLI)
-RUN pnpm install --frozen-lockfile
-
-# Copy Prisma schema
-COPY api/prisma ./prisma/
-
-# Generate Prisma Client (Python generator in schema now defines output path)
-RUN pnpm dlx prisma generate --schema ./prisma/schema.prisma
-
-# Debug: List the contents of the explicitly generated client directory
-# Path is now relative to schema location, as defined in schema.prisma (output = "../generated/prisma")
-RUN echo "Listing generated Prisma Client files within /build/generated/prisma/client:" && ls -R ./generated/prisma/client
-
-
-# Stage 2: Final Python runtime image
+# Use an official Python runtime as a parent image
 FROM python:3.11-slim
+
+# Install Node.js and pnpm within the Python image
+RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get update && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+RUN npm install -g pnpm
 
 WORKDIR /app
 
@@ -32,25 +15,31 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install Python dependencies
+# Copy manifests and schema first for better caching
 COPY api/requirements.txt requirements.txt
+COPY api/package.json package.json
+COPY api/pnpm-lock.yaml pnpm-lock.yaml
+COPY api/prisma ./prisma/
+
+# Install Python dependencies (including prisma-client-py)
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code (excluding prisma schema, package files already handled)
+# Install Node.js dependencies (including prisma CLI)
+RUN pnpm install --frozen-lockfile
+
+# Generate Prisma Client (now prisma CLI and prisma-client-py executable are both available)
+# Output location is defined in prisma/schema.prisma
+RUN pnpm dlx prisma generate --schema ./prisma/schema.prisma
+
+# Debug: List the generated client directory (relative to WORKDIR /app)
+# Expected path based on schema output = "../generated/prisma"
+RUN echo "Listing generated Prisma Client files within /app/generated/prisma/client:" && ls -R ./generated/prisma/client
+
+# Copy the rest of the application code
 COPY api/main.py .
-# Copy any other necessary Python files from api/ here
+# Add other necessary python files if any
 # e.g. COPY api/utils.py .
-
-# Copy the generated Prisma client from the builder stage
-# Determine Python's site-packages directory
-RUN python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])" 
-# Assume standard path for python:3.11-slim
-ARG SITE_PACKAGES=/usr/local/lib/python3.11/site-packages
-
-# Copy the generated client from the explicit location defined in schema.prisma
-COPY --from=builder /build/generated/prisma/client ${SITE_PACKAGES}/prisma/client
-
 
 # Expose the port the app runs on
 EXPOSE 8000
