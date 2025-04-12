@@ -25,16 +25,26 @@ COPY api/prisma ./prisma/
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# --- Debug: Find where pip installed the prisma executable ---
-RUN echo "Finding prisma executable path:" && which prisma
+# --- Add the Python scripts directory to the PATH ---
+# Find the directory where pip installs console scripts
+RUN PYTHON_SCRIPTS_PATH=$(python -c "import sysconfig; print(sysconfig.get_path('scripts'))") \
+    && echo "Python scripts path found: $PYTHON_SCRIPTS_PATH" \
+    # Set the ENV variable for subsequent RUN/CMD commands
+    && echo "export PATH=$PYTHON_SCRIPTS_PATH:\$PATH" >> /etc/profile.d/python_scripts_path.sh \
+    # Also export for the current RUN chain
+    && export PATH=$PYTHON_SCRIPTS_PATH:$PATH
+
+# Activate the path for subsequent RUN commands in this Dockerfile stage
+ENV PATH "/app/scripts:$PATH"
+RUN . /etc/profile.d/python_scripts_path.sh
 
 # Install Node.js dependencies (including prisma CLI)
 RUN pnpm install --frozen-lockfile
 
 # Generate Prisma Client using the command installed by prisma-client-py
-# Use the full path to the executable found by 'which prisma' (likely /usr/local/bin/prisma)
+# It should now be found in the updated PATH
 # Output location is defined in prisma/schema.prisma
-RUN /usr/local/bin/prisma generate --schema ./prisma/schema.prisma
+RUN prisma generate --schema ./prisma/schema.prisma
 
 # Debug: List the generated client directory (relative to WORKDIR /app)
 # Expected path based on schema output = "../generated/prisma"
