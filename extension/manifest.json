@@ -10,7 +10,7 @@
   ],
   "host_permissions": [
     "https://snipsummary.fly.dev/*",
-    "*://*.tildra.xyz/"
+    "https://www.tildra.xyz/"
   ],
   "action": {
     "default_popup": "popup.html",
