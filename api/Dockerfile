@@ -1,14 +1,6 @@
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
-# Install Node.js and pnpm within the Python image
-RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg \
-    && rm -rf /var/lib/apt/lists/*
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get update && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-RUN npm install -g pnpm
-
 WORKDIR /app
 
 # Set environment variables
@@ -17,25 +9,10 @@ ENV PYTHONUNBUFFERED=1
 
 # Copy manifests and schema first for better caching
 COPY api/requirements.txt requirements.txt
-COPY api/package.json package.json
-COPY api/pnpm-lock.yaml pnpm-lock.yaml
-COPY api/prisma ./prisma/
 
-# Install Python dependencies (including prisma-client-py)
+# Install Python dependencies
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Explicitly add the standard scripts path to the PATH environment variable
-# /usr/local/bin is the common location for scripts in python images
-ENV PATH="/usr/local/bin:${PATH}"
-
-# Install Node.js dependencies (which installs the prisma CLI locally)
-RUN pnpm install --frozen-lockfile
-
-# Generate Prisma Client using the executable from the local node_modules
-# The prisma CLI should now be able to find prisma-client-py in the updated PATH
-# Output location is now the default (within site-packages/prisma)
-RUN ./node_modules/.bin/prisma generate --schema ./prisma/schema.prisma
 
 # Copy the rest of the application code
 COPY api/main.py .
