@@ -25,10 +25,21 @@ COPY api/prisma ./prisma/
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Find the Python scripts directory and add it to the PATH
+# This ensures subsequent commands can find executables installed by pip
+RUN PYTHON_SCRIPTS_PATH=$(python -c "import sysconfig; print(sysconfig.get_path('scripts'))") \
+    && echo "Python scripts path: $PYTHON_SCRIPTS_PATH"
+# Use ENV to make the PATH update persistent for subsequent RUN commands
+ENV PATH="${PYTHON_SCRIPTS_PATH}:${PATH}"
+
+# Verify prisma-client-py is now in PATH (optional debug)
+# RUN which prisma-client-py
+
 # Install Node.js dependencies (which installs the prisma CLI locally)
 RUN pnpm install --frozen-lockfile
 
 # Generate Prisma Client using the executable from the local node_modules
+# The prisma CLI should now be able to find prisma-client-py in the updated PATH
 # Output location is defined in prisma/schema.prisma
 RUN ./node_modules/.bin/prisma generate --schema ./prisma/schema.prisma
 
