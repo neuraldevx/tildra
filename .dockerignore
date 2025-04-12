@@ -1,0 +1,43 @@
+# Docker ignore rules
+
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Docker files
+.dockerignore
+Dockerfile* # Ignore all Dockerfiles in subdirs if not needed
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+venv/
+.venv/
+env/
+.env
+
+# Node specific
+node_modules/
+npm-debug.log*
+yarn-error.log
+pnpm-debug.log
+
+# Editor/OS specific
+.vscode/
+.idea/
+*.DS_Store
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Fly specific
+fly.toml
+
+# Add any other large files/directories specific to your project below
+# e.g., large_data_file.csv
+# e.g., models/ 
