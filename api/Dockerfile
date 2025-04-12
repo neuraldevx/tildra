@@ -25,12 +25,16 @@ COPY api/prisma ./prisma/
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
+# --- Debug: Find where pip installed the prisma executable ---
+RUN echo "Finding prisma executable path:" && which prisma
+
 # Install Node.js dependencies (including prisma CLI)
 RUN pnpm install --frozen-lockfile
 
 # Generate Prisma Client using the command installed by prisma-client-py
+# Use the full path to the executable found by 'which prisma' (likely /usr/local/bin/prisma)
 # Output location is defined in prisma/schema.prisma
-RUN prisma generate --schema ./prisma/schema.prisma
+RUN /usr/local/bin/prisma generate --schema ./prisma/schema.prisma
 
 # Debug: List the generated client directory (relative to WORKDIR /app)
 # Expected path based on schema output = "../generated/prisma"
