@@ -16,7 +16,8 @@ RUN pip install --upgrade pip
 RUN pip install --no-cache --no-cache-dir -r requirements.txt
 
 # Explicitly install clerk-backend-api with verbosity to isolate issues
-RUN pip install --no-cache --no-cache-dir -vvv clerk-backend-api>=2.0.0,<3.0.0
+# Quote the package name and version specifier to prevent shell redirection
+RUN pip install --no-cache --no-cache-dir -vvv "clerk-backend-api>=2.0.0,<3.0.0"
 
 # Copy the rest of the application code
 COPY api/main.py .
