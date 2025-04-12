@@ -12,6 +12,9 @@ import jwt # Import PyJWT
 from jwt import PyJWKClient # For fetching JWKS keys
 # --- End Edit ---
 from fastapi.responses import JSONResponse # Keep this
+# --- Start Edit: Add Prisma Import ---
+from prisma import Prisma, register
+# --- End Edit ---
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +42,11 @@ jwks_client = PyJWKClient(CLERK_JWKS_URL, headers={"User-Agent": "SnipSummaryAPI
 # Configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
+
+# --- Start Edit: Initialize Prisma --- 
+prisma = Prisma()
+register(prisma) # Register for global access if needed, or pass instance
+# --- End Edit ---
 
 # --- FastAPI App Setup ---
 app = FastAPI(
@@ -237,11 +245,31 @@ Respond ONLY with the JSON object.""" # Ensure only JSON is returned
         print(f"An unexpected error occurred: {e}")
         raise HTTPException(status_code=500, detail=f"An internal server error occurred: {e}")
 
+# --- Start Edit: Add Prisma connect/disconnect events --- 
+@app.on_event("startup")
+async def startup():
+    logger.info("Connecting to database...")
+    await prisma.connect()
+    logger.info("Database connection established.")
+
+@app.on_event("shutdown")
+async def shutdown():
+    logger.info("Disconnecting from database...")
+    await prisma.disconnect()
+    logger.info("Database connection closed.")
+# --- End Edit ---
 
 # --- Health Check Endpoint (Does not require authentication) ---
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
+@app.get("/health", status_code=status.HTTP_200_OK)
+async def health_check():
+    # Add a basic DB check if desired
+    try:
+        await prisma.user.count() # Simple query to check DB connection
+        db_status = "ok"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        db_status = "error"
+    return {"status": "ok", "database": db_status}
 
 # Generic Exception Handler (Good Practice)
 @app.exception_handler(Exception)

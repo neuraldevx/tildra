@@ -19,7 +19,7 @@ datasource db {
 
 model User {
   id        String   @id @default(cuid())
-  clerkId   String   @unique
+  clerkId   String   @unique // Clerk User ID
   email     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -29,4 +29,10 @@ model User {
   // subscriptionId       String?   @unique
   // subscriptionStatus   String?   // e.g., 'free', 'active', 'canceled'
   // subscriptionEndDate  DateTime?
+
+  // --- Start Edit: Add usage tracking fields ---
+  summariesUsed Int    @default(0)
+  summaryLimit  Int    @default(5) // Default limit for free tier
+  plan          String @default("free") // e.g., free, pro
+  // --- End Edit ---
 }

@@ -5,11 +5,34 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../generated/prisma"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// --- Application Models ---
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique // Clerk User ID
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- Subscription Fields (to be added later) ---
+  // stripeCustomerId     String?   @unique
+  // subscriptionId       String?   @unique
+  // subscriptionStatus   String?   // e.g., 'free', 'active', 'canceled'
+  // subscriptionEndDate  DateTime?
+
+  // --- Start Edit: Add usage tracking fields ---
+  summariesUsed Int    @default(0)
+  summaryLimit  Int    @default(5) // Default limit for free tier
+  plan          String @default("free") // e.g., free, pro
+  // --- End Edit ---
 }
