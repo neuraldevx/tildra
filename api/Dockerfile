@@ -37,5 +37,16 @@ COPY api/main.py .
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Define the command to run your app using uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"] 
+# --- Modified CMD for Runtime Diagnostics ---
+# Run a shell script that performs checks before executing uvicorn
+CMD ["sh", "-c", "\
+    echo '--- Runtime Diagnostics Start ---'; \
+    echo 'Python Version:'; python --version; \
+    echo 'Python Path (sys.path):'; python -c 'import sys; import pprint; pprint.pprint(sys.path)'; \
+    echo 'Installed Packages (pip freeze):'; pip freeze; \
+    echo 'Attempting Clerk import...'; \
+    python -c 'from clerk_backend_api.clerk import Clerk; print(\"SUCCESS: Clerk module imported successfully!\")' || echo 'FAILURE: Clerk module import failed!'; \
+    echo '--- Runtime Diagnostics End ---'; \
+    echo 'Starting Uvicorn...'; \
+    exec uvicorn main:app --host 0.0.0.0 --port 8000 \
+"] 
