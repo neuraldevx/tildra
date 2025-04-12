@@ -106,91 +106,100 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Inject content script to get article text
+      // --- Start Edit: Inject Readability.js file BEFORE the function --- 
       chrome.scripting.executeScript({
         target: { tabId: currentTab.id },
-        function: getArticleContent, // Function defined below or in content.js
-      },
-      async (injectionResults) => { // Make this callback async
-        // Handle errors from injection or script execution
-        if (chrome.runtime.lastError || !injectionResults || !injectionResults[0]) {
-          let errorMessage = chrome.runtime.lastError ? chrome.runtime.lastError.message : "Script injection failed.";
-          console.error("Content script error:", errorMessage);
-          // Check for common errors
-          if (errorMessage.includes("Cannot access a chrome:// URL")) {
-            errorMessage = "Cannot summarize Chrome internal pages.";
-          } else if (errorMessage.includes("Cannot access contents of the page")) {
-            errorMessage = "Cannot access this page. Check extension permissions.";
+        files: ["Readability.js"], // Inject the library file first
+      }, 
+      () => { // Callback after file injection (can be empty or check errors)
+          if (chrome.runtime.lastError) {
+              console.error("Error injecting Readability.js:", chrome.runtime.lastError.message);
+              displayError(`Failed to inject Readability library: ${chrome.runtime.lastError.message}`);
+              showLoading(false);
+              return;
           }
-          displayError(errorMessage);
-          showLoading(false);
-          return;
-        }
-
-        const result = injectionResults[0].result;
-
-        if (result.error) {
-          console.error("Error extracting content:", result.error);
-          displayError(result.error);
-          showLoading(false);
-          return;
-        }
-
-        const articleText = result.content;
-        if (!articleText || articleText.trim().length < 50) {
-          displayError("Could not extract enough content to summarize. Is this an article page?");
-          showLoading(false);
-          return;
-        }
-
-        // --- Start Edit: Get token and make authenticated API call --- 
-        let sessionToken = null;
-        try {
-          sessionToken = await getClerkSessionToken();
-          if (!sessionToken) {
-            displayError("Not logged in. Please log in to tildra.xyz first.");
-            showLoading(false);
-            return;
-          }
-        } catch (error) {
-          displayError(`Error getting auth token: ${error.message}`);
-          showLoading(false);
-          return;
-        }
-
-        // Fetch summary from backend
-        fetch(BACKEND_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionToken}` // Add the token here
+          
+          // Now that Readability.js is injected, execute the function that uses it
+          chrome.scripting.executeScript({
+              target: { tabId: currentTab.id },
+              function: getArticleContent, // This function should now find Readability
           },
-          body: JSON.stringify({ article_text: articleText })
-        })
-        // --- End Edit ---
-        .then(response => {
-          if (!response.ok) {
-            // Try to get error detail from response body if available
-            return response.json().catch(() => null).then(errorData => {
-              let detail = (errorData && errorData.detail) ? errorData.detail : `HTTP error! status: ${response.status}`;
-              throw new Error(detail);
+          async (injectionResults) => { // This is the callback for the FUNCTION injection
+            // Handle errors from injection or script execution
+            if (chrome.runtime.lastError || !injectionResults || !injectionResults[0]) {
+              let errorMessage = chrome.runtime.lastError ? chrome.runtime.lastError.message : "Script function injection failed.";
+              console.error("Content script function error:", errorMessage);
+              if (errorMessage.includes("Cannot access a chrome:// URL")) {
+                  errorMessage = "Cannot summarize Chrome internal pages.";
+              } else if (errorMessage.includes("Cannot access contents of the page")) {
+                   errorMessage = "Cannot access this page. Check extension permissions.";
+              }
+              displayError(errorMessage);
+              showLoading(false);
+              return;
+            }
+    
+            const result = injectionResults[0].result;
+    
+            if (result.error) {
+              console.error("Error extracting content:", result.error);
+              displayError(result.error);
+              showLoading(false);
+              return;
+            }
+    
+            const articleText = result.content;
+            if (!articleText || articleText.trim().length < 50) {
+              displayError("Could not extract enough content to summarize. Is this an article page?");
+              showLoading(false);
+              return;
+            }
+    
+            let sessionToken = null;
+            try {
+              sessionToken = await getClerkSessionToken();
+              if (!sessionToken) {
+                displayError("Not logged in. Please log in to tildra.xyz first.");
+                showLoading(false);
+                return;
+              }
+            } catch (error) {
+              displayError(`Error getting auth token: ${error.message}`);
+              showLoading(false);
+              return;
+            }
+    
+            fetch(BACKEND_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${sessionToken}`
+              },
+              body: JSON.stringify({ article_text: articleText })
+            })
+            .then(response => {
+              if (!response.ok) {
+                return response.json().catch(() => null).then(errorData => {
+                  let detail = (errorData && errorData.detail) ? errorData.detail : `HTTP error! status: ${response.status}`;
+                  throw new Error(detail);
+                });
+              }
+              return response.json();
+            })
+            .then(data => {
+              displaySummary(data);
+            })
+            .catch(error => {
+              console.error('Error fetching summary:', error);
+              displayError(`Failed to fetch summary: ${error.message}`);
+            })
+            .finally(() => {
+              showLoading(false);
             });
-          }
-          return response.json();
-        })
-        .then(data => {
-          displaySummary(data);
-        })
-        .catch(error => {
-          console.error('Error fetching summary:', error);
-          displayError(`Failed to fetch summary: ${error.message}`);
-        })
-        .finally(() => {
-          showLoading(false);
-        });
-      });
-    });
-  });
+        }); // End of function injection callback
+      }); // End of file injection callback
+    }); // End of tabs.query callback
+  }); // End of summarizeButton click listener
 
   // Copy button functionality
   copyButton.addEventListener('click', () => {
@@ -223,15 +232,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check if Readability is loaded *within the target page context*
     if (typeof Readability === 'undefined') {
       console.error("SnipSummary (injected): Readability library not available in this page context.");
-      // Return an error object structure
-      return { error: "Readability library not loaded on the page.", content: null }; 
+      return { error: "Readability library could not be loaded/injected.", content: null }; 
     }
 
     try {
       const documentClone = document.cloneNode(true);
       const reader = new Readability(documentClone, { 
-        // Optional: You might want to disable debug logging
-        // debug: true 
+          // debug: true // Optional: Enable for debugging Readability itself
       });
       const article = reader.parse();
 
@@ -239,17 +246,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return { error: null, content: article.textContent };
       } else {
         console.warn("SnipSummary (injected): Readability could not parse article content.");
-        // Fallback logic (keep it simple for injection)
         const mainElement = document.querySelector('main');
         let fallbackContent = document.body ? document.body.innerText : '';
         if (mainElement && mainElement.innerText) {
           fallbackContent = mainElement.innerText;
         }
-        return { error: "Readability could not parse effectively.", content: fallbackContent }; // Still return content if fallback worked
+        return { error: "Readability could not parse effectively.", content: fallbackContent }; 
       }
     } catch (e) {
       console.error("SnipSummary (injected): Error during Readability parsing:", e);
-      // Fallback in case of error
       let fallbackContent = document.body ? document.body.innerText : '';
       const mainElement = document.querySelector('main');
       if (mainElement && mainElement.innerText) {
