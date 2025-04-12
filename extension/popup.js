@@ -1,6 +1,7 @@
 // This script runs in the context of the extension's popup.
 
-document.addEventListener('DOMContentLoaded', function() {
+// Wait for the DOM to be fully loaded before running script logic
+document.addEventListener('DOMContentLoaded', () => {
   const summarizeButton = document.getElementById('summarize');
   const loadingSpinner = document.getElementById('loadingSpinner');
   const summaryDiv = document.getElementById('summary');
@@ -44,7 +45,10 @@ document.addEventListener('DOMContentLoaded', function() {
   function clearState() {
     summaryDiv.style.display = 'none';
     errorDiv.style.display = 'none';
-    copyButton.disabled = false;
+    copyButton.disabled = false; // Re-enable copy button if it was disabled
+    copyButton.style.display = 'none'; // Hide copy button initially
+    tldrSection.textContent = '';
+    keyPointsList.innerHTML = '';
   }
 
   // --- Start Edit: Add function to get Clerk session cookie --- 
@@ -199,6 +203,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // This function will be injected into the active tab
   function getArticleContent() {
-    // ... (existing code)
+    // Check if Readability is loaded *within the target page context*
+    if (typeof Readability === 'undefined') {
+      console.error("SnipSummary (injected): Readability library not available in this page context.");
+      // Return an error object structure
+      return { error: "Readability library not loaded on the page.", content: null }; 
+    }
+
+    try {
+      const documentClone = document.cloneNode(true);
+      const reader = new Readability(documentClone, { 
+        // Optional: You might want to disable debug logging
+        // debug: true 
+      });
+      const article = reader.parse();
+
+      if (article && article.textContent) {
+        return { error: null, content: article.textContent };
+      } else {
+        console.warn("SnipSummary (injected): Readability could not parse article content.");
+        // Fallback logic (keep it simple for injection)
+        const mainElement = document.querySelector('main');
+        let fallbackContent = document.body ? document.body.innerText : '';
+        if (mainElement && mainElement.innerText) {
+          fallbackContent = mainElement.innerText;
+        }
+        return { error: "Readability could not parse effectively.", content: fallbackContent }; // Still return content if fallback worked
+      }
+    } catch (e) {
+      console.error("SnipSummary (injected): Error during Readability parsing:", e);
+      // Fallback in case of error
+      let fallbackContent = document.body ? document.body.innerText : '';
+      const mainElement = document.querySelector('main');
+      if (mainElement && mainElement.innerText) {
+        fallbackContent = mainElement.innerText;
+      }
+      return { error: `Readability parsing failed: ${e.message}`, content: fallbackContent }; 
+    }
   }
 }); 
