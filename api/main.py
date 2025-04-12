@@ -9,7 +9,6 @@ import logging
 import google.generativeai as genai
 from clerk_backend_api import Clerk
 from clerk_backend_api import models
-from clerk_backend_api.types import RequestState
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -64,22 +63,16 @@ async def get_authenticated_user_id(request: Request) -> str:
     """Dependency to authenticate the request using clerk.authenticate_api.authenticate_request_v2."""
     try:
         # Use the async v2 authentication method via the authenticate_api property
-        request_state: RequestState = await clerk.authenticate_api.authenticate_request_v2(request=request)
-
-        if request_state.status != "signed_in":
-            # Handle different states like signed_out, handshake
-            detail = "Not authenticated"
-            if request_state.reason:
-                detail += f": {request_state.reason}" # e.g., SESSION_TOKEN_MISSING
-            logger.warning(f"Authentication failed: {detail}") 
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
-
+        # Expect claims dictionary directly on success, or an exception on failure
+        claims = await clerk.authenticate_api.authenticate_request_v2(request=request)
+        
         # Access the user ID from the claims
-        user_id = request_state.claims.get('sub')
+        user_id = claims.get('sub')
 
         if not user_id:
             # If verification succeeded but no user_id in claims
             logger.error("Authentication successful but User ID ('sub') not found in token claims.")
+            # logger.debug(f"Clerk auth claims: {claims}") # Optional: log claims
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID ('sub' claim) not found in verified token")
 
         logger.info(f"Authenticated user: {user_id}")
