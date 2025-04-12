@@ -10,7 +10,16 @@ import google.generativeai as genai
 from clerk_backend_api.sdk import Clerk
 from typing import Annotated, Optional
 
-# Local imports (if any, add here)
+# Define exception classes that might be missing from the Clerk SDK
+class ClerkAPIError(Exception):
+    """Custom exception for Clerk API errors"""
+    def __init__(self, message, errors=None):
+        super().__init__(message)
+        self.errors = errors or []
+
+class ClerkSDKError(Exception):
+    """Custom exception for Clerk SDK errors"""
+    pass
 
 # --- Configuration ---
 # Setup logging
