@@ -20,4 +20,3 @@ urllib3==2.3.0
 uvicorn[standard]
 clerk-backend-api==2.0.2
 google-generativeai
-PyJWT
