@@ -15,12 +15,12 @@ RUN pnpm install --frozen-lockfile
 # Copy Prisma schema
 COPY api/prisma ./prisma/
 
-# Generate Prisma Client to an explicit location
-RUN pnpm dlx prisma generate --schema ./prisma/schema.prisma --output ./generated_prisma_client
+# Generate Prisma Client (Python generator in schema now defines output path)
+RUN pnpm dlx prisma generate --schema ./prisma/schema.prisma
 
 # Debug: List the contents of the explicitly generated client directory
-# Fail the build if this directory doesn't exist or ls fails
-RUN echo "Listing generated Prisma Client files within /build/generated_prisma_client:" && ls -R ./generated_prisma_client
+# Path is now relative to schema location, as defined in schema.prisma (output = "../generated/prisma")
+RUN echo "Listing generated Prisma Client files within /build/generated/prisma/client:" && ls -R ./generated/prisma/client
 
 
 # Stage 2: Final Python runtime image
@@ -48,8 +48,8 @@ RUN python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
 # Assume standard path for python:3.11-slim
 ARG SITE_PACKAGES=/usr/local/lib/python3.11/site-packages
 
-# Copy the generated client from the explicit location in the builder stage
-COPY --from=builder /build/generated_prisma_client ${SITE_PACKAGES}/prisma/client
+# Copy the generated client from the explicit location defined in schema.prisma
+COPY --from=builder /build/generated/prisma/client ${SITE_PACKAGES}/prisma/client
 
 
 # Expose the port the app runs on
