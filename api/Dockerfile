@@ -18,16 +18,8 @@ COPY api/prisma ./prisma/
 # Generate Prisma Client
 RUN pnpm dlx prisma generate --schema ./prisma/schema.prisma
 
-# --- Optional: Add a command to list generated files for debugging during build ---
-# RUN ls -l /usr/local/lib/python3.11/site-packages/prisma # Adjust path if necessary
-# RUN ls -l /usr/local/lib/python3.11/site-packages/prisma/client # Adjust path if necessary
-# Note: The path to site-packages might differ in the node image vs python image.
-# We are primarily interested in the *existence* of generated files here,
-# and the copy step below assumes they are generated *within* the pnpm structure.
-# A common location after generation is within node_modules/prisma/client/...
-# Let's list the default prisma client location for inspection during build:
-RUN echo "Listing generated Prisma Client files within node_modules:" && ls -R ./node_modules/prisma/client || echo "Prisma client not found in node_modules"
-RUN echo "Listing generated Prisma Client files directly within prisma directory (less likely):" && ls -R ./prisma/client || echo "Prisma client not found directly in prisma dir"
+# Debug: List the contents of the expected generated client directory
+RUN echo "Listing generated Prisma Client files within /build/prisma/client:" && ls -R ./prisma/client || echo "Prisma client not found in /build/prisma/client"
 
 
 # Stage 2: Final Python runtime image
@@ -50,20 +42,18 @@ COPY api/main.py .
 # e.g. COPY api/utils.py .
 
 # Copy the generated Prisma client from the builder stage
-# The location within the 'builder' stage's node_modules is standard for prisma generate
-# The target location needs to be the Python site-packages directory
-# We need to find the exact site-packages path for python3.11-slim
-# Let's determine it dynamically during the build
-RUN python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
-# The above command will print the path, e.g., /usr/local/lib/python3.11/site-packages
-# We need to capture this path. Let's assume it's the standard path for now:
+# Determine Python's site-packages directory
+RUN python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])" 
+# Assume standard path for python:3.11-slim
 ARG SITE_PACKAGES=/usr/local/lib/python3.11/site-packages
-COPY --from=builder /build/node_modules/prisma/client ${SITE_PACKAGES}/prisma/client
-# Also copy the base prisma package files potentially needed
-COPY --from=builder /build/node_modules/prisma/__init__.py ${SITE_PACKAGES}/prisma/__init__.py
-COPY --from=builder /build/node_modules/prisma/errors.py ${SITE_PACKAGES}/prisma/errors.py
-COPY --from=builder /build/node_modules/prisma/utils.py ${SITE_PACKAGES}/prisma/utils.py
-# Add any other essential base files if import errors occur later
+
+# Copy the generated client from the location relative to the schema in the builder stage
+COPY --from=builder /build/prisma/client ${SITE_PACKAGES}/prisma/client
+
+# Remove unnecessary copy commands for base files (should be installed by pip)
+# COPY --from=builder /build/node_modules/prisma/__init__.py ${SITE_PACKAGES}/prisma/__init__.py
+# COPY --from=builder /build/node_modules/prisma/errors.py ${SITE_PACKAGES}/prisma/errors.py
+# COPY --from=builder /build/node_modules/prisma/utils.py ${SITE_PACKAGES}/prisma/utils.py
 
 
 # Expose the port the app runs on
