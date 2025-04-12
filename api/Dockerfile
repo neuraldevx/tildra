@@ -12,7 +12,11 @@ COPY api/requirements.txt requirements.txt
 
 # Install Python dependencies
 RUN pip install --upgrade pip
-RUN pip install --no-cache --no-cache-dir -vvv -r requirements.txt
+# Install from requirements file (remove verbosity here)
+RUN pip install --no-cache --no-cache-dir -r requirements.txt
+
+# Explicitly install clerk-backend-api with verbosity to isolate issues
+RUN pip install --no-cache --no-cache-dir -vvv clerk-backend-api>=2.0.0,<3.0.0
 
 # Copy the rest of the application code
 COPY api/main.py .
