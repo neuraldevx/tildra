@@ -2,19 +2,36 @@
 
 // Wait for the DOM to be fully loaded before running script logic
 document.addEventListener('DOMContentLoaded', () => {
-  const summarizeButton = document.getElementById('summarize');
+  const summarizeButton = document.getElementById('summarize-button');
   const loadingSpinner = document.getElementById('loadingSpinner');
   const summaryDiv = document.getElementById('summary');
   const tldrSection = document.getElementById('tldr');
   const keyPointsList = document.getElementById('keyPoints');
   const errorDiv = document.getElementById('error');
-  const copyButton = document.getElementById('copySummary');
+  const copyButton = document.getElementById('copy-button');
 
   // Set based on your deployed backend URL
   // Ensure this matches the host_permissions in manifest.json
   const BACKEND_URL = 'https://snipsummary.fly.dev/summarize'; 
   const COOKIE_DOMAIN_URL = 'https://www.tildra.xyz'; // Domain where the auth cookie is set
   const COOKIE_NAME = '__session'; // Clerk's session cookie name
+
+  // --- Start Edit: Add checks for element existence --- 
+  if (!summarizeButton) {
+      console.error("Error: Could not find element with ID 'summarize-button'");
+      return; // Stop execution if button isn't found
+  }
+  if (!copyButton) {
+      console.error("Error: Could not find element with ID 'copy-button'");
+      // Decide if this is critical - maybe copy functionality isn't essential?
+      // return;
+  }
+  if (!loadingSpinner || !summaryDiv || !tldrSection || !keyPointsList || !errorDiv) {
+      console.error("Error: One or more required UI elements not found.");
+      // This is likely critical, stop execution
+      return;
+  }
+  // --- End Edit ---
 
   // Function to show loading state
   function showLoading(isLoading) {
