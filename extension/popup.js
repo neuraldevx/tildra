@@ -3,10 +3,10 @@
 // Wait for the DOM to be fully loaded before running script logic
 document.addEventListener('DOMContentLoaded', () => {
   const summarizeButton = document.getElementById('summarize-button');
-  const loadingSpinner = document.getElementById('loadingSpinner');
-  const summaryDiv = document.getElementById('summary');
+  const loadingSpinner = document.getElementById('loading');
+  const summaryDiv = document.getElementById('summary-container');
   const tldrSection = document.getElementById('tldr');
-  const keyPointsList = document.getElementById('keyPoints');
+  const keyPointsList = document.getElementById('key-points');
   const errorDiv = document.getElementById('error');
   const copyButton = document.getElementById('copy-button');
 
