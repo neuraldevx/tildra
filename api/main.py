@@ -220,13 +220,15 @@ async def summarize_article(
         # Re-check limit after potential reset
         if user.summariesUsed >= user.summaryLimit:
             logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
-            raise HTTPException(status_code=429, detail=f"Monthly summary limit ({user.summaryLimit}) reached for your '{user.plan}' plan.")
+            # Directly raise the 429 error here. It will be caught by FastAPI's default handlers.
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Monthly summary limit ({user.summaryLimit}) reached for your '{user.plan}' plan.") # Use standard status constant
         else:
              logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
 
     except Exception as db_error:
         logger.error(f"Database error during usage check for Clerk ID {user_clerk_id}: {db_error}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error checking user usage limits.")
+        # Raise a 500 error specifically for unexpected DB issues during the check
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error checking user usage limits.")
     # --- End Usage Limit Check ---
     
     # --- Proceed with Summarization --- 
@@ -300,10 +302,10 @@ async def summarize_article(
 
     except httpx.RequestError as e:
         logger.error(f"Error sending request to DeepSeek: {e}", exc_info=True)
-        raise HTTPException(status_code=503, detail=f"Could not connect to summarization service: {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Could not connect to summarization service: {e}")
     except Exception as e:
         logger.error(f"Error during summarization (DeepSeek) for user {user_clerk_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to generate summary: {e}")
 
 # Health check endpoint
 @app.get("/health")

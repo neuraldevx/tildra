@@ -179,9 +179,19 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(response => {
               if (!response.ok) {
-                return response.json().catch(() => null).then(errorData => {
-                  let detail = (errorData && errorData.detail) ? errorData.detail : `HTTP error! status: ${response.status}`;
+                // Try to parse JSON error detail, otherwise use status text
+                return response.json().then(errorData => {
+                  // Use the specific detail from API if available
+                  let detail = (errorData && errorData.detail) 
+                                ? errorData.detail 
+                                : `Request failed: ${response.statusText} (Status: ${response.status})`;
+                  // Log the specific error for debugging
+                  console.error(`API Error Response (${response.status}):`, errorData || response.statusText);
                   throw new Error(detail);
+                }).catch(jsonParseError => {
+                  // If parsing JSON fails, use the status text
+                  console.error("Failed to parse JSON error response:", jsonParseError);
+                  throw new Error(`Request failed: ${response.statusText} (Status: ${response.status})`);
                 });
               }
               return response.json();
@@ -189,9 +199,10 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
               displaySummary(data);
             })
-            .catch(error => {
+            .catch(error => { // This will catch errors thrown above or network errors
               console.error('Error fetching summary:', error);
-              displayError(`Failed to fetch summary: ${error.message}`);
+              // Display the specific error message (from API detail or status text)
+              displayError(`Error: ${error.message}`); 
             })
             .finally(() => {
               showLoading(false);
