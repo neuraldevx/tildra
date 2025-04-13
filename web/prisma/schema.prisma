@@ -1,8 +1,5 @@
 generator client {
-          provider = "prisma-client-js" // Changed back to JS
-          // Add back any specific output path or binaryTargets if your frontend setup needs them
-          // Example: output = "../app/generated/prisma"
-          // Example: binaryTargets = ["native", "debian-openssl-3.0.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -10,6 +7,8 @@ datasource db {
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+
+// /Users/jakechristensen/snipsummary/prisma/schema.prisma
 
 model User {
   id            String   @id
@@ -19,5 +18,6 @@ model User {
   updatedAt     DateTime @updatedAt
   plan          String   @default("free")
   summariesUsed Int      @default(0)
-  summaryLimit  Int      @default(5)
+  summaryLimit  Int      @default(10) // <-- Corrected default
+  usageResetAt  DateTime @default(now()) @map("usageResetAt") // <-- Added this line
 }
