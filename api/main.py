@@ -2,6 +2,7 @@
 import os
 import logging
 import json # For parsing DeepSeek response
+from datetime import datetime, timezone, timedelta # For usage reset logic
 
 # Third-party imports
 from fastapi import FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, status
@@ -15,6 +16,10 @@ from jwt import PyJWKClient # For fetching JWKS keys
 # --- End Edit ---
 from typing import Annotated, Optional
 
+# --- Prisma Client Import ---
+from prisma import Prisma
+# --------------------------
+
 # --- Configuration ---
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +27,24 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI()
+
+# --- Prisma Initialization ---
+# Instantiate Prisma Client outside endpoint functions for reuse
+prisma = Prisma()
+
+# --- App Lifecycle for Prisma Connection ---
+@app.on_event("startup")
+async def startup():
+    logger.info("Connecting to database...")
+    await prisma.connect()
+    logger.info("Database connection established.")
+
+@app.on_event("shutdown")
+async def shutdown():
+    logger.info("Disconnecting from database...")
+    await prisma.disconnect()
+    logger.info("Database connection closed.")
+# -----------------------------------------
 
 # --- Clerk JWKS Configuration (Manual Verification) ---
 # Determine this from the 'iss' claim in your JWTs
@@ -130,11 +153,22 @@ async def get_authenticated_user_id(request: Request) -> str:
 AuthenticatedUserId = Annotated[str, Depends(get_authenticated_user_id)]
 
 # --- Background Tasks ---
-def track_summary_usage(user_id: str):
-    """Placeholder for tracking summary usage (e.g., update Clerk metadata)."""
-    logger.info(f"[Usage Tracking - Placeholder] Summary generated for user: {user_id}")
-    # TODO: Implement actual usage tracking, e.g., using Clerk update_user_metadata or Prisma update
-    pass
+async def track_summary_usage(user_clerk_id: str):
+    """Increments the summary usage count for the user in the database."""
+    try:
+        logger.info(f"[Usage Tracking] Attempting to increment usage for Clerk ID: {user_clerk_id}")
+        updated_user = await prisma.user.update(
+            where={"clerkId": user_clerk_id},
+            data={"summariesUsed": {"increment": 1}}
+        )
+        if updated_user:
+             logger.info(f"[Usage Tracking] Successfully incremented usage for Clerk ID: {user_clerk_id}. New count: {updated_user.summariesUsed}")
+        else:
+             # This case should be rare if user exists from check in main endpoint
+             logger.error(f"[Usage Tracking] Failed to increment usage: User not found for Clerk ID: {user_clerk_id}")
+    except Exception as e:
+        # Log error but don't crash the main request
+        logger.error(f"[Usage Tracking] Error incrementing usage count for Clerk ID {user_clerk_id}: {e}", exc_info=True)
 
 # --- API Endpoints ---
 @app.get("/")
@@ -144,15 +178,58 @@ def read_root():
 @app.post("/summarize", response_model=SummarizeResponse)
 async def summarize_article(
     request_data: SummarizeRequest,
-    user_id: AuthenticatedUserId, # Injects the validated user ID
+    user_clerk_id: AuthenticatedUserId, # Renamed for clarity (this is Clerk ID)
     background_tasks: BackgroundTasks
 ):
     """Receives article text, generates summary and key points using DeepSeek API."""
-    logger.info(f"Received summarize request for user: {user_id}")
+    logger.info(f"Received summarize request for Clerk ID: {user_clerk_id}")
 
     if not DEEPSEEK_API_KEY:
         raise HTTPException(status_code=500, detail="API key for summarization service (DeepSeek) not configured.")
 
+    # --- Usage Limit Check --- 
+    try:
+        logger.debug(f"Checking usage limits for Clerk ID: {user_clerk_id}")
+        user = await prisma.user.find_unique(where={"clerkId": user_clerk_id})
+
+        if not user:
+            # This might happen if webhook hasn't processed yet or failed
+            logger.error(f"Usage check failed: User not found in DB for Clerk ID: {user_clerk_id}")
+            raise HTTPException(status_code=403, detail="User profile not found. Please try again shortly.")
+
+        now = datetime.now(timezone.utc)
+        # Calculate the start of the current month in UTC
+        start_of_current_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        needs_reset = False
+        if user.usageResetAt < start_of_current_month:
+            logger.info(f"Usage period expired for Clerk ID: {user_clerk_id}. Resetting count.")
+            needs_reset = True
+            # Update user record to reset count and date
+            user = await prisma.user.update(
+                where={"clerkId": user_clerk_id},
+                data={
+                    "summariesUsed": 0,
+                    "usageResetAt": now
+                }
+            )
+            if not user: # Should not happen if found initially, but safety check
+                 logger.error(f"Failed to reset usage for Clerk ID: {user_clerk_id}. User disappeared?")
+                 raise HTTPException(status_code=500, detail="Failed to update user usage data.")
+        
+        # Re-check limit after potential reset
+        if user.summariesUsed >= user.summaryLimit:
+            logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
+            raise HTTPException(status_code=429, detail=f"Monthly summary limit ({user.summaryLimit}) reached for your '{user.plan}' plan.")
+        else:
+             logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
+
+    except Exception as db_error:
+        logger.error(f"Database error during usage check for Clerk ID {user_clerk_id}: {db_error}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error checking user usage limits.")
+    # --- End Usage Limit Check ---
+    
+    # --- Proceed with Summarization --- 
     try:
         # Construct the prompt for DeepSeek
         # Note: DeepSeek expects a list of messages (system, user)
@@ -217,7 +294,7 @@ async def summarize_article(
             raise HTTPException(status_code=500, detail="Failed to parse summary response from AI.")
 
         # Add usage tracking as a background task
-        background_tasks.add_task(track_summary_usage, user_id)
+        background_tasks.add_task(track_summary_usage, user_clerk_id)
 
         return summary_data
 
@@ -225,7 +302,7 @@ async def summarize_article(
         logger.error(f"Error sending request to DeepSeek: {e}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"Could not connect to summarization service: {e}")
     except Exception as e:
-        logger.error(f"Error during summarization (DeepSeek) for user {user_id}: {e}", exc_info=True)
+        logger.error(f"Error during summarization (DeepSeek) for user {user_clerk_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate summary: {e}")
 
 # Health check endpoint
