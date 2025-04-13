@@ -12,11 +12,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Set based on your deployed backend URL
   // Ensure this matches the host_permissions in manifest.json
-  const BACKEND_URL = 'https://snipsummary.fly.dev/summarize'; 
+  const BACKEND_URL = 'https://snipsummary.fly.dev/summarize';
   const COOKIE_DOMAIN_URL = 'https://www.tildra.xyz'; // Domain where the auth cookie is set
   const COOKIE_NAME = '__session'; // Clerk's session cookie name
 
-  // --- Start Edit: Add checks for element existence --- 
+  // --- Start Edit: Add checks for element existence ---
   if (!summarizeButton) {
       console.error("Error: Could not find element with ID 'summarize-button'");
       return; // Stop execution if button isn't found
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
     keyPointsList.innerHTML = '';
   }
 
-  // --- Start Edit: Add function to get Clerk session cookie --- 
+  // --- Start Edit: Add function to get Clerk session cookie ---
   async function getClerkSessionToken() {
     return new Promise((resolve, reject) => {
       if (!chrome || !chrome.cookies) {
@@ -106,11 +106,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // --- Start Edit: Inject Readability.js file BEFORE the function --- 
+      // --- Start Edit: Inject Readability.js file BEFORE the function ---
       chrome.scripting.executeScript({
         target: { tabId: currentTab.id },
         files: ["Readability.js"], // Inject the library file first
-      }, 
+      },
       () => { // Callback after file injection (can be empty or check errors)
           if (chrome.runtime.lastError) {
               console.error("Error injecting Readability.js:", chrome.runtime.lastError.message);
@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
               showLoading(false);
               return;
           }
-          
+
           // Now that Readability.js is injected, execute the function that uses it
           chrome.scripting.executeScript({
               target: { tabId: currentTab.id },
@@ -138,23 +138,23 @@ document.addEventListener('DOMContentLoaded', () => {
               showLoading(false);
               return;
             }
-    
+
             const result = injectionResults[0].result;
-    
+
             if (result.error) {
               console.error("Error extracting content:", result.error);
               displayError(result.error);
               showLoading(false);
               return;
             }
-    
+
             const articleText = result.content;
             if (!articleText || articleText.trim().length < 50) {
               displayError("Could not extract enough content to summarize. Is this an article page?");
               showLoading(false);
               return;
             }
-    
+
             let sessionToken = null;
             try {
               sessionToken = await getClerkSessionToken();
@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
               showLoading(false);
               return;
             }
-    
+
             fetch(BACKEND_URL, {
               method: 'POST',
               headers: {
@@ -179,30 +179,38 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(response => {
               if (!response.ok) {
-                // Try to parse JSON error detail, otherwise use status text
-                return response.json().then(errorData => {
-                  // Use the specific detail from API if available
-                  let detail = (errorData && errorData.detail) 
-                                ? errorData.detail 
-                                : `Request failed: ${response.statusText} (Status: ${response.status})`;
-                  // Log the specific error for debugging
-                  console.error(`API Error Response (${response.status}):`, errorData || response.statusText);
-                  throw new Error(detail);
-                }).catch(jsonParseError => {
-                  // If parsing JSON fails, use the status text
-                  console.error("Failed to parse JSON error response:", jsonParseError);
-                  throw new Error(`Request failed: ${response.statusText} (Status: ${response.status})`);
-                });
+                // If response is not ok, reject the promise with the response object
+                // This allows the catch block to handle error details
+                return Promise.reject(response);
               }
-              return response.json();
+              return response.json(); // Only parse JSON on success
             })
             .then(data => {
               displaySummary(data);
             })
-            .catch(error => { // This will catch errors thrown above or network errors
-              console.error('Error fetching summary:', error);
-              // Display the specific error message (from API detail or status text)
-              displayError(`Error: ${error.message}`); 
+            .catch(async errorOrResponse => { // Catch network errors or the rejected response object
+              let errorMessage = 'Failed to fetch summary: Unknown error'; // Default message
+
+              if (errorOrResponse instanceof Response) { // Check if it's the Response object we rejected
+                const response = errorOrResponse;
+                try {
+                  const errorData = await response.json(); // Try parsing the error body
+                  // Use API detail if available, otherwise construct message from status
+                  errorMessage = (errorData && errorData.detail)
+                    ? errorData.detail
+                    : `Request failed: ${response.statusText} (Status: ${response.status})`;
+                  console.error(`API Error Response (${response.status}):`, errorData || response.statusText);
+                } catch (parseError) { // Handle cases where the error body wasn't valid JSON
+                  errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
+                  console.error("Failed to parse JSON error response:", parseError, response.statusText);
+                }
+              } else if (errorOrResponse instanceof Error) { // Handle network errors or errors thrown earlier
+                errorMessage = errorOrResponse.message;
+                console.error('Error fetching summary:', errorOrResponse);
+              }
+
+              // Display the determined error message
+              displayError(`Error: ${errorMessage}`);
             })
             .finally(() => {
               showLoading(false);
@@ -219,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const textToCopy = `TL;DR:\n${summary}\n\nKey Points:\n${points}`;
 
     navigator.clipboard.writeText(textToCopy).then(() => {
-      // --- Visual Feedback --- 
+      // --- Visual Feedback ---
       const originalIcon = copyButton.innerHTML; // Store original SVG
       // Replace with a checkmark icon (example SVG)
       copyButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
@@ -243,12 +251,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check if Readability is loaded *within the target page context*
     if (typeof Readability === 'undefined') {
       console.error("SnipSummary (injected): Readability library not available in this page context.");
-      return { error: "Readability library could not be loaded/injected.", content: null }; 
+      return { error: "Readability library could not be loaded/injected.", content: null };
     }
 
     try {
       const documentClone = document.cloneNode(true);
-      const reader = new Readability(documentClone, { 
+      const reader = new Readability(documentClone, {
           // debug: true // Optional: Enable for debugging Readability itself
       });
       const article = reader.parse();
@@ -262,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mainElement && mainElement.innerText) {
           fallbackContent = mainElement.innerText;
         }
-        return { error: "Readability could not parse effectively.", content: fallbackContent }; 
+        return { error: "Readability could not parse effectively.", content: fallbackContent };
       }
     } catch (e) {
       console.error("SnipSummary (injected): Error during Readability parsing:", e);
@@ -271,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (mainElement && mainElement.innerText) {
         fallbackContent = mainElement.innerText;
       }
-      return { error: `Readability parsing failed: ${e.message}`, content: fallbackContent }; 
+      return { error: `Readability parsing failed: ${e.message}`, content: fallbackContent };
     }
   }
-}); 
+});
