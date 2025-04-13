@@ -20,12 +20,12 @@ web/node_modules
 /pnpm-lock.yaml
 
 # OS generated files
-.DS_Store 
+.DS_Store
 
 # App auth api keys
-# app/.env.local # Old path, keep commented or remove
+app/.env.local # Old path, keep commented or remove
 
 # Web auth api keys
-# web/node_modules # Covered above
-# web/.env # Covered above
-# web/.env.local # Covered above
+web/node_modules # Covered above
+web/.env # Covered above
+web/.env.local # Covered above.secrets.baseline
