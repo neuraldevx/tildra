@@ -11,7 +11,7 @@ datasource db {
 // /Users/jakechristensen/snipsummary/prisma/schema.prisma
 
 model User {
-  id            String   @id
+  id            String   @id @default(cuid())
   clerkId       String   @unique
   email         String   @unique
   createdAt     DateTime @default(now())
