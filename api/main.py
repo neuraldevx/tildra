@@ -91,7 +91,7 @@ class SummarizeResponse(BaseModel):
     tldr: str
     key_points: list[str]
 
-# --- Authentication Dependency (Manual JWT Verification) --- 
+# --- Authentication Dependency (Manual JWT Verification) ---
 async def get_authenticated_user_id(request: Request) -> str:
     """Dependency to authenticate the request using manual JWT verification."""
     auth_header = request.headers.get('Authorization')
@@ -101,11 +101,11 @@ async def get_authenticated_user_id(request: Request) -> str:
 
     token = auth_header.split(' ')[1]
 
-    # --- Start Edit: Manual JWT Verification Steps --- 
+    # --- Start Edit: Manual JWT Verification Steps ---
     try:
         # Get the signing key from JWKS using the kid from the token header
         signing_key = jwks_client.get_signing_key_from_jwt(token)
-        
+
         # Decode and validate the token
         claims = jwt.decode(
             token,
@@ -187,24 +187,22 @@ async def summarize_article(
     if not DEEPSEEK_API_KEY:
         raise HTTPException(status_code=500, detail="API key for summarization service (DeepSeek) not configured.")
 
-    # --- Usage Limit Check --- 
+    # --- Usage Limit Check ---
+    user = None # Initialize user variable
     try:
-        logger.debug(f"Checking usage limits for Clerk ID: {user_clerk_id}")
+        logger.debug(f"Checking database for Clerk ID: {user_clerk_id}")
         user = await prisma.user.find_unique(where={"clerkId": user_clerk_id})
 
         if not user:
-            # This might happen if webhook hasn't processed yet or failed
             logger.error(f"Usage check failed: User not found in DB for Clerk ID: {user_clerk_id}")
-            raise HTTPException(status_code=403, detail="User profile not found. Please try again shortly.")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User profile not found. Please try again shortly.")
 
+        # Check for monthly reset ONLY if the user was found successfully
         now = datetime.now(timezone.utc)
-        # Calculate the start of the current month in UTC
         start_of_current_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        
-        needs_reset = False
+
         if user.usageResetAt < start_of_current_month:
             logger.info(f"Usage period expired for Clerk ID: {user_clerk_id}. Resetting count.")
-            needs_reset = True
             # Update user record to reset count and date
             user = await prisma.user.update(
                 where={"clerkId": user_clerk_id},
@@ -213,28 +211,29 @@ async def summarize_article(
                     "usageResetAt": now
                 }
             )
-            if not user: # Should not happen if found initially, but safety check
-                 logger.error(f"Failed to reset usage for Clerk ID: {user_clerk_id}. User disappeared?")
-                 raise HTTPException(status_code=500, detail="Failed to update user usage data.")
-        
-        # Re-check limit after potential reset
-        if user.summariesUsed >= user.summaryLimit:
-            logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
-            # Directly raise the 429 error here. It will be caught by FastAPI's default handlers.
-            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Monthly summary limit ({user.summaryLimit}) reached for your '{user.plan}' plan.") # Use standard status constant
-        else:
-             logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
+            if not user:
+                 logger.error(f"Failed to reset usage for Clerk ID: {user_clerk_id}. User disappeared during update?")
+                 # Raise 500 here as this is unexpected DB state change
+                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update user usage data.")
 
     except Exception as db_error:
-        logger.error(f"Database error during usage check for Clerk ID {user_clerk_id}: {db_error}", exc_info=True)
-        # Raise a 500 error specifically for unexpected DB issues during the check
+        # This block now ONLY catches errors during the initial find_unique or the update operation
+        logger.error(f"Database error during usage check/reset for Clerk ID {user_clerk_id}: {db_error}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error checking user usage limits.")
+
+    # --- Usage Limit Check (Post-DB Interaction) ---
+    # This check happens *after* the try/except block, ensuring 'user' is valid if we reach here
+    if user.summariesUsed >= user.summaryLimit:
+        logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
+        # Raise the 429 error - FastAPI will handle returning this correctly
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Monthly summary limit ({user.summaryLimit}) reached for your '{user.plan}' plan.")
+    else:
+        logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
     # --- End Usage Limit Check ---
-    
-    # --- Proceed with Summarization --- 
+
+    # --- Proceed with Summarization ---
+    # If the code reaches here, the usage limit check passed
     try:
-        # Construct the prompt for DeepSeek
-        # Note: DeepSeek expects a list of messages (system, user)
         prompt_messages = [
             {
                 "role": "system",
@@ -278,7 +277,7 @@ async def summarize_article(
         try:
             deepseek_response_data = response.json()
             message_content = deepseek_response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            
+
             # Find JSON boundaries (similar to Gemini approach, needed if extra text exists)
             start_index = message_content.find('{')
             end_index = message_content.rfind('}')
@@ -332,4 +331,4 @@ if __name__ == "__main__":
         logger.info("Starting server locally with reload enabled on http://127.0.0.1:8000 ...")
         uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
     # else:
-        # logger.info("Not running locally, set RUN_LOCALLY=true to start development server.") 
+        # logger.info("Not running locally, set RUN_LOCALLY=true to start development server.")
