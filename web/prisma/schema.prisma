@@ -1,12 +1,8 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+          provider = "prisma-client-js" // Changed back to JS
+          // Add back any specific output path or binaryTargets if your frontend setup needs them
+          // Example: output = "../app/generated/prisma"
+          // Example: binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -15,24 +11,13 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// --- Application Models ---
-
 model User {
-  id        String   @id @default(cuid())
-  clerkId   String   @unique // Clerk User ID
-  email     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // --- Subscription Fields (to be added later) ---
-  // stripeCustomerId     String?   @unique
-  // subscriptionId       String?   @unique
-  // subscriptionStatus   String?   // e.g., 'free', 'active', 'canceled'
-  // subscriptionEndDate  DateTime?
-
-  // --- Start Edit: Add usage tracking fields ---
-  summariesUsed Int    @default(0)
-  summaryLimit  Int    @default(5) // Default limit for free tier
-  plan          String @default("free") // e.g., free, pro
-  // --- End Edit ---
+  id            String   @id
+  clerkId       String   @unique
+  email         String   @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  plan          String   @default("free")
+  summariesUsed Int      @default(0)
+  summaryLimit  Int      @default(5)
 }
