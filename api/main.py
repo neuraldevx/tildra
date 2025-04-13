@@ -1,14 +1,14 @@
 # Standard library imports
 import os
 import logging
+import json # For parsing DeepSeek response
 
 # Third-party imports
 from fastapi import FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import google.generativeai as genai
-# Keep Clerk SDK import if needed elsewhere, but not for core auth here
-# from clerk_backend_api.sdk import Clerk
+import httpx # Use httpx for async API calls
+# --- Removed google.generativeai import ---
 # --- Start Edit: Manual JWT Verification Imports ---
 import jwt # Import PyJWT
 from jwt import PyJWKClient # For fetching JWKS keys
@@ -52,13 +52,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure Google Generative AI
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if not GOOGLE_API_KEY:
-    logger.error("GOOGLE_API_KEY environment variable not set.")
-    # Decide if you want to exit or handle this case differently
-    # For now, we'll let it fail later if used without a key.
-genai.configure(api_key=GOOGLE_API_KEY)
+# Configure DeepSeek API
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+if not DEEPSEEK_API_KEY:
+    logger.error("DEEPSEEK_API_KEY environment variable not set.")
+    # Application will fail later if key is missing
+DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 
 # --- Models ---
@@ -148,35 +147,73 @@ async def summarize_article(
     user_id: AuthenticatedUserId, # Injects the validated user ID
     background_tasks: BackgroundTasks
 ):
-    """Receives article text, generates summary and key points using Google AI."""
+    """Receives article text, generates summary and key points using DeepSeek API."""
     logger.info(f"Received summarize request for user: {user_id}")
 
-    if not GOOGLE_API_KEY:
-        raise HTTPException(status_code=500, detail="API key for summarization service not configured.")
+    if not DEEPSEEK_API_KEY:
+        raise HTTPException(status_code=500, detail="API key for summarization service (DeepSeek) not configured.")
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash') # Use a suitable model
-        prompt = f"Summarize the following article text. Provide a concise TLDR (1-2 sentences) and a list of 3-5 key bullet points.\n\nArticle Text:\n{request_data.article_text}\n\nOutput format should be JSON with keys 'tldr' and 'key_points' (a list of strings). Example:\n{{\"tldr\": \"Short summary...\", \"key_points\": [\"Point 1...\", \"Point 2...\"]}}"
-        
-        logger.info("Sending request to Google AI for summarization...")
-        response = await model.generate_content_async(prompt)
-        
-        # Attempt to parse the JSON response from the model
+        # Construct the prompt for DeepSeek
+        # Note: DeepSeek expects a list of messages (system, user)
+        prompt_messages = [
+            {
+                "role": "system",
+                "content": "You are an expert summarizer. Summarize the provided article text. Respond ONLY with a JSON object containing two keys: 'tldr' (a 1-2 sentence summary) and 'key_points' (a list of 3-5 string bullet points). Example: {\"tldr\": \"Short summary...\", \"key_points\": [\"Point 1...\", \"Point 2...\"]}"
+            },
+            {
+                "role": "user",
+                "content": f"Article Text:\n{request_data.article_text}"
+            }
+        ]
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+        }
+
+        payload = {
+            "model": "deepseek-chat", # Or deepseek-coder if more appropriate, check DeepSeek docs
+            "messages": prompt_messages,
+            "temperature": 0.7, # Adjust creativity
+            "max_tokens": 500,  # Limit response length
+            "stream": False # We want the full response at once
+        }
+
+        logger.info("Sending request to DeepSeek AI for summarization...")
+        async with httpx.AsyncClient(timeout=60.0) as client: # Increased timeout
+            response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload)
+
+        # Handle potential errors from DeepSeek API
+        if response.status_code != 200:
+            error_content = response.text
+            try:
+                error_json = response.json()
+                error_content = json.dumps(error_json)
+            except json.JSONDecodeError:
+                pass # Keep the raw text if it's not JSON
+            logger.error(f"DeepSeek API error: Status {response.status_code}, Response: {error_content}")
+            raise HTTPException(status_code=response.status_code, detail=f"DeepSeek API Error: {error_content}")
+
+        # Extract and parse the JSON response from DeepSeek's message content
         try:
-            json_response_text = response.text
-            start_index = json_response_text.find('{')
-            end_index = json_response_text.rfind('}')
+            deepseek_response_data = response.json()
+            message_content = deepseek_response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            # Find JSON boundaries (similar to Gemini approach, needed if extra text exists)
+            start_index = message_content.find('{')
+            end_index = message_content.rfind('}')
             if start_index != -1 and end_index != -1:
-                json_str = json_response_text[start_index:end_index+1]
-                # Use Pydantic to validate and parse
-                summary_data = SummarizeResponse.model_validate_json(json_str) 
-                logger.info("Successfully generated and parsed summary.")
+                json_str = message_content[start_index:end_index+1]
             else:
-                 # Log the raw response if JSON boundaries aren't found
-                 logger.warning(f"Could not find JSON object in response text. Raw text: {json_response_text}")
-                 raise ValueError("Could not find valid JSON object in response text.")
-        except Exception as parse_error:
-            logger.error(f"Failed to parse summary response from AI: {parse_error}\nRaw Response: {getattr(response, 'text', 'N/A')}", exc_info=True)
+                json_str = message_content # Assume content IS the JSON if boundaries not found
+
+            # Use Pydantic to validate and parse the extracted JSON string
+            summary_data = SummarizeResponse.model_validate_json(json_str)
+            logger.info("Successfully generated and parsed summary from DeepSeek.")
+
+        except (json.JSONDecodeError, IndexError, KeyError, Exception) as parse_error:
+            logger.error(f"Failed to parse summary response from DeepSeek AI: {parse_error}\nRaw Response Content: {message_content if 'message_content' in locals() else 'N/A'}\nFull Response: {deepseek_response_data if 'deepseek_response_data' in locals() else response.text}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to parse summary response from AI.")
 
         # Add usage tracking as a background task
@@ -184,9 +221,11 @@ async def summarize_article(
 
         return summary_data
 
+    except httpx.RequestError as e:
+        logger.error(f"Error sending request to DeepSeek: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail=f"Could not connect to summarization service: {e}")
     except Exception as e:
-        logger.error(f"Error during summarization for user {user_id}: {e}", exc_info=True)
-        # Check for specific Google AI errors if possible
+        logger.error(f"Error during summarization (DeepSeek) for user {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate summary: {e}")
 
 # Health check endpoint
@@ -199,6 +238,7 @@ def health_check():
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.exception(f"Unhandled exception for request {request.url}: {exc}")
+    from fastapi.responses import JSONResponse # Local import for handler
     return JSONResponse(
         status_code=500,
         content={"message": "An unexpected internal server error occurred."},
