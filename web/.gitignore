@@ -29,4 +29,5 @@ next-env.d.ts
 # Web auth api keys
 web/node_modules
 web/.env
-web/.env.local
+web/.env.local.env
+.env
