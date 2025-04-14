@@ -195,14 +195,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = errorOrResponse;
                 try {
                   const errorData = await response.json(); // Try parsing the error body
-                  // Use API detail if available, otherwise construct message from status
-                  errorMessage = (errorData && errorData.detail)
-                    ? errorData.detail
-                    : `Request failed: ${response.statusText} (Status: ${response.status})`;
+                  let detail = (errorData && errorData.detail) ? errorData.detail : null;
+
+                  // Check for specific error messages from the API
+                  if (response.status === 401 && detail && detail.toLowerCase().includes("token expired")) {
+                      errorMessage = "Your session timed out. Please log back in to tildra.xyz and try again.";
+                  } else if (detail) {
+                      // Use API detail if available and not the specific expired token case
+                      errorMessage = detail;
+                  } else {
+                     // Fallback if no detail
+                     errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
+                  }
                   console.error(`API Error Response (${response.status}):`, errorData || response.statusText);
                 } catch (parseError) { // Handle cases where the error body wasn't valid JSON
-                  errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
-                  console.error("Failed to parse JSON error response:", parseError, response.statusText);
+                    errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
+                    console.error("Failed to parse JSON error response:", parseError, response.statusText);
                 }
               } else if (errorOrResponse instanceof Error) { // Handle network errors or errors thrown earlier
                 errorMessage = errorOrResponse.message;
