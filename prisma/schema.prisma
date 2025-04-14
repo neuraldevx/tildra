@@ -16,8 +16,17 @@ model User {
   email         String   @unique
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  plan          String   @default("free")
+
+  // Subscription & Usage Fields
+  plan          String   @default("free") // 'free' or 'premium'
   summariesUsed Int      @default(0)
-  summaryLimit  Int      @default(5) // <-- Changed default to 5 for daily free limit
+  summaryLimit  Int      @default(5)
   usageResetAt  DateTime @default(now()) @map("usageResetAt")
+  // isAdminOrDev  Boolean  @default(false) // Skipping for now
+
+  // --- Stripe Fields ---
+  stripeCustomerId       String?  @unique // Optional: Maps to Stripe Customer ID
+  stripeSubscriptionId   String?  @unique // Optional: Maps to Stripe Subscription ID
+  stripePriceId          String?          // Optional: Maps to the Stripe Price ID (e.g., monthly/yearly premium)
+  stripeCurrentPeriodEnd DateTime?      // Optional: Tracks when the current paid period ends
 }

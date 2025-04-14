@@ -30,7 +30,7 @@ export function Footer() {
           </Link>
         </div>
 
-        <div className="mt-4 md:mt-0 text-sm text-foreground/40">© 2025 Tildra. All rights reserved.</div>
+        <div className="mt-4 md:mt-0 text-sm text-foreground/40">© 2024 Tildra. All rights reserved.</div>
       </div>
     </footer>
   )

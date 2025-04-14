@@ -79,3 +79,14 @@ Thumbs.db
 # Add any other project-specific files/folders you don't want to track
 # e.g., local test databases, large data files, etc.
 .env
+
+web/pnpm-lock.yaml
+
+*.yaml
+
+web/pnpm-lock.yaml:2223
+
+# Environments
+.env
+.venv/ # <-- Make sure this line exists
+env/
