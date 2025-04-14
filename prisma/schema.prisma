@@ -18,6 +18,6 @@ model User {
   updatedAt     DateTime @updatedAt
   plan          String   @default("free")
   summariesUsed Int      @default(0)
-  summaryLimit  Int      @default(10) // <-- Corrected default
-  usageResetAt  DateTime @default(now()) @map("usageResetAt") // <-- Added this line
+  summaryLimit  Int      @default(5) // <-- Changed default to 5 for daily free limit
+  usageResetAt  DateTime @default(now()) @map("usageResetAt")
 }
