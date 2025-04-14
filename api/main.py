@@ -193,46 +193,55 @@ async def summarize_article(
         logger.debug(f"Checking database for Clerk ID: {user_clerk_id}")
         user = await prisma.user.find_unique(where={"clerkId": user_clerk_id})
 
-        if not user:
-            logger.error(f"Usage check failed: User not found in DB for Clerk ID: {user_clerk_id}")
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User profile not found. Please try again shortly.")
+        # Perform checks requiring the user object *after* confirming it exists.
+        if user:
+            # Check for daily reset ONLY if the user was found successfully
+            now = datetime.now(timezone.utc)
+            # Calculate the start of the current day (midnight) in UTC
+            start_of_current_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        # Check for monthly reset ONLY if the user was found successfully
-        now = datetime.now(timezone.utc)
-        start_of_current_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if user.usageResetAt < start_of_current_day:
+                logger.info(f"Usage period expired for Clerk ID: {user_clerk_id}. Resetting daily count.")
+                # Use a specific update call, handle potential errors if user disappears mid-request
+                updated_user_result = await prisma.user.update(
+                    where={"clerkId": user_clerk_id},
+                    data={
+                        "summariesUsed": 0,
+                        "usageResetAt": now
+                    }
+                )
+                if not updated_user_result:
+                     logger.error(f"Failed to reset usage for Clerk ID: {user_clerk_id}. User disappeared during update?")
+                     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update user usage data.")
+                # Update the local 'user' variable with the reset data for the subsequent check
+                user = updated_user_result
 
-        if user.usageResetAt < start_of_current_month:
-            logger.info(f"Usage period expired for Clerk ID: {user_clerk_id}. Resetting count.")
-            # Update user record to reset count and date
-            user = await prisma.user.update(
-                where={"clerkId": user_clerk_id},
-                data={
-                    "summariesUsed": 0,
-                    "usageResetAt": now
-                }
-            )
-            if not user:
-                 logger.error(f"Failed to reset usage for Clerk ID: {user_clerk_id}. User disappeared during update?")
-                 # Raise 500 here as this is unexpected DB state change
-                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update user usage data.")
-
+    # Separate exception handling specifically for database operations
     except Exception as db_error:
-        # This block now ONLY catches errors during the initial find_unique or the update operation
-        logger.error(f"Database error during usage check/reset for Clerk ID {user_clerk_id}: {db_error}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error checking user usage limits.")
+        logger.error(f"Database error during user lookup/reset for Clerk ID {user_clerk_id}: {db_error}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error during usage check.")
 
-    # --- Usage Limit Check (Post-DB Interaction) ---
-    # This check happens *after* the try/except block, ensuring 'user' is valid if we reach here
+    # --- Post-DB Check Validations ---
+    # 1. Check if user was found
+    if not user:
+        logger.error(f"API logic error or race condition: User not found after DB check for Clerk ID: {user_clerk_id}")
+        # Return 403 if user object is still None after the DB check block
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User profile not found.")
+
+    # 2. Check usage limit
+    # --- Bypass limit for Admin/Dev (Keep this logic if implemented) ---
+    # if hasattr(user, 'isAdminOrDev') and user.isAdminOrDev:
+    #     logger.info(f"Admin/Dev user detected ({user_clerk_id}), bypassing usage limits.")
+    # else:
+    # --- Check actual limit ---
     if user.summariesUsed >= user.summaryLimit:
         logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
-        # Raise the 429 error - FastAPI will handle returning this correctly
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Monthly summary limit ({user.summaryLimit}) reached for your '{user.plan}' plan.")
     else:
         logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
     # --- End Usage Limit Check ---
 
     # --- Proceed with Summarization ---
-    # If the code reaches here, the usage limit check passed
     try:
         prompt_messages = [
             {
