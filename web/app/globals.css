@@ -5,18 +5,18 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --foreground: 222.2 84% 4.9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 222.2 84% 4.9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 196 100% 47%;
+    --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 180 100% 35%;
+    --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
 
     --muted: 210 40% 96.1%;
@@ -30,29 +30,37 @@
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 196 100% 47%;
+    --ring: 222.2 84% 4.9%;
 
     --radius: 0.5rem;
 
     /* Chart colors */
     --chart-1: var(--primary);
     --chart-2: var(--secondary);
+
+    /* Sidebar Colors - Light Theme (adjust if needed) */
+    --sidebar: 240 5% 96%; /* Light gray */
+    --sidebar-foreground: 240 6% 10%; /* Dark gray */
+    --sidebar-accent: 240 5% 90%; /* Slightly darker gray for hover */
+    --sidebar-accent-foreground: 240 6% 10%; /* Dark gray */
+    --sidebar-primary: 222.2 47.4% 11.2%; /* Example: Use primary color */
+    --sidebar-primary-foreground: 210 40% 98%; /* Example: Use primary foreground */
   }
 
   .dark {
-    --background: 222 47% 6%;
+    --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
-    --card: 222 47% 10%;
+    --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 222 47% 6%;
+    --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 196 100% 50%;
+    --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
 
-    --secondary: 180 100% 40%;
+    --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
 
     --muted: 217.2 32.6% 17.5%;
@@ -66,7 +74,15 @@
 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 196 100% 50%;
+    --ring: 212.7 26.8% 83.9%;
+
+    /* Sidebar Colors - Dark Theme */
+    --sidebar: 224 71% 4%; /* Very dark blue/black */
+    --sidebar-foreground: 210 40% 98%; /* Almost white */
+    --sidebar-accent: 195 85% 41%; /* Cyan/bright blue */
+    --sidebar-accent-foreground: 210 40% 98%; /* Almost white */
+    --sidebar-primary: 195 85% 41%; /* Cyan/bright blue */
+    --sidebar-primary-foreground: 210 40% 98%; /* Almost white */
   }
 }
 
@@ -74,8 +90,11 @@
   * {
     @apply border-border;
   }
+  html {
+    @apply scroll-smooth;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground min-h-screen flex flex-col;
   }
 }
 
@@ -87,16 +106,16 @@
 
   /* Gradient buttons that adjust for dark mode */
   .gradient-button {
-    @apply bg-gradient-to-r from-primary to-secondary text-white 
-           transition-all duration-300 relative 
-           after:absolute after:inset-0 after:rounded-lg after:opacity-0 
+    @apply bg-gradient-to-r from-primary to-secondary text-white
+           transition-all duration-300 relative
+           after:absolute after:inset-0 after:rounded-lg after:opacity-0
            after:bg-black/10 hover:after:opacity-100 after:transition-opacity;
   }
 
   /* Enhanced hover effects for interactive elements */
   .hover-lift {
-    @apply transition-all duration-300 
-           hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/20 
+    @apply transition-all duration-300
+           hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/20
            active:translate-y-0 active:shadow-md active:duration-75;
   }
 
@@ -261,4 +280,13 @@
   border-radius: 0.5rem;
   border: 2px solid hsla(var(--primary), 50%);
   animation: focus-ring-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }

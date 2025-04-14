@@ -1,3 +1,4 @@
+
 "use client"
 
 import { motion } from "framer-motion"
@@ -33,7 +34,7 @@ export function Logo({ size = "md", animated = false, href = "/" }: LogoProps) {
           <div className="absolute inset-0 bg-gradient-to-br from-primary to-secondary opacity-90"></div>
           <div className="absolute inset-0 flex items-center justify-center">
             <Image
-              src="/images/tildra-logo.png"
+              src="/images/logo.png"
               alt="Tildra Logo"
               width={40}
               height={40}
@@ -46,7 +47,7 @@ export function Logo({ size = "md", animated = false, href = "/" }: LogoProps) {
           <div className="absolute inset-0 bg-gradient-to-br from-primary to-secondary opacity-90"></div>
           <div className="absolute inset-0 flex items-center justify-center">
             <Image
-              src="/images/tildra-logo.png"
+              src="/images/logo.png"
               alt="Tildra Logo"
               width={40}
               height={40}
