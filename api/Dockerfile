@@ -7,45 +7,38 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Copy requirements first for better caching
-COPY api/requirements.txt requirements.txt
+# Copy requirements first, relative to the build context root
+COPY ./api/requirements.txt requirements.txt
 
-# Copy Prisma schema directory (contains schema.prisma)
-COPY prisma ./prisma
+# Copy Prisma schema directory (relative to build context root)
+COPY ./prisma ./prisma
 
 # Install Python dependencies
 RUN pip install --upgrade pip
 
-# --- Debug: Purge pip cache ---
-RUN echo "Purging pip cache..." && pip cache purge
-
-# Install from requirements file (remove verbosity here)
+# Install from requirements file
 RUN pip install --no-cache --no-cache-dir -r requirements.txt
 
-# Explicitly install clerk-backend-api with verbosity to isolate issues
-# Quote the package name and version specifier to prevent shell redirection
-RUN pip install --no-cache --no-cache-dir -vvv "clerk-backend-api>=2.0.0,<3.0.0"
+# --- Verify Stripe Installation --- 
+RUN echo "Verifying stripe installation:" && pip freeze | grep stripe || (echo "ERROR: stripe not found after pip install!" && exit 1)
+# ---------------------------------
 
-# --- Debug: Verify installation directory ---
-# Check if the clerk_backend_api directory exists in site-packages
+# --- Debug: Verify installation directory (Keep if useful) ---
 RUN echo "Listing site-packages directory for clerk* packages:" \
     && ls -ld /usr/local/lib/python3.11/site-packages/clerk* \
     || echo "clerk_backend_api directory not found in site-packages"
 
 # --- Generate Prisma Client ---
-# This command needs schema.prisma (copied above) and the prisma python package (installed above)
 RUN prisma generate
 # --------------------------
 
-# Copy the rest of the application code AFTER client generation
-COPY api/main.py .
-# Add other necessary python files if any
-# e.g. COPY api/utils.py .
+# Copy the main application file (relative to build context root)
+COPY ./api/main.py .
 
 # Expose the port the app runs on
 EXPOSE 8000
 
-# --- CMD - Use the simplified one now, diagnostics added above if needed ---
+# --- CMD - Use the simplified one --- 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # --- Old CMD with Diagnostics (Keep for reference if needed) ---
