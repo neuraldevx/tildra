@@ -345,19 +345,32 @@ async def stripe_webhook(request: Request):
             # Retrieve the subscription to get price details and current period end
             logger.info(f"Retrieving subscription details for ID: {stripe_subscription_id}")
             subscription = stripe.Subscription.retrieve(stripe_subscription_id)
-            logger.info(f"Retrieved subscription object: {subscription}") # <-- Log the object
+            logger.info(f"Retrieved subscription object: {subscription}")
 
-            # Safer access using .get()
-            plan_object = subscription.get('plan')
-            stripe_price_id = plan_object.get('id') if plan_object else None
+            # --- Corrected Extraction Logic --- 
+            stripe_price_id = None
+            period_end_timestamp = None
 
-            # Safer access for period end - use .get()
-            period_end_timestamp = subscription.get('current_period_end')
+            # Access the first subscription item (assuming one item per simple subscription)
+            if subscription.get('items') and subscription.items.get('data'):
+                first_item = subscription.items.data[0] if len(subscription.items.data) > 0 else None
+                if first_item:
+                    # Get Price ID from the item's plan or price object
+                    if first_item.get('plan'):
+                        stripe_price_id = first_item.plan.get('id')
+                    elif first_item.get('price'): # Fallback check on price object if plan is nested differently
+                         stripe_price_id = first_item.price.get('id')
+                    
+                    # Get Period End from the item itself
+                    period_end_timestamp = first_item.get('current_period_end') 
+            # --- End Corrected Extraction Logic --- 
+
             stripe_current_period_end = datetime.fromtimestamp(period_end_timestamp, tz=timezone.utc) if period_end_timestamp else None
 
             if not stripe_price_id or not stripe_current_period_end:
-                 logger.error(f"Webhook error: Could not retrieve price ID or period end from subscription {stripe_subscription_id}. PriceID: {stripe_price_id}, PeriodEnd: {stripe_current_period_end}")
-                 return {"error": "Missing data in subscription object"}
+                 # Log with corrected values
+                 logger.error(f"Webhook error: Could not retrieve price ID or period end from subscription item for {stripe_subscription_id}. PriceID: {stripe_price_id}, PeriodEnd Raw: {period_end_timestamp}")
+                 return {"error": "Missing data in subscription item"}
 
             # Find user by Stripe Customer ID
             logger.info(f"Finding user by stripe_customer_id: {stripe_customer_id}")
