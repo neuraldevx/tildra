@@ -351,11 +351,13 @@ async def stripe_webhook(request: Request):
             stripe_price_id = None
             period_end_timestamp = None
 
-            # Access the first subscription item using direct attribute access
-            # Check items exists, and that its data attribute exists and is not empty
-            if subscription.items and hasattr(subscription.items, 'data') and subscription.items.data:
-                logger.info("Accessing first subscription item...") # Log Step 1
-                first_item = subscription.items.data[0] # Get the first item
+            # --- Simplyfied Check --- 
+            # Try direct access, assuming 'items' and 'data' exist based on logs
+            # Add a check for list length
+            subscription_items_data = subscription.items.data if subscription.items else None
+            if subscription_items_data and len(subscription_items_data) > 0:
+                logger.info("Accessing first subscription item via simplified check...") # Log Step 1
+                first_item = subscription_items_data[0] # Get the first item
                 
                 # Get Price ID from the item's plan or price object
                 logger.info(f"First item object: {first_item}") # Log Step 2
@@ -375,7 +377,7 @@ async def stripe_webhook(request: Request):
                 period_end_timestamp = first_item.get('current_period_end') 
                 logger.info(f"Period end timestamp from first_item.get(): {period_end_timestamp}") # Log Step 6
             else:
-                logger.warning("Subscription items.data structure not found or empty.") # Log Step 7 (If condition failed)
+                logger.warning("Simplified check failed: subscription_items_data not found or empty.") # Log Step 7 (If condition failed)
             # --- End Corrected Extraction Logic --- 
 
             stripe_current_period_end = datetime.fromtimestamp(period_end_timestamp, tz=timezone.utc) if period_end_timestamp else None
