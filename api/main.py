@@ -62,18 +62,23 @@ CLERK_JWKS_URL = f"{CLERK_ISSUER}/.well-known/jwks.json"
 jwks_client = PyJWKClient(CLERK_JWKS_URL, headers={"User-Agent": "SnipSummaryAPI/1.0"})
 
 # Configure CORS
-# Adjust origins as needed for your frontend
+# Define allowed origins
 origins = [
     "chrome-extension://jjcdkjjdonfmpenonghicgejhlojldmh", # Your extension's ID
-    # "http://localhost:3000", # Example for local development
-    # "https://your-frontend-domain.com",
+    "http://localhost:3000",                                # Local development frontend
 ]
+# Add the deployed frontend URL if it exists and is different from localhost
+if FRONTEND_URL and FRONTEND_URL != "http://localhost:3000":
+    origins.append(FRONTEND_URL)
+
+logger.info(f"Configuring CORS for origins: {origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins, # Use the dynamic list
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],    # Allows GET, POST, OPTIONS etc.
+    allow_headers=["*"],    # Allows Content-Type, Authorization etc.
 )
 
 # Configure DeepSeek API
