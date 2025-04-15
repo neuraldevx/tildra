@@ -351,21 +351,25 @@ async def stripe_webhook(request: Request):
             stripe_price_id = None
             period_end_timestamp = None
 
-            # --- Check and Access Subscription Items --- 
+            # --- Try Dictionary-Style Access --- 
             subscription_items_data = None
-            logger.info(f"Type of subscription.items: {type(subscription.items)}") # Log the type
-            # Explicitly check if 'items' attribute exists and is a ListObject
-            if hasattr(subscription, 'items') and isinstance(subscription.items, stripe.ListObject):
-                logger.info("subscription.items is a ListObject, attempting to access .data")
-                if hasattr(subscription.items, 'data') and subscription.items.data: # Check .data exists and is not empty
-                     subscription_items_data = subscription.items.data
+            logger.info(f"Attempting dictionary access subscription['items']...")
+            items_object = subscription.get('items') # Use .get() for safety
+
+            if items_object and isinstance(items_object, stripe.ListObject):
+                logger.info(f"items_object is a ListObject. Type: {type(items_object)}")
+                if hasattr(items_object, 'data') and items_object.data:
+                    subscription_items_data = items_object.data
+                    logger.info("Successfully extracted items_object.data")
                 else:
-                     logger.warning("subscription.items does not have .data or .data is empty")
+                    logger.warning("items_object does not have .data or .data is empty")
+            elif items_object:
+                 logger.warning(f"items_object exists but is not a ListObject. Type: {type(items_object)}")
             else:
-                 logger.warning("subscription.items is missing or is not a stripe.ListObject")
+                 logger.warning("subscription.get('items') returned None")
 
             if subscription_items_data and len(subscription_items_data) > 0:
-                logger.info("Accessing first subscription item via corrected check...") # Log Step 1
+                logger.info("Accessing first subscription item via dictionary access...") # Log Step 1
                 first_item = subscription_items_data[0] # Get the first item
                 
                 # Get Price ID from the item's plan or price object
@@ -386,7 +390,7 @@ async def stripe_webhook(request: Request):
                 period_end_timestamp = first_item.get('current_period_end') 
                 logger.info(f"Period end timestamp from first_item.get(): {period_end_timestamp}") # Log Step 6
             else:
-                # This log now indicates the extraction logic failed, not just the initial check
+                # This log now indicates the extraction logic failed
                 logger.warning(f"Failed to extract subscription_items_data or it was empty. Items Data: {subscription_items_data}") # Log Step 7
             # --- End Corrected Extraction Logic --- 
 
