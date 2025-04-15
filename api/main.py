@@ -3,6 +3,7 @@ import os
 import logging
 import json # For parsing DeepSeek response
 from datetime import datetime, timezone, timedelta # For usage reset logic
+import stripe
 
 # Third-party imports
 from fastapi import FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, status
@@ -14,7 +15,7 @@ import httpx # Use httpx for async API calls
 import jwt # Import PyJWT
 from jwt import PyJWKClient # For fetching JWKS keys
 # --- End Edit ---
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Dict
 
 # --- Prisma Client Import ---
 from prisma import Prisma
@@ -82,6 +83,23 @@ if not DEEPSEEK_API_KEY:
     # Application will fail later if key is missing
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
+# --- Stripe Configuration ---
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+PREMIUM_PRICE_ID_MONTHLY = os.getenv("PREMIUM_PRICE_ID_MONTHLY")
+PREMIUM_PRICE_ID_YEARLY = os.getenv("PREMIUM_PRICE_ID_YEARLY")
+# Get your frontend URL for success/cancel redirects
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") # Default for local dev
+
+if not STRIPE_SECRET_KEY:
+    logger.error("STRIPE_SECRET_KEY environment variable not set.")
+# Check needed Price IDs before assigning api_key
+if not PREMIUM_PRICE_ID_MONTHLY or not PREMIUM_PRICE_ID_YEARLY:
+    logger.error("Stripe Price IDs (Monthly/Yearly) environment variables not set.")
+
+# Only assign api_key if the secret key exists
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
+# --------------------------
 
 # --- Models ---
 class SummarizeRequest(BaseModel):
@@ -90,6 +108,15 @@ class SummarizeRequest(BaseModel):
 class SummarizeResponse(BaseModel):
     tldr: str
     key_points: list[str]
+
+# Add model for checkout request
+class CreateCheckoutRequest(BaseModel):
+    price_lookup_key: str # e.g., 'monthly' or 'yearly'
+
+# Add model for checkout response
+class CreateCheckoutResponse(BaseModel):
+    sessionId: str
+    url: str
 
 # --- Authentication Dependency (Manual JWT Verification) ---
 async def get_authenticated_user_id(request: Request) -> str:
@@ -174,6 +201,95 @@ async def track_summary_usage(user_clerk_id: str):
 @app.get("/")
 def read_root():
     return {"message": "SnipSummary API is running!"}
+
+@app.post("/create-checkout-session", response_model=CreateCheckoutResponse)
+async def create_checkout_session(
+    checkout_request: CreateCheckoutRequest,
+    user_clerk_id: AuthenticatedUserId, # Inject authenticated user ID
+):
+    """Creates a Stripe Checkout session for upgrading to Premium."""
+    logger.info(f"Received create_checkout_session request for Clerk ID: {user_clerk_id}, key: {checkout_request.price_lookup_key}")
+
+    # Verify Stripe configuration is loaded
+    if not stripe.api_key or not PREMIUM_PRICE_ID_MONTHLY or not PREMIUM_PRICE_ID_YEARLY:
+         logger.error("Stripe configuration is missing or incomplete. Cannot create checkout session.")
+         raise HTTPException(status_code=500, detail="Server configuration error preventing checkout.")
+
+    # Determine the Price ID based on the request
+    price_id = PREMIUM_PRICE_ID_MONTHLY if checkout_request.price_lookup_key == 'monthly' else PREMIUM_PRICE_ID_YEARLY
+
+    # Basic validation for the provided key
+    if checkout_request.price_lookup_key not in ['monthly', 'yearly']:
+         logger.warning(f"Invalid price_lookup_key received: {checkout_request.price_lookup_key}")
+         raise HTTPException(status_code=400, detail="Invalid billing cycle specified.")
+
+    try:
+        # Find user in our DB to get email and potentially existing Stripe Customer ID
+        logger.debug(f"Looking up user in DB for Clerk ID: {user_clerk_id}")
+        user = await prisma.user.find_unique(where={"clerkId": user_clerk_id})
+        if not user:
+            logger.error(f"User not found in database for Clerk ID: {user_clerk_id}")
+            raise HTTPException(status_code=404, detail="User profile not found.")
+
+        stripe_customer_id = user.stripeCustomerId
+
+        # If user doesn't have a Stripe Customer ID yet, create one in Stripe
+        if not stripe_customer_id:
+            logger.info(f"Creating Stripe customer for Clerk ID: {user_clerk_id}, Email: {user.email}")
+            customer = stripe.Customer.create(
+                email=user.email,
+                name=f"{user.firstName} {user.lastName}" if user.firstName and user.lastName else user.email, # Optional: Add name
+                metadata={
+                    'clerkId': user_clerk_id # Link Clerk ID in Stripe metadata
+                }
+            )
+            stripe_customer_id = customer.id
+            # Save the new Stripe Customer ID to our database
+            logger.info(f"Updating user record {user_clerk_id} with Stripe Customer ID: {stripe_customer_id}")
+            await prisma.user.update(
+                where={"clerkId": user_clerk_id},
+                data={"stripeCustomerId": stripe_customer_id}
+            )
+            logger.info(f"Stripe customer {stripe_customer_id} created and linked for Clerk ID: {user_clerk_id}")
+        else:
+             logger.info(f"Found existing Stripe customer {stripe_customer_id} for Clerk ID: {user_clerk_id}")
+
+        # Create the Stripe Checkout Session
+        logger.info(f"Creating Stripe Checkout session for customer: {stripe_customer_id}, price: {price_id}")
+        checkout_session = stripe.checkout.Session.create(
+            customer=stripe_customer_id,
+            payment_method_types=['card'],
+            line_items=[
+                {
+                    'price': price_id,
+                    'quantity': 1,
+                },
+            ],
+            mode='subscription',
+            allow_promotion_codes=True, # Optional: Allow discount codes
+            success_url=f'{FRONTEND_URL}/dashboard?session_id={{CHECKOUT_SESSION_ID}}', # Redirect back to app
+            cancel_url=f'{FRONTEND_URL}/pricing', # Redirect back to pricing on cancel
+            # Pass metadata that might be useful in webhooks
+            metadata={
+                 'clerkId': user_clerk_id
+            }
+        )
+        logger.info(f"Checkout session created: {checkout_session.id}")
+
+        if not checkout_session.url:
+             logger.error("Stripe Checkout Session object missing URL after creation.")
+             raise HTTPException(status_code=500, detail="Could not retrieve checkout session URL from Stripe.")
+
+        return CreateCheckoutResponse(sessionId=checkout_session.id, url=checkout_session.url)
+
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe API error during checkout session creation for Clerk ID {user_clerk_id}: {e}", exc_info=True)
+        # Provide a user-friendly message if available, otherwise a generic one
+        detail = e.user_message if hasattr(e, 'user_message') and e.user_message else "A payment processing error occurred."
+        raise HTTPException(status_code=500, detail=f"Stripe error: {detail}")
+    except Exception as e:
+        logger.error(f"Unexpected error creating checkout session for Clerk ID {user_clerk_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error creating checkout session.")
 
 @app.post("/summarize", response_model=SummarizeResponse)
 async def summarize_article(
