@@ -351,12 +351,21 @@ async def stripe_webhook(request: Request):
             stripe_price_id = None
             period_end_timestamp = None
 
-            # --- Simplyfied Check --- 
-            # Try direct access, assuming 'items' and 'data' exist based on logs
-            # Add a check for list length
-            subscription_items_data = subscription.items.data if subscription.items else None
+            # --- Check and Access Subscription Items --- 
+            subscription_items_data = None
+            logger.info(f"Type of subscription.items: {type(subscription.items)}") # Log the type
+            # Explicitly check if 'items' attribute exists and is a ListObject
+            if hasattr(subscription, 'items') and isinstance(subscription.items, stripe.ListObject):
+                logger.info("subscription.items is a ListObject, attempting to access .data")
+                if hasattr(subscription.items, 'data') and subscription.items.data: # Check .data exists and is not empty
+                     subscription_items_data = subscription.items.data
+                else:
+                     logger.warning("subscription.items does not have .data or .data is empty")
+            else:
+                 logger.warning("subscription.items is missing or is not a stripe.ListObject")
+
             if subscription_items_data and len(subscription_items_data) > 0:
-                logger.info("Accessing first subscription item via simplified check...") # Log Step 1
+                logger.info("Accessing first subscription item via corrected check...") # Log Step 1
                 first_item = subscription_items_data[0] # Get the first item
                 
                 # Get Price ID from the item's plan or price object
@@ -377,7 +386,8 @@ async def stripe_webhook(request: Request):
                 period_end_timestamp = first_item.get('current_period_end') 
                 logger.info(f"Period end timestamp from first_item.get(): {period_end_timestamp}") # Log Step 6
             else:
-                logger.warning("Simplified check failed: subscription_items_data not found or empty.") # Log Step 7 (If condition failed)
+                # This log now indicates the extraction logic failed, not just the initial check
+                logger.warning(f"Failed to extract subscription_items_data or it was empty. Items Data: {subscription_items_data}") # Log Step 7
             # --- End Corrected Extraction Logic --- 
 
             stripe_current_period_end = datetime.fromtimestamp(period_end_timestamp, tz=timezone.utc) if period_end_timestamp else None
