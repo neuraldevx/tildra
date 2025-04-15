@@ -67,6 +67,7 @@ PREMIUM_PRICE_ID_MONTHLY = os.getenv("PREMIUM_PRICE_ID_MONTHLY")
 PREMIUM_PRICE_ID_YEARLY = os.getenv("PREMIUM_PRICE_ID_YEARLY")
 # Get your frontend URL for success/cancel redirects
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") # Define FRONTEND_URL here
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET") # <-- Load webhook secret
 
 if not STRIPE_SECRET_KEY:
     logger.error("STRIPE_SECRET_KEY environment variable not set.")
@@ -296,6 +297,108 @@ async def create_checkout_session(
     except Exception as e:
         logger.error(f"Unexpected error creating checkout session for Clerk ID {user_clerk_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error creating checkout session.")
+
+@app.post("/stripe-webhook")
+async def stripe_webhook(request: Request):
+    """Handles incoming webhooks from Stripe."""
+    payload = await request.body()
+    sig_header = request.headers.get('Stripe-Signature')
+    event = None
+
+    if not STRIPE_WEBHOOK_SECRET:
+        logger.error("Webhook processing failed: STRIPE_WEBHOOK_SECRET not set.")
+        # Don't reveal config issues externally, return generic server error
+        raise HTTPException(status_code=500, detail="Internal server error.")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+        logger.info(f"Received Stripe webhook event: ID={event.id}, Type={event.type}")
+    except ValueError as e:
+        # Invalid payload
+        logger.warning(f"Webhook error: Invalid payload - {e}")
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.error.SignatureVerificationError as e:
+        # Invalid signature
+        logger.warning(f"Webhook error: Invalid signature - {e}")
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception as e:
+        logger.error(f"Webhook error: Unexpected error constructing event - {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error processing webhook.")
+
+    # Handle the event
+    if event.type == 'checkout.session.completed':
+        session = event.data.object # The Checkout Session object
+        logger.info(f"Handling checkout.session.completed for session: {session.id}")
+
+        # Extract necessary information
+        stripe_customer_id = session.get('customer')
+        stripe_subscription_id = session.get('subscription')
+        # Note: We need to retrieve the subscription to get price and period end
+
+        if not stripe_customer_id or not stripe_subscription_id:
+            logger.error(f"Webhook error: Missing customer or subscription ID in checkout session {session.id}")
+            return {"error": "Missing data in webhook payload"} # Return 200 OK to Stripe, but log error
+
+        try:
+            # Retrieve the subscription to get price details and current period end
+            logger.info(f"Retrieving subscription details for ID: {stripe_subscription_id}")
+            subscription = stripe.Subscription.retrieve(stripe_subscription_id)
+            stripe_price_id = subscription.plan.id if subscription.plan else None
+            stripe_current_period_end = datetime.fromtimestamp(subscription.current_period_end, tz=timezone.utc) if subscription.current_period_end else None
+
+            if not stripe_price_id or not stripe_current_period_end:
+                 logger.error(f"Webhook error: Could not retrieve price ID or period end from subscription {stripe_subscription_id}")
+                 return {"error": "Missing data in subscription object"}
+
+            # Find user by Stripe Customer ID
+            logger.info(f"Finding user by stripe_customer_id: {stripe_customer_id}")
+            user = await prisma.user.find_unique(where={"stripeCustomerId": stripe_customer_id})
+
+            if not user:
+                logger.error(f"Webhook error: User not found for stripe_customer_id: {stripe_customer_id}")
+                # Can't fulfill the order if we can't find the user
+                return {"error": "User not found for Stripe customer"}
+
+            # Update user record in the database
+            logger.info(f"Updating user {user.clerkId} to premium plan based on subscription {stripe_subscription_id}")
+            await prisma.user.update(
+                where={"stripeCustomerId": stripe_customer_id},
+                data={
+                    "plan": "premium", # Update plan name
+                    "summaryLimit": 1000, # Example: Set a high limit for premium
+                    "stripeSubscriptionId": stripe_subscription_id,
+                    "stripePriceId": stripe_price_id,
+                    "stripeCurrentPeriodEnd": stripe_current_period_end,
+                    "summariesUsed": 0, # Optional: Reset usage on upgrade
+                    "usageResetAt": datetime.now(timezone.utc) # Optional: Reset period on upgrade
+                }
+            )
+            logger.info(f"Successfully updated user {user.clerkId} to premium.")
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe API error retrieving subscription {stripe_subscription_id}: {e}", exc_info=True)
+            # Don't raise HTTP error, Stripe webhook expects 200, but log it
+            return {"error": f"Stripe API error: {e}"}
+        except Exception as e:
+            logger.error(f"Database or other error processing webhook for customer {stripe_customer_id}: {e}", exc_info=True)
+            # Don't raise HTTP error, Stripe webhook expects 200, but log it
+            return {"error": f"Internal processing error: {e}"}
+
+    # Add handlers for other event types if needed (e.g., subscription updated/canceled)
+    # elif event.type == 'invoice.payment_succeeded':
+    #     # Handle successful recurring payment
+    #     pass
+    # elif event.type == 'customer.subscription.deleted':
+    #     # Handle subscription cancellation
+    #     pass
+
+    else:
+        logger.info(f"Unhandled event type: {event.type}")
+
+    # Acknowledge receipt to Stripe
+    return {"received": True}
 
 @app.post("/summarize", response_model=SummarizeResponse)
 async def summarize_article(
