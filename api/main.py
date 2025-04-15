@@ -61,7 +61,33 @@ CLERK_JWKS_URL = f"{CLERK_ISSUER}/.well-known/jwks.json"
 # Add a User-Agent header as recommended practice
 jwks_client = PyJWKClient(CLERK_JWKS_URL, headers={"User-Agent": "SnipSummaryAPI/1.0"})
 
-# Configure CORS
+# --- Moved Block: Stripe Configuration --- 
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+PREMIUM_PRICE_ID_MONTHLY = os.getenv("PREMIUM_PRICE_ID_MONTHLY")
+PREMIUM_PRICE_ID_YEARLY = os.getenv("PREMIUM_PRICE_ID_YEARLY")
+# Get your frontend URL for success/cancel redirects
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") # Define FRONTEND_URL here
+
+if not STRIPE_SECRET_KEY:
+    logger.error("STRIPE_SECRET_KEY environment variable not set.")
+# Check needed Price IDs before assigning api_key
+if not PREMIUM_PRICE_ID_MONTHLY or not PREMIUM_PRICE_ID_YEARLY:
+    logger.error("Stripe Price IDs (Monthly/Yearly) environment variables not set.")
+
+# Only assign api_key if the secret key exists
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
+# ---------------------------------------
+
+# --- Moved Block: DeepSeek Configuration --- # Also move this config up
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+if not DEEPSEEK_API_KEY:
+    logger.error("DEEPSEEK_API_KEY environment variable not set.")
+    # Application will fail later if key is missing
+DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
+# -----------------------------------------
+
+# Configure CORS (Now FRONTEND_URL is defined)
 # Define allowed origins
 origins = [
     "chrome-extension://jjcdkjjdonfmpenonghicgejhlojldmh", # Your extension's ID
@@ -80,31 +106,6 @@ app.add_middleware(
     allow_methods=["*"],    # Allows GET, POST, OPTIONS etc.
     allow_headers=["*"],    # Allows Content-Type, Authorization etc.
 )
-
-# Configure DeepSeek API
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-if not DEEPSEEK_API_KEY:
-    logger.error("DEEPSEEK_API_KEY environment variable not set.")
-    # Application will fail later if key is missing
-DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
-
-# --- Stripe Configuration ---
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-PREMIUM_PRICE_ID_MONTHLY = os.getenv("PREMIUM_PRICE_ID_MONTHLY")
-PREMIUM_PRICE_ID_YEARLY = os.getenv("PREMIUM_PRICE_ID_YEARLY")
-# Get your frontend URL for success/cancel redirects
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") # Default for local dev
-
-if not STRIPE_SECRET_KEY:
-    logger.error("STRIPE_SECRET_KEY environment variable not set.")
-# Check needed Price IDs before assigning api_key
-if not PREMIUM_PRICE_ID_MONTHLY or not PREMIUM_PRICE_ID_YEARLY:
-    logger.error("Stripe Price IDs (Monthly/Yearly) environment variables not set.")
-
-# Only assign api_key if the secret key exists
-if STRIPE_SECRET_KEY:
-    stripe.api_key = STRIPE_SECRET_KEY
-# --------------------------
 
 # --- Models ---
 class SummarizeRequest(BaseModel):
