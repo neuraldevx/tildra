@@ -351,18 +351,22 @@ async def stripe_webhook(request: Request):
             stripe_price_id = None
             period_end_timestamp = None
 
-            # Access the first subscription item (assuming one item per simple subscription)
-            if subscription.get('items') and subscription.items.get('data'):
-                first_item = subscription.items.data[0] if len(subscription.items.data) > 0 else None
-                if first_item:
-                    # Get Price ID from the item's plan or price object
-                    if first_item.get('plan'):
-                        stripe_price_id = first_item.plan.get('id')
-                    elif first_item.get('price'): # Fallback check on price object if plan is nested differently
-                         stripe_price_id = first_item.price.get('id')
-                    
-                    # Get Period End from the item itself
-                    period_end_timestamp = first_item.get('current_period_end') 
+            # Access the first subscription item using direct attribute access
+            # Check items exists, and that its data attribute exists and is not empty
+            if subscription.items and hasattr(subscription.items, 'data') and subscription.items.data:
+                first_item = subscription.items.data[0] # Get the first item
+                
+                # Get Price ID from the item's plan or price object
+                # Use .get() here as 'plan' or 'price' might be missing on the item
+                plan = first_item.get('plan')
+                price = first_item.get('price')
+                if plan:
+                    stripe_price_id = plan.get('id')
+                elif price:
+                     stripe_price_id = price.get('id')
+                
+                # Get Period End from the item itself using .get()
+                period_end_timestamp = first_item.get('current_period_end') 
             # --- End Corrected Extraction Logic --- 
 
             stripe_current_period_end = datetime.fromtimestamp(period_end_timestamp, tz=timezone.utc) if period_end_timestamp else None
