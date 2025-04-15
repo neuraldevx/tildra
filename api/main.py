@@ -345,11 +345,18 @@ async def stripe_webhook(request: Request):
             # Retrieve the subscription to get price details and current period end
             logger.info(f"Retrieving subscription details for ID: {stripe_subscription_id}")
             subscription = stripe.Subscription.retrieve(stripe_subscription_id)
-            stripe_price_id = subscription.plan.id if subscription.plan else None
-            stripe_current_period_end = datetime.fromtimestamp(subscription.current_period_end, tz=timezone.utc) if subscription.current_period_end else None
+            logger.info(f"Retrieved subscription object: {subscription}") # <-- Log the object
+
+            # Safer access using .get()
+            plan_object = subscription.get('plan')
+            stripe_price_id = plan_object.get('id') if plan_object else None
+
+            # Safer access for period end - use .get()
+            period_end_timestamp = subscription.get('current_period_end')
+            stripe_current_period_end = datetime.fromtimestamp(period_end_timestamp, tz=timezone.utc) if period_end_timestamp else None
 
             if not stripe_price_id or not stripe_current_period_end:
-                 logger.error(f"Webhook error: Could not retrieve price ID or period end from subscription {stripe_subscription_id}")
+                 logger.error(f"Webhook error: Could not retrieve price ID or period end from subscription {stripe_subscription_id}. PriceID: {stripe_price_id}, PeriodEnd: {stripe_current_period_end}")
                  return {"error": "Missing data in subscription object"}
 
             # Find user by Stripe Customer ID
@@ -382,8 +389,8 @@ async def stripe_webhook(request: Request):
             # Don't raise HTTP error, Stripe webhook expects 200, but log it
             return {"error": f"Stripe API error: {e}"}
         except Exception as e:
+            # Log the specific attribute error if it happens again, or other errors
             logger.error(f"Database or other error processing webhook for customer {stripe_customer_id}: {e}", exc_info=True)
-            # Don't raise HTTP error, Stripe webhook expects 200, but log it
             return {"error": f"Internal processing error: {e}"}
 
     # Add handlers for other event types if needed (e.g., subscription updated/canceled)
