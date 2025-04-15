@@ -392,31 +392,38 @@ async def stripe_webhook(request: Request):
 
             if not user:
                 logger.error(f"Webhook error: User not found for stripe_customer_id: {stripe_customer_id}")
-                # Can't fulfill the order if we can't find the user
                 return {"error": "User not found for Stripe customer"}
 
-            # Update user record in the database
-            logger.info(f"Updating user {user.clerkId} to premium plan based on subscription {stripe_subscription_id}")
-            await prisma.user.update(
+            # --- Update User Record --- 
+            update_data = {
+                "plan": "premium",
+                "summaryLimit": 1000,
+                "stripeSubscriptionId": stripe_subscription_id,
+                "stripePriceId": stripe_price_id,
+                "stripeCurrentPeriodEnd": stripe_current_period_end,
+                "summariesUsed": 0,
+                "usageResetAt": datetime.now(timezone.utc)
+            }
+            logger.info(f"Attempting to update user {user.clerkId} (DB ID: {user.id}) with data: {update_data}") # Log before update
+            
+            updated_user = await prisma.user.update(
                 where={"stripeCustomerId": stripe_customer_id},
-                data={
-                    "plan": "premium", # Update plan name
-                    "summaryLimit": 1000, # Example: Set a high limit for premium
-                    "stripeSubscriptionId": stripe_subscription_id,
-                    "stripePriceId": stripe_price_id,
-                    "stripeCurrentPeriodEnd": stripe_current_period_end,
-                    "summariesUsed": 0, # Optional: Reset usage on upgrade
-                    "usageResetAt": datetime.now(timezone.utc) # Optional: Reset period on upgrade
-                }
+                data=update_data
             )
-            logger.info(f"Successfully updated user {user.clerkId} to premium.")
+            
+            # Log the result of the update call
+            if updated_user:
+                 logger.info(f"Prisma update call returned: {updated_user}") # Log the returned object
+                 logger.info(f"Successfully processed update for user {user.clerkId} to premium.") # Refined Success Log
+            else:
+                 # This case shouldn't happen if no error was thrown, but log it just in case
+                 logger.error(f"Prisma update call returned None or empty for user {user.clerkId}, update may have failed silently.")
+            # --- End Update User Record --- 
 
         except stripe.error.StripeError as e:
             logger.error(f"Stripe API error retrieving subscription {stripe_subscription_id}: {e}", exc_info=True)
-            # Don't raise HTTP error, Stripe webhook expects 200, but log it
             return {"error": f"Stripe API error: {e}"}
         except Exception as e:
-            # Log the specific attribute error if it happens again, or other errors
             logger.error(f"Database or other error processing webhook for customer {stripe_customer_id}: {e}", exc_info=True)
             return {"error": f"Internal processing error: {e}"}
 
