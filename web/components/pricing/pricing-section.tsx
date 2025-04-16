@@ -85,6 +85,7 @@ export function PricingSection() {
             ctaText="Get Started Free"
             ctaLink="#"
             isPrimary={false}
+            billingCycle={billingCycle}
           />
         </motion.div>
 
@@ -100,6 +101,7 @@ export function PricingSection() {
             isPrimary={true}
             popularBadge={true}
             yearlyPrice={billingCycle === "yearly" ? `$${yearlyPrice}/year` : undefined}
+            billingCycle={billingCycle}
           />
         </motion.div>
       </motion.div>

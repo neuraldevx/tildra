@@ -1,13 +1,13 @@
 import type React from "react"
 import "./globals.css"
-import { Inter } from "next/font/google"
+import { Lexend } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkProvider } from '@clerk/nextjs'
-import { SidebarProvider } from "@/components/ui/sidebar-fixed"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { cn } from "@/lib/utils"
 
-const inter = Inter({ subsets: ["latin"] })
+const lexend = Lexend({ subsets: ["latin"] })
 
 export const metadata = {
   title: "Tildra - AI-Powered Article Summarizer",
@@ -28,14 +28,16 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const defaultOpen = true;
+
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
-        <body className={inter.className}>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            <SidebarProvider defaultOpen={true}>
-              <div className="flex w-full">
-                <AppSidebar />
+        <body className={lexend.className}>
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+            <SidebarProvider defaultOpen={defaultOpen}>
+              <AppSidebar />
+              <SidebarInset>
                 <main
                   className={cn(
                     "flex-1 flex flex-col overflow-auto transition-all duration-200 ease-linear"
@@ -44,7 +46,7 @@ export default function RootLayout({
                 >
                   {children}
                 </main>
-              </div>
+              </SidebarInset>
             </SidebarProvider>
           </ThemeProvider>
         </body>

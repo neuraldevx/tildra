@@ -5,281 +5,68 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
+    --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
+    --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
     --radius: 0.5rem;
 
-    /* Chart colors */
-    --chart-1: var(--primary);
-    --chart-2: var(--secondary);
-
-    /* Sidebar Colors - Light Theme (adjust if needed) */
-    --sidebar: 240 5% 96%; /* Light gray */
-    --sidebar-foreground: 240 6% 10%; /* Dark gray */
-    --sidebar-accent: 240 5% 90%; /* Slightly darker gray for hover */
-    --sidebar-accent-foreground: 240 6% 10%; /* Dark gray */
-    --sidebar-primary: 222.2 47.4% 11.2%; /* Example: Use primary color */
-    --sidebar-primary-foreground: 210 40% 98%; /* Example: Use primary foreground */
+    /* Sidebar specific colors */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 221.2 83.2% 53.3%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
+    --background: 224 71% 4%;
+    --foreground: 0 0% 98%;
+    --card: 224 71% 4%;
+    --card-foreground: 0 0% 98%;
+    --popover: 224 71% 4%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 217.2 91.2% 59.8%;
     --primary-foreground: 222.2 47.4% 11.2%;
-
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --ring: 224.3 76.3% 48%;
 
-    /* Sidebar Colors - Dark Theme */
-    --sidebar: 224 71% 4%; /* Very dark blue/black */
-    --sidebar-foreground: 210 40% 98%; /* Almost white */
-    --sidebar-accent: 195 85% 41%; /* Cyan/bright blue */
-    --sidebar-accent-foreground: 210 40% 98%; /* Almost white */
-    --sidebar-primary: 195 85% 41%; /* Cyan/bright blue */
-    --sidebar-primary-foreground: 210 40% 98%; /* Almost white */
+    /* Sidebar specific colors */
+    --sidebar-background: 224 71% 4%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 224.3 76.3% 48%;
   }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  html {
-    @apply scroll-smooth;
-  }
-  body {
-    @apply bg-background text-foreground min-h-screen flex flex-col;
-  }
-}
-
-@layer components {
-  /* Custom gradient text that works in both light and dark mode */
-  .gradient-text {
-    @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
-  }
-
-  /* Gradient buttons that adjust for dark mode */
-  .gradient-button {
-    @apply bg-gradient-to-r from-primary to-secondary text-white
-           transition-all duration-300 relative
-           after:absolute after:inset-0 after:rounded-lg after:opacity-0
-           after:bg-black/10 hover:after:opacity-100 after:transition-opacity;
-  }
-
-  /* Enhanced hover effects for interactive elements */
-  .hover-lift {
-    @apply transition-all duration-300
-           hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/20
-           active:translate-y-0 active:shadow-md active:duration-75;
-  }
-
-  /* Button glow effect - COMPLETELY REVISED */
-  .button-glow {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .button-glow::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to right, hsla(var(--primary), 0%), hsla(var(--primary), 30%), hsla(var(--primary), 0%));
-    transform: translateX(-100%);
-    transition: transform 1000ms ease-in-out;
-  }
-
-  .button-glow:hover::before {
-    transform: translateX(100%);
-  }
-
-  /* Input focus animation */
-  .input-focus-animate:focus-within {
-    @apply transition-all duration-300 border-primary/70 ring-2 ring-primary/20;
-  }
-}
-
-/* Pulse animation for loading states */
-@keyframes pulse-animation {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.pulse {
-  animation: pulse-animation 2s infinite ease-in-out;
-}
-
-/* Shimmer effect for loading states */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.2) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
-}
-
-.dark .shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.05) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
-}
-
-/* Logo animation */
-@keyframes logo-float {
-  0% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
-  100% {
-    transform: translateY(0);
-  }
-}
-
-.logo-animate {
-  animation: logo-float 3s infinite ease-in-out;
-}
-
-/* Wave animation for the hero section */
-@keyframes wave {
-  0% {
-    transform: translateX(0) translateZ(0);
-  }
-  50% {
-    transform: translateX(-25%) translateZ(0);
-  }
-  100% {
-    transform: translateX(-50%) translateZ(0);
-  }
-}
-
-.wave-animation {
-  animation: wave 15s linear infinite;
-  width: 200%;
-}
-
-/* Ripple effect for buttons */
-.ripple {
-  position: relative;
-  overflow: hidden;
-}
-
-.ripple::after {
-  content: "";
-  position: absolute;
-  display: block;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 9999px;
-  opacity: 0;
-  transition: all 0.5s;
-  padding-top: 300%;
-  padding-left: 350%;
-  margin-left: -20px !important;
-  margin-top: -120%;
-  transform: scale(0);
-}
-
-.ripple:active::after {
-  opacity: 0.3;
-  padding: 0;
-  margin: 0;
-  transform: scale(20);
-  transition: 0s;
-}
-
-/* Focus ring animation */
-@keyframes focus-ring-ping {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  75%,
-  100% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
-}
-
-.focus-ring-animate:focus-visible::before {
-  content: "";
-  position: absolute;
-  inset: -0.25rem;
-  border-radius: 0.5rem;
-  border: 2px solid hsla(var(--primary), 50%);
-  animation: focus-ring-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
 @layer base {
@@ -289,4 +76,24 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Smooth transitions for sidebar elements */
+.sidebar-transition {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Prevent content jump during sidebar transitions */
+[data-sidebar="sidebar"] [data-sidebar="content"] {
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Smooth rotation for chevron icons */
+[data-sidebar="menu-button"] svg {
+  transition: transform 0.2s ease-in-out;
+}
+
+/* Ensure consistent width during transitions */
+[data-sidebar="sidebar"] {
+  transition: width 0.3s ease-in-out;
 }
