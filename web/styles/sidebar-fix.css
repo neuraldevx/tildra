@@ -1,0 +1,169 @@
+/* Logo text transition */
+.logo-text {
+  transition: opacity 0.2s ease-in-out;
+}
+.sidebar-collapsed .logo-text {
+  display: none;
+}
+
+/* Force all sidebar buttons to have transparent backgrounds */
+/* (Keep background overrides if necessary) */
+.peer\/menu-button,
+[data-active="true"],
+.peer\/menu-button:hover,
+.sidebar-menu-button,
+.sidebar-menu-button:hover,
+.sidebar-menu-button[data-active="true"],
+button[data-active="true"],
+.w-full.rounded-md.flex.items-center,
+.sidebar-menu-item button,
+.sidebar-menu-item a,
+.sidebar-menu-button a {
+  background-color: transparent !important;
+}
+
+/* Make sure no dark backgrounds are applied */
+[class*="SidebarMenuButton"],
+[class*="SidebarMenuItem"] button,
+[class*="SidebarMenuItem"] a,
+.peer\/menu-button {
+  background-color: transparent !important;
+}
+
+/* Hide any potentially problematic backgrounds */
+[class*="SidebarMenuButton"]::before,
+[class*="SidebarMenuButton"]::after {
+  display: none !important;
+}
+
+/* Fix for sidebar background issues */
+.sidebar-menu-item {
+  background-color: transparent !important;
+}
+
+/* Override all sidebar button backgrounds */
+button[class*="SidebarMenuButton"] {
+  background-color: transparent !important;
+}
+
+/* Override for active states */
+[data-active="true"] {
+  background-color: transparent !important;
+}
+
+/* --- REMOVED PREVIOUS ICON CENTERING ATTEMPTS --- */
+
+/* --- NEW: Icon Centering for Collapsed State --- */
+
+/* Target the container when collapsed in icon mode */
+[data-state="collapsed"][data-collapsible="icon"] {
+  /* Ensure the container itself doesn't interfere */
+}
+
+/* Target the menu item list within the collapsed container */
+[data-state="collapsed"][data-collapsible="icon"] ul[class*="SidebarMenu"] {
+  padding: 0 !important; /* Remove any padding */
+}
+
+/* Target the menu item (li) within the collapsed container */
+[data-state="collapsed"][data-collapsible="icon"] li[class*="SidebarMenuItem"] {
+  padding: 0 !important; /* Remove padding */
+  margin: 2px 0 !important; /* Add small vertical margin if needed */
+}
+
+/* Target the button/link (SidebarMenuButton) */
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"] {
+  display: flex !important;
+  justify-content: center !important; /* Center horizontally */
+  align-items: center !important; /* Center vertically */
+  width: 100% !important; /* Use full width of the narrow container */
+  height: var(--sidebar-width-icon) !important; /* Make it square */
+  padding: 0 !important; /* Remove all padding */
+  margin: 0 auto !important; /* Center the button itself within the li */
+  gap: 0 !important; /* Remove gap */
+}
+
+/* Target the SVG icon directly */
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"] svg {
+  margin: 0 !important; /* Remove margin from icon */
+  height: 1.25rem !important; /* Adjust size if needed */
+  width: 1.25rem !important; /* Adjust size if needed */
+}
+
+/* Hide the text span */
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"] span {
+  display: none !important;
+}
+
+/* --- SIDEBAR FOOTER (Keep if needed) --- */
+.sidebar-collapsed .p-3.border-t {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.sidebar-collapsed .p-3.border-t > * {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+.sidebar-collapsed [class*="UserButton"], 
+.sidebar-collapsed .cl-userButtonBox {
+  margin: 0 auto !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+/* --- Fix for mysterious line on active collapsed items --- */
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"][data-active="true"] {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"][data-active="true"]::before,
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"][data-active="true"]::after {
+  display: none !important;
+  content: "" !important; 
+}
+
+/* Ensure the link inside doesn't have pseudos either */
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"][data-active="true"] a::before,
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"][data-active="true"] a::after {
+  display: none !important;
+  content: "" !important; 
+}
+
+/* --- Add focus state overrides for active collapsed items --- */
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"][data-active="true"]:focus,
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"][data-active="true"]:focus-visible,
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"][data-active="true"] a:focus,
+[data-state="collapsed"][data-collapsible="icon"] [class*="SidebarMenuButton"][data-active="true"] a:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important; 
+  background-color: transparent !important; /* Ensure no background appears on focus */
+}
+
+/* --- Force reset on parent LI when collapsed --- */
+[data-state="collapsed"][data-collapsible="icon"] li[class*="SidebarMenuItem"] {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important; /* Ensure no padding */
+}
+
+[data-state="collapsed"][data-collapsible="icon"] li[class*="SidebarMenuItem"]::before,
+[data-state="collapsed"][data-collapsible="icon"] li[class*="SidebarMenuItem"]::after {
+  display: none !important;
+  content: "" !important;
+} 

@@ -1,0 +1,38 @@
+/* Override all sidebar button backgrounds */
+.sidebar-menu-button {
+  background-color: transparent !important;
+}
+
+.sidebar-menu-button:hover {
+  background-color: transparent !important;
+}
+
+.sidebar-menu-item button,
+.sidebar-menu-item a {
+  background-color: transparent !important;
+}
+
+/* Override active states */
+[data-active="true"] {
+  background-color: transparent !important;
+}
+
+/* Collapsed logo handling */
+.sidebar-collapsed .logo-text {
+  display: none;
+}
+
+/* Fix for peer classes */
+button.peer {
+  background-color: transparent !important;
+}
+
+/* Catch-all for custom sidebar components */
+[class*="SidebarMenuButton"] {
+  background-color: transparent !important;
+}
+
+/* Fix button hover states */
+button:hover {
+  background-color: transparent !important;
+} 

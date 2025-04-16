@@ -1,4 +1,3 @@
-
 "use client"
 
 import { motion } from "framer-motion"
@@ -56,7 +55,7 @@ export function Logo({ size = "md", animated = false, href = "/" }: LogoProps) {
           </div>
         </div>
       )}
-      <span className={`font-semibold gradient-text ${sizes[size].text}`}>Tildra</span>
+      <span className={`font-semibold gradient-text ${sizes[size].text} logo-text`}>Tildra</span>
     </div>
   )
 
