@@ -90,3 +90,9 @@ web/pnpm-lock.yaml:2223
 .env
 .venv/ # <-- Make sure this line exists
 env/
+.env*.local
+.env*.local
+
+# Env files
+.env*
+.env.local*

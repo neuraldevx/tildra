@@ -8,7 +8,6 @@ import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@cl
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useState } from "react"
-import { SidebarTrigger } from "@/components/ui/sidebar-fixed"
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -16,13 +15,6 @@ export function Header() {
   return (
     <header className="bg-background border-b border-border/40 sticky top-0 z-30">
       <div className="container mx-auto h-14 flex items-center px-4">
-        {/* Desktop sidebar toggle - hidden on mobile */}
-        <div className="hidden md:flex mr-3">
-          <SidebarTrigger className="text-muted-foreground hover:text-foreground transition-colors">
-            <Menu className="h-[1.2rem] w-[1.2rem]" />
-          </SidebarTrigger>
-        </div>
-
         {/* Mobile menu trigger - only visible on mobile */}
         <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
           <SheetTrigger asChild>

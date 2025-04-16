@@ -3,7 +3,7 @@ import "./globals.css"
 import { Lexend } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkProvider } from '@clerk/nextjs'
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { cn } from "@/lib/utils"
 
@@ -36,17 +36,16 @@ export default function RootLayout({
         <body className={lexend.className}>
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
             <SidebarProvider defaultOpen={defaultOpen}>
-              <AppSidebar />
-              <SidebarInset>
+              <div className="flex w-full min-h-screen">
+                <AppSidebar />
                 <main
                   className={cn(
                     "flex-1 flex flex-col overflow-auto transition-all duration-200 ease-linear"
                   )}
-                  style={{ marginLeft: 'var(--main-content-margin-left)' }}
                 >
                   {children}
                 </main>
-              </SidebarInset>
+              </div>
             </SidebarProvider>
           </ThemeProvider>
         </body>

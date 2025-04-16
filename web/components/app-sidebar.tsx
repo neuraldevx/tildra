@@ -10,15 +10,16 @@ import {
   BookOpen,
   User,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelLeft
 } from "lucide-react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -28,12 +29,15 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarTrigger,
-  useSidebar,
-  SidebarSeparator
+  useSidebar
 } from "@/components/ui/sidebar"
-import { LogoIcon } from "@/components/ui/logo-icon"
+import { Logo } from "@/components/ui/logo"
 import { useUser, UserButton, SignOutButton } from "@clerk/nextjs"
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { SignedIn, SignedOut } from "@clerk/nextjs"
+import React, { useState, useEffect } from "react"
 
 // Define your actual navigation items
 const mainItems = [
@@ -45,113 +49,328 @@ const mainItems = [
   { title: "Use Cases", url: "/#use-cases", icon: BookOpen }
 ]
 
+// Define consistent styling for all sidebar elements
+const SIDEBAR_STYLES = {
+  button: {
+    base: "w-full rounded-md transition-all duration-200 ease-in-out flex items-center gap-3 bg-transparent group-data-[collapsible=icon]:py-3",
+    active: "border-l-2 border-accent text-accent-foreground font-medium pl-2 group-data-[collapsible=icon]:border-l-0",
+    inactive: "text-foreground/70 pl-3 border-l-2 border-transparent group-data-[collapsible=icon]:border-l-0 group-data-[collapsible=icon]:pl-0",
+    overrides: "!bg-transparent hover:!bg-accent/10 active:!bg-transparent data-[active=true]:!bg-accent/10",
+  },
+  icon: {
+    base: "h-5 w-5 shrink-0 transition-all duration-200 ease-in-out group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-6",
+    active: "text-accent-foreground",
+    inactive: "text-foreground/70",
+  },
+  text: {
+    base: "truncate group-data-[collapsible=icon]:!hidden",
+    active: "font-medium",
+    inactive: "font-normal",
+  },
+  transition: "transition-all duration-200 ease-in-out",
+  hoverEffect: "hover:scale-105 hover:text-accent-foreground",
+}
+
 export function AppSidebar() {
   const pathname = usePathname()
-  const { state } = useSidebar()
+  const router = useRouter()
+  const { state, toggleSidebar } = useSidebar()
   const { isLoaded, isSignedIn, user } = useUser()
+  
+  // State to track the current URL hash
+  const [currentHash, setCurrentHash] = useState('');
+
+  // Handle navigation for both regular and hash links
+  const handleNavigation = (url: string) => {
+    if (url === '/') {
+      // For home link, ensure hash is cleared completely
+      router.push(url);
+      // Reset hash state to empty
+      setCurrentHash('');
+      // If on the same page already, manually scroll to top for better UX
+      if (pathname === '/') {
+        window.scrollTo(0, 0);
+      }
+    } else if (url.includes('#')) {
+      // For hash links, both update the URL and manually set the hash state
+      const hash = url.substring(url.indexOf('#'));
+      router.push(url);
+      // Manually update our state to ensure it's in sync with URL
+      setCurrentHash(hash);
+    } else {
+      // For normal page navigation, just use router.push
+      router.push(url);
+    }
+  };
+
+  // Effect to listen for hash changes (keep for direct hash changes or refreshes)
+  useEffect(() => {
+    const updateHash = () => {
+      const newHash = window.location.hash;
+      setCurrentHash(newHash);
+    };
+
+    // Set initial hash on mount
+    updateHash();
+
+    // Add listener for hash changes
+    window.addEventListener('hashchange', updateHash);
+
+    // Cleanup listener on component unmount
+    return () => {
+      window.removeEventListener('hashchange', updateHash);
+    };
+  }, []);
+
+  // Debug - log sidebar state changes
+  React.useEffect(() => {
+    console.log("[AppSidebar] Current sidebar state:", state);
+  }, [state]);
+
+  // Define custom CSS to handle the specific styling issues
+  const customStyles = `
+    .sidebar-menu-button,
+    .sidebar-menu-button:hover,
+    .sidebar-menu-item button,
+    .sidebar-menu-item a,
+    [data-active="true"],
+    button.peer,
+    div[class*="SidebarMenuButton"],
+    div[class*="SidebarMenuItem"],
+    a[class*="SidebarMenuButton"],
+    [class*="SidebarMenuButton_root"],
+    [class*="SidebarMenuButton"]:not([data-active="false"]),
+    [aria-current="page"],
+    [aria-selected="true"],
+    .peer\\/menu-button,
+    .peer\\/menu-button:hover {
+      background-color: transparent !important;
+      background: transparent !important;
+    }
+    
+    /* Target the ::before and ::after elements that might have background styles */
+    [class*="SidebarMenuButton"]::before,
+    [class*="SidebarMenuButton"]::after,
+    .sidebar-menu-button::before,
+    .sidebar-menu-button::after {
+      background-color: transparent !important;
+      background: transparent !important;
+      display: none !important;
+    }
+    
+    .sidebar-collapsed .logo-text {
+      display: none;
+    }
+
+    /* Target any potential background elements */
+    .w-full.rounded-md.flex.items-center {
+      background-color: transparent !important;
+    }
+  `;
 
   return (
-    <Sidebar className="border-r border-sidebar-border/80 transition-all duration-300 ease-in-out" collapsible="icon">
-      <SidebarHeader className="h-14 flex items-center justify-center border-b border-sidebar-border/80">
-        <div className="flex items-center justify-center w-full">
-          <LogoIcon size={32} />
-          <span 
-            className="ml-2 font-semibold text-lg transition-opacity duration-200 ease-in-out whitespace-nowrap"
-            style={{ opacity: state === "collapsed" ? 0 : 1 }}
-          >
-            Tildra
-          </span>
-        </div>
-      </SidebarHeader>
+    <>
+      {/* Add a style tag to the DOM */}
+      <style dangerouslySetInnerHTML={{ __html: customStyles }} />
+      
+      {/* Desktop sidebar toggle button - fixed position outside sidebar */}
+      <div className="fixed top-4 z-50 hidden md:block" style={{
+        left: state === 'expanded' 
+          ? 'calc(var(--sidebar-width) - 0.75rem)' 
+          : 'calc(var(--sidebar-width-icon) - 0.75rem)',
+        transition: 'left 0.2s ease-linear'
+      }}>
+        <Button 
+          variant="ghost"
+          size="icon" 
+          className={cn(
+            "h-8 w-8 shadow-md rounded-md",
+            SIDEBAR_STYLES.transition,
+            SIDEBAR_STYLES.hoverEffect,
+            "bg-secondary/90"
+          )}
+          onClick={toggleSidebar}
+          aria-label={state === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'}
+        >
+          {state === 'expanded' ? (
+            <PanelLeftClose className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
+          ) : (
+            <PanelLeftOpen className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
+          )}
+        </Button>
+      </div>
 
-      <SidebarContent className="flex-1 overflow-auto py-2 px-2">
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainItems.map((item) => {
-                const isActive = item.url === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(item.url.split("#")[0]) && item.url !== "/"
+      <Sidebar
+        collapsible="icon"
+        variant="sidebar"
+        className={cn(
+          "border-r border-border/40",
+          state === 'collapsed' && "sidebar-collapsed"
+        )}
+        data-state={state}
+      >
+        <SidebarHeader className="h-14 flex items-center justify-center px-4 border-b border-border/40">
+          <Link href="/" className="focus-ring-animate relative focus:outline-none rounded-lg">
+            <span className="font-semibold gradient-text text-lg logo-text group-data-[collapsible=icon]:hidden">
+              Tildra
+            </span>
+          </Link>
+        </SidebarHeader>
 
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.title}
-                      className="group-data-[collapsible=icon]:justify-center transition-all duration-150"
+        <SidebarContent className="px-3 py-3 flex-1 overflow-y-auto">
+          <SidebarGroup>
+            <SidebarGroupContent className="mt-1 space-y-1">
+              <SidebarMenu>
+                {mainItems.map((item) => {
+                   const isActive = (() => {
+                     // Use hash from state now
+                     // Exact match for Home (only if path is / AND there's no hash from state)
+                     if (item.url === "/" && currentHash === "") { 
+                       const result = pathname === "/";
+                       return result;
+                     }
+                     
+                     // StartsWith for non-hash links (e.g., /dashboard)
+                     if (!item.url.includes("#") && item.url !== "/") { 
+                       const result = pathname.startsWith(item.url);
+                       return result;
+                     }
+                     
+                     // Check hash links: active if path is / AND hash from state matches item's hash
+                     if (item.url.startsWith("/#") && pathname === "/") { 
+                        const itemHash = item.url.substring(1); // Extract #hash from item.url
+                        const result = itemHash === currentHash;
+                        return result;
+                     }
+
+                     return false;
+                   })();
+
+                  return (
+                    <SidebarMenuItem 
+                      key={item.title} 
+                      className={cn(
+                        "group sidebar-menu-item",
+                        state === 'collapsed' ? 'my-1.5' : 'my-1'
+                      )}
                     >
-                      <Link href={item.url}>
-                        <item.icon className="h-5 w-5 flex-shrink-0 transition-transform duration-150 group-hover:scale-110" />
-                        <span 
-                          className="transition-opacity duration-200 ease-in-out whitespace-nowrap"
-                          style={{ opacity: state === "collapsed" ? 0 : 1 }}
-                        >
+                      <SidebarMenuButton
+                        isActive={isActive}
+                        className={cn(
+                          SIDEBAR_STYLES.button.base,
+                          SIDEBAR_STYLES.transition,
+                          isActive
+                            ? SIDEBAR_STYLES.button.active
+                            : SIDEBAR_STYLES.button.inactive,
+                          SIDEBAR_STYLES.button.overrides,
+                          "sidebar-menu-button",
+                          !isActive && "hover:text-accent-foreground",
+                          state === 'collapsed' && "justify-center items-center p-0 gap-0"
+                        )}
+                        style={{ backgroundColor: 'transparent' }}
+                        onClick={() => handleNavigation(item.url)}
+                      >
+                        <item.icon
+                          className={cn(
+                            SIDEBAR_STYLES.icon.base,
+                            isActive
+                              ? SIDEBAR_STYLES.icon.active
+                              : SIDEBAR_STYLES.icon.inactive,
+                            "group-hover:scale-110 group-data-[collapsible=icon]:group-hover:scale-125",
+                            state === 'collapsed' && "mx-auto"
+                          )}
+                        />
+                        <span className={cn(
+                           SIDEBAR_STYLES.text.base,
+                           isActive
+                             ? SIDEBAR_STYLES.text.active
+                             : SIDEBAR_STYLES.text.inactive
+                         )}>
                           {item.title}
                         </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
 
-      <SidebarSeparator />
-      <SidebarFooter className="mt-auto p-2">
-        {!isLoaded ? (
-          <div className="flex items-center gap-3 p-2">
-            <Skeleton className="h-8 w-8 rounded-full" />
-            <Skeleton className="h-4 flex-1 group-data-[collapsible=icon]:hidden" />
-          </div>
-        ) : isSignedIn ? (
-          <div className="flex items-center gap-2 p-2">
-            <UserButton afterSignOutUrl="/" />
-            <div 
-              className="flex flex-col transition-opacity duration-200 ease-in-out whitespace-nowrap"
-              style={{ opacity: state === "collapsed" ? 0 : 1 }}
-            >
-              <span className="text-sm font-medium truncate">
-                {user?.firstName ?? user?.username ?? 'User'}
-              </span>
-              <span className="text-xs text-muted-foreground truncate">
-                {user?.primaryEmailAddress?.emailAddress}
-              </span>
+        <div className={cn(
+          "p-3 border-t border-border/40 mt-auto",
+          // Adjust padding on the outer container for finer control
+          state === 'collapsed' && "flex flex-col items-center justify-start px-[10px] py-1" // Use px-[value] and adjust 10px
+        )}>
+          <SignedIn>
+            <div className={cn(
+              "flex items-center gap-3 p-2 rounded-md", // Base styles
+              SIDEBAR_STYLES.transition,
+              "text-foreground/70 hover:bg-accent/10 hover:text-accent-foreground", // Text/hover styles
+              // Make inner div full width and remove its padding when collapsed
+              state === 'collapsed' && "w-full p-0" 
+            )}>
+              <UserButton 
+                afterSignOutUrl="/" 
+              />
+              <div className="flex flex-col truncate group-data-[collapsible=icon]:hidden">
+                <span className={cn("text-sm", SIDEBAR_STYLES.text.active, "truncate")}>
+                  {user?.firstName ?? user?.username ?? 'User'}
+                </span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {user?.primaryEmailAddress?.emailAddress}
+                </span>
+              </div>
             </div>
-            <SignOutButton>
-              <button 
-                className="ml-auto p-1 rounded-md hover:bg-sidebar-accent transition-opacity duration-200 ease-in-out"
-                style={{ opacity: state === "collapsed" ? 0 : 1 }} 
-                aria-label="Sign Out"
-              >
-                <LogOut className="h-4 w-4"/>
-              </button>
-            </SignOutButton>
-          </div>
-        ) : (
-          <SidebarMenuButton 
-            asChild 
-            className="group-data-[collapsible=icon]:justify-center"
-            tooltip="Sign In"
-          >
-            <Link href="/sign-in">
-              <User className="h-5 w-5"/>
-              <span 
-                className="transition-opacity duration-200 ease-in-out whitespace-nowrap"
-                style={{ opacity: state === "collapsed" ? 0 : 1 }}
-              >Sign In</span>
-            </Link>
-          </SidebarMenuButton>
-        )}
-      </SidebarFooter>
+          </SignedIn>
+          <SignedOut>
+            <Button 
+              asChild 
+              variant="ghost"
+              size="sm" 
+              className={cn(
+                "w-full group-data-[collapsible=icon]:hidden mt-2",
+                SIDEBAR_STYLES.transition,
+                SIDEBAR_STYLES.hoverEffect,
+                "bg-transparent hover:bg-accent/10"
+              )}
+            >
+              <Link href="/sign-in" className="flex items-center gap-2 justify-center">
+                <User className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
+                <span>Sign In</span>
+              </Link>
+            </Button>
+            <Button 
+              asChild 
+              variant="ghost" 
+              size="icon" 
+              className={cn(
+                "hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full mt-2",
+                // Add padding-left instead of justify-center
+                state === 'collapsed' && "justify-start pl-1", 
+                SIDEBAR_STYLES.transition,
+                SIDEBAR_STYLES.hoverEffect,
+                "bg-transparent hover:bg-accent/10"
+              )}
+            >
+              <Link href="/sign-in" aria-label="Sign In">
+                <User className={cn(SIDEBAR_STYLES.icon.base, "group-hover:scale-110")} />
+              </Link>
+            </Button>
+          </SignedOut>
+        </div>
 
-      <div className="fixed top-4 left-4 z-50 md:hidden">
-        <SidebarTrigger className="bg-card rounded-md shadow-md p-2">
-          <PanelLeft className="h-5 w-5"/>
-        </SidebarTrigger>
-      </div>
-    </Sidebar>
+        {/* Mobile menu trigger */}
+        <div className="fixed top-4 left-4 z-50 md:hidden">
+          <SidebarTrigger className={cn(
+            "rounded-md shadow-md p-2 bg-transparent",
+            SIDEBAR_STYLES.transition,
+            "hover:bg-accent/10 hover:text-accent-foreground hover:scale-105"
+          )}>
+            <PanelLeft className={cn(SIDEBAR_STYLES.icon.base, "group-hover:scale-110")} />
+          </SidebarTrigger>
+        </div>
+      </Sidebar>
+    </>
   )
 }
