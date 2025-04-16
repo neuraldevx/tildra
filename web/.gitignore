@@ -30,4 +30,5 @@ next-env.d.ts
 web/node_modules
 web/.env
 web/.env.local.env
+web/.env.local
 .env

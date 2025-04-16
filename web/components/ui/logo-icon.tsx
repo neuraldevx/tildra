@@ -11,8 +11,8 @@ export function LogoIcon({ size = 32, className = "" }: LogoIconProps) {
       <div className="absolute inset-0 bg-gradient-to-br from-primary to-secondary opacity-90"></div>
       <div className="absolute inset-0 flex items-center justify-center">
         <Image
-          src="/images/tildra-logo.png"
-          alt="Tildra Logo"
+          src="/images/logo.png"
+          alt="Logo"
           width={size}
           height={size}
           className="w-full h-full object-contain p-1"

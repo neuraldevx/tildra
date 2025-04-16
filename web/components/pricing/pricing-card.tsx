@@ -1,6 +1,9 @@
 "use client"
 import { Check, X } from "lucide-react"
 import Link from "next/link"
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from "@clerk/nextjs";
 
 interface PricingFeature {
   name: string
@@ -19,6 +22,7 @@ interface PricingCardProps {
   ctaLink: string
   isPrimary?: boolean
   popularBadge?: boolean
+  billingCycle: 'monthly' | 'yearly';
 }
 
 export function PricingCard({
@@ -32,7 +36,73 @@ export function PricingCard({
   ctaLink,
   isPrimary = false,
   popularBadge = false,
+  billingCycle
 }: PricingCardProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { getToken } = useAuth();
+
+  const handleUpgradeClick = async () => {
+    if (!isPrimary) return;
+
+    setIsLoading(true);
+    const priceLookupKey = billingCycle;
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        router.push('/sign-in');
+        setIsLoading(false);
+        return;
+      }
+
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      console.log(`[Upgrade] Fetching: POST ${apiBaseUrl}/create-checkout-session`);
+      const response = await fetch(`${apiBaseUrl}/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ price_lookup_key: priceLookupKey }),
+      });
+      
+      console.log(`[Upgrade] Response Status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to create checkout session.' }));
+        console.error('[Upgrade] Response not OK:', errorData);
+        throw new Error(errorData.detail || `HTTP error ${response.status}`);
+      }
+
+      let responseData;
+      try {
+          responseData = await response.json();
+          console.log('[Upgrade] Parsed Response Data:', responseData);
+      } catch (parseError) {
+          console.error('[Upgrade] Failed to parse JSON response:', parseError);
+          throw new Error('Failed to understand server response.');
+      }
+
+      const checkoutUrl = responseData?.url;
+      console.log('[Upgrade] Extracted Checkout URL:', checkoutUrl);
+
+      if (checkoutUrl) {
+        console.log('[Upgrade] Redirecting to:', checkoutUrl);
+        router.push(checkoutUrl);
+      } else {
+        console.error('[Upgrade] Checkout URL not found in response data.');
+        throw new Error('Checkout URL not received from server.');
+      }
+
+    } catch (error) {
+      console.error("[Upgrade] Error in handleUpgradeClick:", error);
+      alert(`Error creating checkout session: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div
       className={`relative h-full rounded-xl border-2 ${
@@ -79,16 +149,22 @@ export function PricingCard({
           ))}
         </ul>
 
-        <Link
-          href={ctaLink}
-          className={`w-full flex justify-center py-3 px-4 rounded-lg font-medium transition-all duration-300 ${
-            isPrimary
-              ? "gradient-button ripple button-glow"
-              : "border-2 border-border hover:border-primary/50 hover:bg-primary/5"
-          }`}
-        >
-          {ctaText}
-        </Link>
+        {isPrimary ? (
+          <button
+            onClick={handleUpgradeClick}
+            disabled={isLoading}
+            className={`w-full flex justify-center py-3 px-4 rounded-lg font-medium transition-all duration-300 gradient-button ripple button-glow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {isLoading ? 'Processing...' : ctaText}
+          </button>
+        ) : (
+          <Link
+            href={ctaLink}
+            className={`w-full flex justify-center py-3 px-4 rounded-lg font-medium transition-all duration-300 border-2 border-border hover:border-primary/50 hover:bg-primary/5`}
+          >
+            {ctaText}
+          </Link>
+        )}
       </div>
     </div>
   )
