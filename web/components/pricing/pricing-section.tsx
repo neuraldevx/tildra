@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useInView } from "framer-motion"
 import { HelpCircle, CreditCard, Shield } from "lucide-react"
@@ -8,10 +8,37 @@ import { PricingCard } from "./pricing-card"
 import { PricingToggle } from "./pricing-toggle"
 import { PricingFaq } from "./pricing-faq"
 
+// **Placeholder:** Fetch user status (replace with actual data fetching logic)
+// This might come from a global context/store in a real app
+async function getUserStatusData() {
+  console.log("[Pricing] Fetching user status (placeholder)");
+  // return { is_pro: false }; 
+   return { is_pro: true }; // Example: User is Pro
+}
+
 export function PricingSection() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly")
+  const [isProUser, setIsProUser] = useState(false); // Add state for user status
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true); // Loading state
+
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, amount: 0.2 })
+
+  // Fetch user status on component mount
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingStatus(true);
+    getUserStatusData().then(data => {
+      if (isMounted) {
+        setIsProUser(data.is_pro);
+        setIsLoadingStatus(false);
+      }
+    }).catch(err => {
+        console.error("Failed to fetch user status:", err);
+        if (isMounted) setIsLoadingStatus(false); // Still stop loading on error
+    });
+    return () => { isMounted = false; }; // Cleanup function
+  }, []);
 
   const monthlyPrice = 15 // Set base monthly price
   const yearlyMonthlyPrice = 12 // Equivalent monthly price when paying yearly
@@ -53,6 +80,20 @@ export function PricingSection() {
     { name: "Export Options", included: true },
     { name: "API Access", included: true },
   ]
+
+  // Determine CTA text/link/state for Premium card based on status
+  let premiumCtaText = "Upgrade Now";
+  let premiumCtaLink = "#"; // Replace with actual checkout link/handler
+  let premiumCtaDisabled = false;
+
+  if (isLoadingStatus) {
+    premiumCtaText = "Loading...";
+    premiumCtaDisabled = true;
+  } else if (isProUser) {
+    premiumCtaText = "Current Plan";
+    premiumCtaDisabled = true; // Disable button for current plan
+    premiumCtaLink = ""; // No link needed
+  }
 
   return (
     <section id="pricing" className="container mx-auto px-4 py-20 relative z-10" ref={ref}>
@@ -96,10 +137,11 @@ export function PricingSection() {
             pricePeriod={billingCycle === "monthly" ? "month" : "month, billed annually"}
             description="Unlock unlimited potential"
             features={premiumFeatures}
-            ctaText="Upgrade Now"
-            ctaLink="#"
-            isPrimary={true}
-            popularBadge={true}
+            ctaText={premiumCtaText}
+            ctaLink={premiumCtaLink}
+            ctaDisabled={premiumCtaDisabled}
+            isPrimary={!isProUser}
+            popularBadge={!isProUser}
             yearlyPrice={billingCycle === "yearly" ? `$${yearlyPrice}/year` : undefined}
             billingCycle={billingCycle}
           />

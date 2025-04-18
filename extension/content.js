@@ -227,12 +227,38 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return;
     }
 
+    // --- Start Loading Indicator ---
+    const originalIconHTML = btn.innerHTML;
+    btn.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="#ffffff">
+        <style>.spinner_V8m1{transform-origin:center;animation:spinner_zKoa 2s linear infinite}.spinner_zKoa{animation-delay:-.1s}@keyframes spinner_zKoa{100%{transform:rotate(360deg)}}</style>
+        <path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/>
+        <path d="M12,4a8,8,0,0,1,7.89,6.7A1.53,1.53,0,0,0,21.38,12h0a1.5,1.5,0,0,0,1.48-1.75A11,11,0,0,0,12,1Z" class="spinner_V8m1"/>
+      </svg>
+    `;
+    btn.disabled = true;
+    // --- End Loading Indicator ---
+
     getClerkSessionToken()
       .then(token => {
         console.log('[Tildra] Sending summarizeAPI message');
+        // --- Log the received token before sending ---
+        if (token) {
+          console.log('[Tildra Content] Received token starting with:', token.substring(0, 10) + '...');
+        } else {
+          console.warn('[Tildra Content] Received null/empty token from background.');
+          // Handle the case where token is missing before sending API message
+          throw new Error('Authentication token was not retrieved.'); // Stop before sending summarizeAPI
+        }
+        // --- End logging ---
         chrome.runtime.sendMessage(
           { action: 'summarizeAPI', textContent: articleText, token },
           (resp) => {
+            // --- Restore Button State ---
+            btn.innerHTML = originalIconHTML;
+            btn.disabled = false;
+            // --- End Restore Button State ---
+
             if (chrome.runtime.lastError) {
               console.error('[Tildra] summarizeAPI error', chrome.runtime.lastError);
               alert('Summarization API error: ' + chrome.runtime.lastError.message);
@@ -240,7 +266,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             }
             if (!resp || !resp.success) {
               console.error('[Tildra] summarizeAPI response error', resp);
-              alert('Summarization API error: ' + (resp?.error || 'Unknown error'));
+              // --- Check for expired token flag ---
+              if (resp && resp.expired) {
+                alert('User session expired, please log back in to tildra.xyz and try again.');
+              } else {
+                // Use the error message from the background script
+                alert('Summarization API error: ' + (resp?.error || 'Unknown error'));
+              }
+              // --- End check ---
               return;
             }
 
@@ -274,8 +307,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         );
       })
       .catch(err => {
+        // --- Restore Button State on Error ---
+        btn.innerHTML = originalIconHTML;
+        btn.disabled = false;
+        // --- End Restore Button State on Error ---
         console.error('[Tildra] auth token error', err);
-        alert('Auth error: ' + err.message);
+        // Display specific message if auth token retrieval failed
+        if (err.message === 'Authentication token was not retrieved.') {
+             alert('Could not get authentication token. Please ensure you are logged in to tildra.xyz.');
+        } else {
+            // Generic error for other issues in the promise chain before API call
+            alert('Auth or setup error: ' + err.message);
+        }
       });
   });
 })();

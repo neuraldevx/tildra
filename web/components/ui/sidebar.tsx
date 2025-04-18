@@ -116,21 +116,21 @@ const SidebarProvider = React.forwardRef<
 
     return (
       <SidebarContext.Provider value={contextValue}>
-        <div
+          <div
           style={{
-            "--sidebar-width": SIDEBAR_WIDTH,
-            "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-            ...style,
+                "--sidebar-width": SIDEBAR_WIDTH,
+                "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+                ...style,
           } as React.CSSProperties}
-          className={cn(
+            className={cn(
             "relative flex min-h-screen w-full",
-            className
-          )}
-          ref={ref}
-          {...props}
-        >
-          {children}
-        </div>
+              className
+            )}
+            ref={ref}
+            {...props}
+          >
+            {children}
+          </div>
       </SidebarContext.Provider>
     )
   }
@@ -228,11 +228,11 @@ const SidebarHeader = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div">
 >(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
+    <div
+      ref={ref}
     className={cn("flex-none p-4", className)}
-    {...props}
-  />
+      {...props}
+    />
 ))
 SidebarHeader.displayName = "SidebarHeader"
 
@@ -240,11 +240,11 @@ const SidebarContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div">
 >(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
+    <div
+      ref={ref}
     className={cn("flex-1 overflow-auto px-2 py-4", className)}
-    {...props}
-  />
+      {...props}
+    />
 ))
 SidebarContent.displayName = "SidebarContent"
 
@@ -294,8 +294,8 @@ const SidebarRail = React.forwardRef<
     ref={ref}
     // Basic styling, adjust as needed for icon rail functionality
     className={cn("flex-none border-t", className)}
-    {...props}
-  />
+      {...props}
+    />
 ))
 SidebarRail.displayName = "SidebarRail"
 
@@ -304,11 +304,11 @@ const SidebarGroup = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div">
 >(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
+    <div
+      ref={ref}
     className={cn("flex flex-col", className)}
-    {...props}
-  />
+      {...props}
+    />
 ))
 SidebarGroup.displayName = "SidebarGroup"
 

@@ -1,9 +1,11 @@
 "use client"
-import { Check, X } from "lucide-react"
+import { Check, X, Minus } from "lucide-react"
 import Link from "next/link"
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from "@clerk/nextjs";
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface PricingFeature {
   name: string
@@ -23,7 +25,10 @@ interface PricingCardProps {
   isPrimary?: boolean
   popularBadge?: boolean
   billingCycle: 'monthly' | 'yearly';
+  ctaDisabled?: boolean
 }
+
+const PRODUCTION_API_URL = 'https://snipsummary.fly.dev';
 
 export function PricingCard({
   title,
@@ -36,14 +41,15 @@ export function PricingCard({
   ctaLink,
   isPrimary = false,
   popularBadge = false,
-  billingCycle
+  billingCycle,
+  ctaDisabled
 }: PricingCardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { getToken } = useAuth();
 
   const handleUpgradeClick = async () => {
-    if (!isPrimary) return;
+    if (!isPrimary || ctaDisabled) return;
 
     setIsLoading(true);
     const priceLookupKey = billingCycle;
@@ -56,7 +62,7 @@ export function PricingCard({
         return;
       }
 
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiBaseUrl = PRODUCTION_API_URL;
       console.log(`[Upgrade] Fetching: POST ${apiBaseUrl}/create-checkout-session`);
       const response = await fetch(`${apiBaseUrl}/create-checkout-session`, {
         method: 'POST',
@@ -89,7 +95,7 @@ export function PricingCard({
 
       if (checkoutUrl) {
         console.log('[Upgrade] Redirecting to:', checkoutUrl);
-        router.push(checkoutUrl);
+        window.location.href = checkoutUrl;
       } else {
         console.error('[Upgrade] Checkout URL not found in response data.');
         throw new Error('Checkout URL not received from server.');
@@ -105,67 +111,64 @@ export function PricingCard({
 
   return (
     <div
-      className={`relative h-full rounded-xl border-2 ${
-        isPrimary ? "border-primary/30" : "border-border"
-      } overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-1`}
+      className={cn(
+        "border rounded-xl p-6 flex flex-col h-full relative",
+        isPrimary ? "border-primary/50 bg-primary/5" : "border-border bg-card"
+      )}
     >
       {popularBadge && (
-        <div className="absolute top-0 right-0">
-          <div className="bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-bl-lg">
-            MOST POPULAR
-          </div>
-        </div>
+        <span className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary text-primary-foreground px-3 py-0.5 rounded-full text-xs font-semibold">
+          Most Popular
+        </span>
       )}
-
-      <div className="p-6 md:p-8">
-        <h3 className="text-2xl font-bold mb-2">{title}</h3>
-        <div className="mb-4">
-          <span className="text-4xl font-bold">{price}</span>
-          {pricePeriod && <span className="text-foreground/60 ml-1">/{pricePeriod}</span>}
-          {yearlyPrice && <div className="text-sm text-foreground/60 mt-1">{yearlyPrice}</div>}
-        </div>
-        <p className="text-foreground/70 mb-6">{description}</p>
-
-        <ul className="space-y-3 mb-8">
-          {features.map((feature, index) => (
-            <li key={index} className="flex items-start gap-3">
-              {feature.included ? (
-                <>
-                  <div className="bg-primary/20 text-primary rounded-full p-1 mt-0.5 flex-shrink-0">
-                    <Check size={14} />
-                  </div>
-                  <span className={feature.upgraded ? "line-through text-foreground/50" : ""}>{feature.name}</span>
-                  {feature.upgraded && <span className="text-primary font-medium ml-1">{feature.upgraded}</span>}
-                </>
-              ) : (
-                <>
-                  <div className="bg-muted text-muted-foreground rounded-full p-1 mt-0.5 flex-shrink-0">
-                    <X size={14} />
-                  </div>
-                  <span className="text-foreground/50">{feature.name}</span>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-
-        {isPrimary ? (
-          <button
-            onClick={handleUpgradeClick}
-            disabled={isLoading}
-            className={`w-full flex justify-center py-3 px-4 rounded-lg font-medium transition-all duration-300 gradient-button ripple button-glow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            {isLoading ? 'Processing...' : ctaText}
-          </button>
-        ) : (
-          <Link
-            href={ctaLink}
-            className={`w-full flex justify-center py-3 px-4 rounded-lg font-medium transition-all duration-300 border-2 border-border hover:border-primary/50 hover:bg-primary/5`}
-          >
-            {ctaText}
-          </Link>
-        )}
+      <h3 className="text-xl font-semibold mb-2">{title}</h3>
+      <p className="text-foreground/70 mb-4 text-sm min-h-[40px]">{description}</p>
+      
+      <div className="mb-6">
+        <span className="text-4xl font-bold">{price}</span>
+        {pricePeriod && <span className="text-foreground/70 text-sm">/{pricePeriod}</span>}
+        {billingCycle === "yearly" && yearlyPrice && 
+            <p className="text-xs text-foreground/60 mt-1">{yearlyPrice} billed annually</p>
+        }
       </div>
+
+      <ul className="space-y-3 mb-8 flex-grow text-sm">
+        {features.map((feature, index) => (
+          <li key={index} className="flex items-center gap-2">
+            {feature.included ? (
+              <Check className="h-4 w-4 text-primary flex-shrink-0" />
+            ) : (
+              <Minus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            )}
+            <span className={cn(!feature.included && "text-muted-foreground line-through")}>
+              {feature.name}
+            </span>
+            {feature.included && feature.upgraded && billingCycle === "monthly" && (
+              <span className="text-xs text-primary/80 ml-auto pl-2">
+                (Upgrade: {feature.upgraded})
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <Button 
+        asChild={!ctaDisabled && !!ctaLink && !isPrimary}
+        variant={isPrimary ? "default" : "outline"} 
+        className="w-full mt-auto" 
+        disabled={ctaDisabled || isLoading}
+        onClick={isPrimary && !ctaDisabled ? handleUpgradeClick : undefined}
+      >
+        {isLoading && isPrimary ? (
+            <span>Processing...</span>
+        ) : ctaDisabled || (!ctaLink && !isPrimary) ? (
+          <span>{ctaText}</span>
+        ) : isPrimary ? (
+            <span>{ctaText}</span>
+        ) : (
+          <Link href={ctaLink}>{ctaText}</Link>
+        )}
+      </Button>
     </div>
   )
 }

@@ -130,11 +130,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Session token request
   if (msg.action === 'getSessionToken') {
+    console.log('[Tildra Background] Received getSessionToken request');
     chrome.cookies.get({ url: COOKIE_DOMAIN_URL, name: COOKIE_NAME }, (cookie) => {
-      if (chrome.runtime.lastError || !cookie) {
-        console.warn('Tildra (background): cookie.get error', chrome.runtime.lastError?.message);
-        sendResponse({ success: false, error: chrome.runtime.lastError?.message || 'Cookie not found' });
+      if (chrome.runtime.lastError) {
+        console.error('[Tildra Background] cookie.get error:', chrome.runtime.lastError.message);
+        sendResponse({ success: false, error: `Cookie retrieval error: ${chrome.runtime.lastError.message}` });
+      } else if (!cookie) {
+        console.warn('[Tildra Background] Cookie not found for', COOKIE_DOMAIN_URL, COOKIE_NAME);
+        sendResponse({ success: false, error: 'Cookie not found (User might not be logged in)' });
       } else {
+        console.log('[Tildra Background] Cookie found! Token starts with:', cookie.value.substring(0, 10) + '...');
         sendResponse({ success: true, token: cookie.value });
       }
     });
@@ -144,42 +149,82 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Backend summarization request
   if (msg.action === 'summarizeAPI') {
     const textContent = msg.textContent;
-    // Get session token and perform API call
-    chrome.cookies.get({ url: COOKIE_DOMAIN_URL, name: COOKIE_NAME }, (cookie) => {
-      const token = cookie?.value || '';
-      fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ article_text: textContent })
+    const token = msg.token;
+
+    if (!token) {
+      console.error('Tildra (background): No token provided in summarizeAPI message.');
+      sendResponse({ success: false, error: 'Authentication token missing' });
+      return true;
+    }
+
+    fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ article_text: textContent })
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`API error ${res.status}`);
+        return res.json();
       })
-        .then(res => {
-          if (!res.ok) throw new Error(`API error ${res.status}`);
-          return res.json();
-        })
-        .then(data => {
-          // Store summary in history
-          chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-            if (tabs && tabs[0]) {
-              addToSummaryHistory(data, {
-                title: tabs[0].title,
-                url: tabs[0].url
-              });
-            } else {
-              addToSummaryHistory(data);
-            }
-          });
-          
-          sendResponse({ success: true, summaryData: data });
-        })
-        .catch(err => {
-          console.error('Tildra (background): summarization API error', err);
-          sendResponse({ success: false, error: err.message });
+      .then(data => {
+        // Store summary in history
+        chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+          if (tabs && tabs[0]) {
+            addToSummaryHistory(data, {
+              title: tabs[0].title,
+              url: tabs[0].url
+            });
+          } else {
+            addToSummaryHistory(data);
+          }
         });
-    });
-    return true;
+        
+        sendResponse({ success: true, summaryData: data });
+      })
+      .catch(async errorOrResponse => { // Catch network errors or the rejected response object
+        let errorMessage = 'Failed to fetch summary: Unknown error'; // Default message
+        let isExpiredToken = false;
+
+        if (errorOrResponse instanceof Response) { // Check if it's the Response object we rejected
+          const response = errorOrResponse;
+          try {
+            // Only try to parse JSON if there's likely a body
+            if (response.body) { 
+                const errorData = await response.json(); // Try parsing the error body
+                let detail = (errorData && errorData.detail) ? errorData.detail : null;
+
+                // Check for specific error messages from the API
+                if (response.status === 401 && detail && detail.toLowerCase().includes("token has expired")) {
+                    errorMessage = "Token has expired"; // Specific internal message
+                    isExpiredToken = true;
+                } else if (detail) {
+                    // Use API detail if available and not the specific expired token case
+                    errorMessage = detail;
+                } else {
+                   // Fallback if no detail
+                   errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
+                }
+                console.error(`[Tildra Background] API Error Response (${response.status}):`, errorData || response.statusText);
+            } else {
+                 errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
+                 console.error(`[Tildra Background] API Error Response (${response.status}): No response body`);
+            }
+          } catch (parseError) { // Handle cases where the error body wasn't valid JSON
+              errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
+              console.error("[Tildra Background] Failed to parse JSON error response:", parseError, response.statusText);
+          }
+        } else if (errorOrResponse instanceof Error) { // Handle network errors or errors thrown earlier
+          errorMessage = errorOrResponse.message;
+          console.error('[Tildra Background] Network/internal error:', errorOrResponse);
+        }
+
+        // Send the potentially specific error message back
+        sendResponse({ success: false, error: errorMessage, expired: isExpiredToken });
+      });
+    return true; // Indicate async response expected
   }
 
   return false; // unknown message
