@@ -96,3 +96,5 @@ env/
 # Env files
 .env*
 .env.local*
+node_modules/
+.pnpm-store/
