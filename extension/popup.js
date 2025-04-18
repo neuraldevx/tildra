@@ -2,13 +2,26 @@
 
 // Wait for the DOM to be fully loaded before running script logic
 document.addEventListener('DOMContentLoaded', () => {
+  // --- Get references to NEW elements ---
+  const openTabButton = document.querySelector('.open-tab-button');
+  const summarizeTab = document.getElementById('summarize-tab');
+  const historyTab = document.getElementById('history-tab');
+  const summarizePanel = document.getElementById('panel-summarize');
+  const historyPanel = document.getElementById('panel-history');
+  const tabUnderline = document.querySelector('.tab-underline');
   const summarizeButton = document.getElementById('summarize-button');
-  const loadingSpinner = document.getElementById('loading');
-  const summaryDiv = document.getElementById('summary-container');
+  const upgradeLink = document.getElementById('upgrade-link'); // If needed
+
+  // --- Existing/Modified element references ---
+  const loadingSpinner = document.getElementById('loading'); // Keep for potential future use, though hidden by CSS
+  const summaryContainer = document.getElementById('summary-container');
   const tldrSection = document.getElementById('tldr');
   const keyPointsList = document.getElementById('key-points');
   const errorDiv = document.getElementById('error');
   const copyButton = document.getElementById('copy-button');
+  const historyList = document.getElementById('history-list');
+  const historyEmpty = document.getElementById('history-empty');
+  const clearHistoryButton = document.getElementById('clear-history-button');
 
   // Set based on your deployed backend URL
   // Ensure this matches the host_permissions in manifest.json
@@ -26,21 +39,26 @@ document.addEventListener('DOMContentLoaded', () => {
       // Decide if this is critical - maybe copy functionality isn't essential?
       // return;
   }
-  if (!loadingSpinner || !summaryDiv || !tldrSection || !keyPointsList || !errorDiv) {
-      console.error("Error: One or more required UI elements not found.");
-      // This is likely critical, stop execution
-      return;
+  // Remove loadingSpinner from the check as it's no longer used
+  if (!summaryContainer || !tldrSection || !keyPointsList || !errorDiv || !historyList || !historyEmpty || !clearHistoryButton) {
+      console.error("Error: One or more required UI elements not found in the new structure.");
+      // Display error in the UI
+      if(errorDiv) {
+          errorDiv.textContent = "Initialization Error. Please report this.";
+          errorDiv.style.display = 'block';
+      }
+      return; // Stop execution if essential elements are missing
   }
   // --- End Edit ---
 
-  // Function to show loading state
+  // Function to show loading state (kept for reference, but not used directly for button)
   function showLoading(isLoading) {
-    loadingSpinner.style.display = isLoading ? 'block' : 'none';
+    // loadingSpinner.style.display = isLoading ? 'block' : 'none';
   }
 
   // Function to display summary
   function displaySummary(summaryData) {
-    summaryDiv.style.display = 'block';
+    summaryContainer.style.display = 'block';
     copyButton.style.display = 'inline-block'; // Ensure copy button is visible
     tldrSection.textContent = summaryData.tldr;
     keyPointsList.innerHTML = ''; // Clear previous points
@@ -55,17 +73,20 @@ document.addEventListener('DOMContentLoaded', () => {
   function displayError(message) {
     errorDiv.textContent = message;
     errorDiv.style.display = 'block';
-    copyButton.style.display = 'none'; // Hide copy button on error
+    if(summaryContainer) summaryContainer.style.display = 'none'; // Hide summary view on error
+    if(copyButton) copyButton.style.display = 'none'; // Hide copy button on error
   }
 
   // Function to clear previous state
   function clearState() {
-    summaryDiv.style.display = 'none';
-    errorDiv.style.display = 'none';
-    copyButton.disabled = false; // Re-enable copy button if it was disabled
-    copyButton.style.display = 'none'; // Hide copy button initially
-    tldrSection.textContent = '';
-    keyPointsList.innerHTML = '';
+    if(summaryContainer) summaryContainer.style.display = 'none';
+    if(errorDiv) errorDiv.style.display = 'none';
+    if(copyButton) {
+         copyButton.disabled = false; // Re-enable copy button if it was disabled
+         copyButton.style.display = 'none'; // Hide copy button initially
+    }
+    if(tldrSection) tldrSection.textContent = '';
+    if(keyPointsList) keyPointsList.innerHTML = '';
   }
 
   // --- Start Edit: Add function to get Clerk session cookie ---
@@ -93,140 +114,154 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   // --- End Edit ---
 
-  summarizeButton.addEventListener('click', () => {
-    clearState();
-    showLoading(true);
+  // --- ADD: Function to get user subscription status ---
+  async function getUserStatus() {
+    // **Placeholder:** In a real scenario, this would make an authenticated API call
+    // to your backend to check the user's subscription status.
+    console.log('[Tildra Popup] Checking user status (placeholder)...');
+    try {
+      // Example: const response = await fetch('/api/user/status', { headers: { Authorization: `Bearer ${token}` }});
+      // const data = await response.json();
+      // return data.is_pro; // Assuming backend returns { is_pro: true/false }
+      
+      // For now, return false for testing the free user view
+       return false; 
+      // To test the pro user view, change the above line to: return true;
+    } catch (error) {
+      console.error('Error fetching user status:', error);
+      return false; // Default to free user state on error
+    }
+  }
+  // --- END ADD ---
 
-    // Get current tab to inject content script
+  // --- Setup --- 
+  const footerUpsell = document.querySelector('.footer'); // Get footer element
+
+  // Tab Switching Logic
+  function switchTab(targetTab) {
+    const isSummarize = targetTab === summarizeTab;
+    
+    // Update button states and ARIA attributes
+    summarizeTab.classList.toggle('active', isSummarize);
+    historyTab.classList.toggle('active', !isSummarize);
+    summarizeTab.setAttribute('aria-selected', String(isSummarize));
+    historyTab.setAttribute('aria-selected', String(!isSummarize));
+
+    // Update panel visibility using the hidden attribute ONLY
+    summarizePanel.hidden = !isSummarize;
+    historyPanel.hidden = isSummarize;
+
+    // Move underline
+    if (tabUnderline) {
+      tabUnderline.style.transform = isSummarize ? 'translateX(0%)' : 'translateX(100%)';
+    }
+
+    // Load history only when switching to history tab
+    if (!isSummarize) {
+      loadHistorySummaries();
+    }
+  }
+
+  if (summarizeTab && historyTab) {
+    summarizeTab.addEventListener('click', () => switchTab(summarizeTab));
+    historyTab.addEventListener('click', () => switchTab(historyTab));
+  }
+
+  summarizeButton.addEventListener('click', () => {
+    if (summarizeButton.getAttribute('aria-busy') === 'true') return; // Prevent multiple clicks
+
+    clearState();
+    summarizeButton.setAttribute('aria-busy', 'true');
+    const originalButtonText = summarizeButton.textContent;
+    summarizeButton.textContent = 'Summarizing...'; // Change text while loading
+
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const currentTab = tabs[0];
       if (!currentTab || !currentTab.id) {
-        displayError("Could not get current tab information.");
-        showLoading(false);
+        displayError("Could not get current tab info.");
+        summarizeButton.removeAttribute('aria-busy');
+        summarizeButton.textContent = originalButtonText;
         return;
       }
 
-      // --- Start Edit: Inject Readability.js file BEFORE the function ---
-      chrome.scripting.executeScript({
-        target: { tabId: currentTab.id },
-        files: ["Readability.js"], // Inject the library file first
-      },
-      () => { // Callback after file injection (can be empty or check errors)
-          if (chrome.runtime.lastError) {
-              console.error("Error injecting Readability.js:", chrome.runtime.lastError.message);
-              displayError(`Failed to inject Readability library: ${chrome.runtime.lastError.message}`);
-              showLoading(false);
-              return;
+      // Inject Readability.js first
+      chrome.scripting.executeScript({ target: { tabId: currentTab.id }, files: ["Readability.js"] }, () => {
+        if (chrome.runtime.lastError) {
+          console.error("Inject Readability Error:", chrome.runtime.lastError.message);
+          displayError(`Failed to inject script: ${chrome.runtime.lastError.message}`);
+          summarizeButton.removeAttribute('aria-busy');
+          summarizeButton.textContent = originalButtonText;
+          return;
+        }
+
+        // Inject function to get content
+        chrome.scripting.executeScript({ target: { tabId: currentTab.id }, function: getArticleContent }, async (injectionResults) => {
+          // Reset button state regardless of outcome
+          const resetButtonState = () => {
+            summarizeButton.removeAttribute('aria-busy');
+            summarizeButton.textContent = originalButtonText;
+          };
+
+          if (chrome.runtime.lastError || !injectionResults || !injectionResults[0]) {
+            let msg = chrome.runtime.lastError ? chrome.runtime.lastError.message : "Content script error.";
+            if (msg.includes("Cannot access a chrome:// URL")) msg = "Cannot summarize Chrome pages.";
+            else if (msg.includes("Cannot access contents")) msg = "Cannot access this page.";
+            console.error("Injection Error:", msg);
+            displayError(msg);
+            resetButtonState();
+            return;
           }
 
-          // Now that Readability.js is injected, execute the function that uses it
-          chrome.scripting.executeScript({
-              target: { tabId: currentTab.id },
-              function: getArticleContent, // This function should now find Readability
-          },
-          async (injectionResults) => { // This is the callback for the FUNCTION injection
-            // Handle errors from injection or script execution
-            if (chrome.runtime.lastError || !injectionResults || !injectionResults[0]) {
-              let errorMessage = chrome.runtime.lastError ? chrome.runtime.lastError.message : "Script function injection failed.";
-              console.error("Content script function error:", errorMessage);
-              if (errorMessage.includes("Cannot access a chrome:// URL")) {
-                  errorMessage = "Cannot summarize Chrome internal pages.";
-              } else if (errorMessage.includes("Cannot access contents of the page")) {
-                   errorMessage = "Cannot access this page. Check extension permissions.";
-              }
-              displayError(errorMessage);
-              showLoading(false);
+          const result = injectionResults[0].result;
+          if (result.error) {
+            console.error("Content Extraction Error:", result.error);
+            displayError(result.error);
+            resetButtonState();
+            return;
+          }
+
+          const articleText = result.content;
+          if (!articleText || articleText.trim().length < 50) {
+            displayError("Not enough content found to summarize.");
+            resetButtonState();
+            return;
+          }
+
+          let sessionToken = null;
+          try {
+            sessionToken = await getClerkSessionToken();
+            if (!sessionToken) {
+              displayError("Please log in to tildra.xyz first.");
+              resetButtonState();
               return;
             }
+          } catch (error) {
+            displayError(`Auth Error: ${error.message}`);
+            resetButtonState();
+            return;
+          }
 
-            const result = injectionResults[0].result;
-
-            if (result.error) {
-              console.error("Error extracting content:", result.error);
-              displayError(result.error);
-              showLoading(false);
-              return;
-            }
-
-            const articleText = result.content;
-            if (!articleText || articleText.trim().length < 50) {
-              displayError("Could not extract enough content to summarize. Is this an article page?");
-              showLoading(false);
-              return;
-            }
-
-            let sessionToken = null;
-            try {
-              sessionToken = await getClerkSessionToken();
-              if (!sessionToken) {
-                displayError("Not logged in. Please log in to tildra.xyz first.");
-                showLoading(false);
-                return;
+          // Use background script for the API call
+          chrome.runtime.sendMessage(
+            { action: 'summarizeAPI', textContent: articleText, token: sessionToken }, 
+            (response) => {
+              if (chrome.runtime.lastError) {
+                console.error("BG message error:", chrome.runtime.lastError.message);
+                displayError(`Communication error: ${chrome.runtime.lastError.message}`);
+              } else if (response && response.success) {
+                displaySummary(response.summaryData);
+              } else if (response && response.expired) {
+                displayError("Session expired. Please log back in to tildra.xyz.");
+              } else {
+                displayError(`API Error: ${response?.error || 'Unknown error'}`);
               }
-            } catch (error) {
-              displayError(`Error getting auth token: ${error.message}`);
-              showLoading(false);
-              return;
+              resetButtonState(); // Reset button AFTER response
             }
-
-            fetch(BACKEND_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${sessionToken}`
-              },
-              body: JSON.stringify({ article_text: articleText })
-            })
-            .then(response => {
-              if (!response.ok) {
-                // If response is not ok, reject the promise with the response object
-                // This allows the catch block to handle error details
-                return Promise.reject(response);
-              }
-              return response.json(); // Only parse JSON on success
-            })
-            .then(data => {
-              displaySummary(data);
-            })
-            .catch(async errorOrResponse => { // Catch network errors or the rejected response object
-              let errorMessage = 'Failed to fetch summary: Unknown error'; // Default message
-
-              if (errorOrResponse instanceof Response) { // Check if it's the Response object we rejected
-                const response = errorOrResponse;
-                try {
-                  const errorData = await response.json(); // Try parsing the error body
-                  let detail = (errorData && errorData.detail) ? errorData.detail : null;
-
-                  // Check for specific error messages from the API
-                  if (response.status === 401 && detail && detail.toLowerCase().includes("token expired")) {
-                      errorMessage = "Your session timed out. Please log back in to tildra.xyz and try again.";
-                  } else if (detail) {
-                      // Use API detail if available and not the specific expired token case
-                      errorMessage = detail;
-                  } else {
-                     // Fallback if no detail
-                     errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
-                  }
-                  console.error(`API Error Response (${response.status}):`, errorData || response.statusText);
-                } catch (parseError) { // Handle cases where the error body wasn't valid JSON
-                    errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
-                    console.error("Failed to parse JSON error response:", parseError, response.statusText);
-                }
-              } else if (errorOrResponse instanceof Error) { // Handle network errors or errors thrown earlier
-                errorMessage = errorOrResponse.message;
-                console.error('Error fetching summary:', errorOrResponse);
-              }
-
-              // Display the determined error message
-              displayError(`Error: ${errorMessage}`);
-            })
-            .finally(() => {
-              showLoading(false);
-            });
-        }); // End of function injection callback
-      }); // End of file injection callback
-    }); // End of tabs.query callback
-  }); // End of summarizeButton click listener
+          );
+        }); // End function injection callback
+      }); // End file injection callback
+    }); // End tabs.query callback
+  }); // End summarizeButton click listener
 
   // Copy button functionality
   copyButton.addEventListener('click', () => {
@@ -238,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // --- Visual Feedback ---
       const originalIcon = copyButton.innerHTML; // Store original SVG
       // Replace with a checkmark icon (example SVG)
-      copyButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      copyButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
       copyButton.disabled = true; // Briefly disable
 
       // Revert after a short delay
@@ -290,4 +325,150 @@ document.addEventListener('DOMContentLoaded', () => {
       return { error: `Readability parsing failed: ${e.message}`, content: fallbackContent };
     }
   }
+
+  // Format date for history items
+  function formatDate(isoString) {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffMins < 60) {
+      // Use 'm' suffix for minutes
+      return `${diffMins}m ago`; 
+    } else if (diffHours < 24) {
+       // Use 'h' suffix for hours
+      return `${diffHours}h ago`;
+    } else if (diffDays < 7) {
+      // Use 'd' suffix for days
+      return `${diffDays}d ago`;
+    } else {
+      // Format as short date MM/DD/YYYY
+      return date.toLocaleDateString(); 
+    }
+  }
+
+  // Load summaries from storage
+  function loadHistorySummaries() {
+    chrome.storage.local.get(['summaryHistory'], (result) => {
+      const history = result.summaryHistory || [];
+      
+      historyList.innerHTML = ''; // Clear previous items
+      if (history.length === 0) {
+        historyEmpty.style.display = 'block';
+        if(clearHistoryButton) clearHistoryButton.style.display = 'none'; // Hide clear button if no history
+      } else {
+        historyEmpty.style.display = 'none';
+        if(clearHistoryButton) clearHistoryButton.style.display = 'inline-block'; // Show clear button
+        history.forEach(item => {
+          const historyItem = document.createElement('li');
+          historyItem.className = 'history-item';
+          historyItem.dataset.id = item.id;
+          
+          // Build the item HTML with a delete button
+          historyItem.innerHTML = `
+            <div class="history-item-content">
+              <div class="history-item-title">${item.title}</div>
+              <div class="history-item-summary">${item.summary}</div>
+              <div class="history-item-time">${formatDate(item.timestamp)}</div>
+            </div>
+            <button class="history-item-delete" data-id="${item.id}" title="Delete this summary">&times;</button>
+          `;
+          
+          // Get references to the content and delete button *after* setting innerHTML
+          const itemContent = historyItem.querySelector('.history-item-content');
+          const deleteButton = historyItem.querySelector('.history-item-delete');
+
+          // Show details when clicking the main content area
+          if (itemContent) {
+              itemContent.addEventListener('click', () => {
+                // Display the summary in the summary tab
+                displaySummary({ tldr: item.summary, key_points: item.keyPoints });
+                switchTab(summarizeTab); // Switch view to summarize tab
+              });
+          }
+          
+          // Handle deletion when clicking the delete button
+          if (deleteButton) {
+              deleteButton.addEventListener('click', (event) => {
+                  event.stopPropagation(); // Prevent click from bubbling up to the itemContent listener
+                  const historyIdToDelete = event.target.dataset.id;
+                  
+                  if (confirm('Delete this summary?')) {
+                      // Retrieve current history
+                      chrome.storage.local.get(['summaryHistory'], (result) => {
+                          let currentHistory = result.summaryHistory || [];
+                          // Filter out the item to delete
+                          const updatedHistory = currentHistory.filter(histItem => histItem.id !== historyIdToDelete);
+                          
+                          // Save the updated history
+                          chrome.storage.local.set({ 'summaryHistory': updatedHistory }, () => {
+                              if (chrome.runtime.lastError) {
+                                  console.error('Error deleting history item:', chrome.runtime.lastError);
+                              } else {
+                                  console.log('History item deleted:', historyIdToDelete);
+                                  // Refresh the list visually
+                                  loadHistorySummaries(); 
+                              }
+                          });
+                      });
+                  }
+              });
+          }
+          
+          historyList.appendChild(historyItem);
+        });
+      }
+    });
+  }
+
+  // --- Add Event Listener for Clear History Button ---
+  if (clearHistoryButton) {
+    clearHistoryButton.addEventListener('click', () => {
+      // Ask for confirmation
+      if (confirm('Clear all summary history? This cannot be undone.')) {
+        // Clear the history in storage
+        chrome.storage.local.set({ 'summaryHistory': [] }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('Error clearing history:', chrome.runtime.lastError);
+            // Optionally display an error to the user in the UI
+          } else {
+            console.log('Summary history cleared.');
+            // Refresh the displayed history list
+            loadHistorySummaries();
+          }
+        });
+      }
+    });
+  } else {
+      console.error("Could not find clear history button element");
+  }
+  // --- End Event Listener ---
+
+  // --- Initial Load --- 
+  // Check user status and update UI accordingly
+  async function initializePopup() {
+    const isProUser = await getUserStatus();
+    console.log('[Tildra Popup] User is Pro:', isProUser);
+
+    if (isProUser && footerUpsell) {
+      footerUpsell.style.display = 'none'; // Hide footer for pro users
+    } else if (footerUpsell) {
+      footerUpsell.style.display = 'block'; // Ensure footer is visible for free users
+    }
+    
+    // Optionally add a message for pro users somewhere else?
+    // For now, just hiding the upsell is the main requirement.
+  }
+
+  // Header button to open website
+  if (openTabButton) {
+    openTabButton.addEventListener('click', () => {
+      chrome.tabs.create({ url: 'https://www.tildra.xyz' }); // Point to actual site
+    });
+  }
+
+  initializePopup(); // Call initialization logic
 });

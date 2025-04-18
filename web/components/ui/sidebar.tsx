@@ -116,21 +116,21 @@ const SidebarProvider = React.forwardRef<
 
     return (
       <SidebarContext.Provider value={contextValue}>
-        <div
+          <div
           style={{
-            "--sidebar-width": SIDEBAR_WIDTH,
-            "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-            ...style,
+                "--sidebar-width": SIDEBAR_WIDTH,
+                "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+                ...style,
           } as React.CSSProperties}
-          className={cn(
+            className={cn(
             "relative flex min-h-screen w-full",
-            className
-          )}
-          ref={ref}
-          {...props}
-        >
-          {children}
-        </div>
+              className
+            )}
+            ref={ref}
+            {...props}
+          >
+            {children}
+          </div>
       </SidebarContext.Provider>
     )
   }
@@ -228,12 +228,15 @@ const SidebarHeader = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div">
 >(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("flex-none p-4", className)}
-    {...props}
-  />
-))
+    <div
+      ref={ref}
+      className={cn(
+        "flex h-14 items-center border-b px-4 shrink-0",
+        className
+      )}
+      {...props}
+    />
+));
 SidebarHeader.displayName = "SidebarHeader"
 
 const SidebarContent = React.forwardRef<

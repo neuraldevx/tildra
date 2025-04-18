@@ -6,12 +6,18 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "cookies"
+    "cookies",
+    "contextMenus",
+    "storage",
+    "notifications"
   ],
   "host_permissions": [
     "https://snipsummary.fly.dev/*",
     "https://www.tildra.xyz/"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

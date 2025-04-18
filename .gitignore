@@ -86,13 +86,8 @@ web/pnpm-lock.yaml
 
 web/pnpm-lock.yaml:2223
 
-# Environments
-.env
-.venv/ # <-- Make sure this line exists
-env/
-.env*.local
-.env*.local
-
 # Env files
 .env*
 .env.local*
+node_modules/
+.pnpm-store/
