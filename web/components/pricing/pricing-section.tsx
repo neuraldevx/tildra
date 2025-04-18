@@ -4,41 +4,76 @@ import { useState, useRef, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useInView } from "framer-motion"
 import { HelpCircle, CreditCard, Shield } from "lucide-react"
+import { useAuth } from "@clerk/nextjs"
 import { PricingCard } from "./pricing-card"
 import { PricingToggle } from "./pricing-toggle"
 import { PricingFaq } from "./pricing-faq"
-
-// **Placeholder:** Fetch user status (replace with actual data fetching logic)
-// This might come from a global context/store in a real app
-async function getUserStatusData() {
-  console.log("[Pricing] Fetching user status (placeholder)");
-  // return { is_pro: false }; 
-   return { is_pro: true }; // Example: User is Pro
-}
 
 export function PricingSection() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly")
   const [isProUser, setIsProUser] = useState(false); // Add state for user status
   const [isLoadingStatus, setIsLoadingStatus] = useState(true); // Loading state
+  const { getToken, isSignedIn } = useAuth(); // Get Clerk auth methods
 
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, amount: 0.2 })
 
-  // Fetch user status on component mount
+  // UseEffect to fetch real user status
   useEffect(() => {
     let isMounted = true;
     setIsLoadingStatus(true);
-    getUserStatusData().then(data => {
-      if (isMounted) {
-        setIsProUser(data.is_pro);
-        setIsLoadingStatus(false);
+
+    const fetchStatus = async () => {
+      if (!isSignedIn) {
+        console.log("[Pricing Client] User not signed in.")
+        if (isMounted) {
+          setIsProUser(false);
+          setIsLoadingStatus(false);
+        }
+        return;
       }
-    }).catch(err => {
-        console.error("Failed to fetch user status:", err);
-        if (isMounted) setIsLoadingStatus(false); // Still stop loading on error
-    });
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          throw new Error("Failed to get session token.");
+        }
+
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'; // Fallback for local dev
+        const apiUrl = `${apiBaseUrl}/api/user/status`;
+        console.log(`[Pricing Client] Fetching user status from ${apiUrl}`);
+        
+        const response = await fetch(apiUrl, { // Use the constructed absolute URL
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+          console.error(`[Pricing Client] API error ${response.status}: ${errorBody}`);
+          throw new Error(`API error fetching status (${response.status}): ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log("[Pricing Client] Received user status:", data);
+        if (isMounted) {
+          setIsProUser(data.is_pro);
+          setIsLoadingStatus(false);
+        }
+      } catch (err) {
+        console.error("[Pricing Client] Failed to fetch user status:", err);
+        if (isMounted) {
+            setIsProUser(false); // Assume not pro on error
+            setIsLoadingStatus(false); 
+        }
+      }
+    };
+
+    fetchStatus();
+
     return () => { isMounted = false; }; // Cleanup function
-  }, []);
+  }, [isSignedIn, getToken]); // Depend on isSignedIn and getToken
 
   const monthlyPrice = 15 // Set base monthly price
   const yearlyMonthlyPrice = 12 // Equivalent monthly price when paying yearly

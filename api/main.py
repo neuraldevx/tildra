@@ -623,3 +623,27 @@ if __name__ == "__main__":
         uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
     # else:
         # logger.info("Not running locally, set RUN_LOCALLY=true to start development server.")
+
+# --- Add User Status Endpoint ---
+class UserStatusResponse(BaseModel):
+    is_pro: bool
+
+@app.get("/api/user/status", response_model=UserStatusResponse)
+async def get_user_status(user_id: str = Depends(get_authenticated_user_id)):
+    """
+    Checks if the authenticated user has an active Stripe subscription 
+    (indicated by a non-null stripe_customer_id).
+    """
+    try:
+        user = await prisma.user.find_unique(where={"id": user_id})
+        if user and user.stripe_customer_id:
+             # Further check subscription status via Stripe if needed for more accuracy
+             # For now, presence of customer ID implies pro status
+            return UserStatusResponse(is_pro=True)
+        else:
+            return UserStatusResponse(is_pro=False)
+    except Exception as e:
+        print(f"Error checking user status for {user_id}: {e}")
+        # Return false by default on error, but log it
+        return UserStatusResponse(is_pro=False) 
+# --- End Add User Status Endpoint ---

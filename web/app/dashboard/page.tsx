@@ -3,23 +3,57 @@ import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { Logo } from "@/components/ui/logo"
 import Link from "next/link"
 import { Sparkles } from "lucide-react"
+import { auth } from "@clerk/nextjs/server"
+import { headers } from "next/headers"
 
-// **Placeholder:** Fetch user status (replace with actual data fetching)
-// In a real app, this would come from context, props, or a hook.
-async function getUserStatusData() {
-  // Simulate fetching: Replace with your actual logic 
-  console.log("[Dashboard] Fetching user status (placeholder)");
-  // const response = await fetch('/api/user/status');
-  // const data = await response.json();
-  // return data; // e.g., { is_pro: true/false }
-  return { is_pro: false }; // Default to free for example
-  // return { is_pro: true }; // Use this to test pro view
+// Fetch user status on the server
+async function getUserStatusData(userId: string | null, token: string | null) {
+  if (!userId || !token) {
+    console.log("[Dashboard Server] No user ID or token found on server.");
+    return { is_pro: false }; // Not signed in or no token
+  }
+
+  try {
+    // Use INTERNAL_API_URL which should point directly to the backend service
+    // (e.g., http://localhost:8000 locally, or internal service URL in prod)
+    // Fallback to localhost:8000 if not set (adjust if your backend runs elsewhere)
+    const internalApiBaseUrl = process.env.INTERNAL_API_URL || 'http://127.0.0.1:8000'; 
+    const apiUrl = `${internalApiBaseUrl}/api/user/status`;
+    
+    console.log(`[Dashboard Server] Fetching user status from ${apiUrl} for user ${userId}`);
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json', // Optional: depending on API requirements
+      },
+      cache: 'no-store', // Ensure fresh data is fetched
+    });
+
+    if (!response.ok) {
+      // Log detailed error if fetching fails
+      const errorBody = await response.text();
+      console.error(`[Dashboard Server] API error fetching status (${response.status}): ${errorBody}`);
+      throw new Error(`API error fetching status (${response.status}): ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log("[Dashboard Server] Received user status:", data);
+    return data; // e.g., { is_pro: true/false }
+  } catch (err) {
+    console.error("[Dashboard Server] Failed to fetch user status:", err);
+    return { is_pro: false }; // Default to non-pro on error
+  }
 }
 
 export default async function DashboardPage() {
+  // Get user ID and token on the server
+  const { userId, getToken } = await auth(); // Await the auth() promise
+  const token = await getToken(); // Get the raw token
+
   // Fetch status for this page load
-  const userData = await getUserStatusData();
-  const isProUser = userData.is_pro;
+  const userData = await getUserStatusData(userId, token);
+  const isProUser = userData?.is_pro ?? false; // Use optional chaining and nullish coalescing
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">

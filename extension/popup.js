@@ -250,8 +250,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 displayError(`Communication error: ${chrome.runtime.lastError.message}`);
               } else if (response && response.success) {
                 displaySummary(response.summaryData);
+                // --- ADDED: Save successful summary to history ---
+                saveSummaryToHistory(currentTab.url, currentTab.title || 'Untitled Page', response.summaryData);
+                // --- END ADDED ---
               } else if (response && response.expired) {
                 displayError("Session expired. Please log back in to tildra.xyz.");
+              } else if (response && response.isUsageLimit) {
+                displayError("Daily free limit reached. Upgrade for unlimited summaries!");
+                const upgradeCTA = document.getElementById('upgrade-link');
+                if (upgradeCTA) {
+                    upgradeCTA.style.display = 'block';
+                }
               } else {
                 displayError(`API Error: ${response?.error || 'Unknown error'}`);
               }

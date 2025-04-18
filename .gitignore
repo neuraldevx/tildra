@@ -91,3 +91,5 @@ web/pnpm-lock.yaml:2223
 .env.local*
 node_modules/
 .pnpm-store/
+.env
+.env.local

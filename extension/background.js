@@ -184,45 +184,46 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         
         sendResponse({ success: true, summaryData: data });
       })
-      .catch(async errorOrResponse => { // Catch network errors or the rejected response object
+      .catch(error => { // Catch network errors or the rejected Error object
         let errorMessage = 'Failed to fetch summary: Unknown error'; // Default message
         let isExpiredToken = false;
+        let isUsageLimit = false; // Flag for usage limit
 
-        if (errorOrResponse instanceof Response) { // Check if it's the Response object we rejected
-          const response = errorOrResponse;
-          try {
-            // Only try to parse JSON if there's likely a body
-            if (response.body) { 
-                const errorData = await response.json(); // Try parsing the error body
-                let detail = (errorData && errorData.detail) ? errorData.detail : null;
+        console.warn('[Tildra Background] API call failed:', error);
 
-                // Check for specific error messages from the API
-                if (response.status === 401 && detail && detail.toLowerCase().includes("token has expired")) {
-                    errorMessage = "Token has expired"; // Specific internal message
-                    isExpiredToken = true;
-                } else if (detail) {
-                    // Use API detail if available and not the specific expired token case
-                    errorMessage = detail;
-                } else {
-                   // Fallback if no detail
-                   errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
-                }
-                console.error(`[Tildra Background] API Error Response (${response.status}):`, errorData || response.statusText);
-            } else {
-                 errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
-                 console.error(`[Tildra Background] API Error Response (${response.status}): No response body`);
-            }
-          } catch (parseError) { // Handle cases where the error body wasn't valid JSON
-              errorMessage = `Request failed: ${response.statusText} (Status: ${response.status})`;
-              console.error("[Tildra Background] Failed to parse JSON error response:", parseError, response.statusText);
+        if (error instanceof Error && error.message.startsWith('API error')) {
+          // Extract status code from the error message (e.g., "API error 429")
+          const match = error.message.match(/API error (\d+)/);
+          const status = match ? parseInt(match[1], 10) : null;
+
+          if (status === 429) {
+            errorMessage = "You've reached your daily free summary limit. Please upgrade for unlimited use.";
+            isUsageLimit = true;
+            console.warn('[Tildra Background] API Usage Limit Reached (429)');
+          } else if (status === 401 || status === 403) {
+            // Attempt to determine if it's an expired token - this might need refinement
+            // depending on the exact error message from your 401/403 responses.
+            // For now, assume any 401/403 might mean expired session.
+            errorMessage = "Authentication failed. Please log in again on tildra.xyz.";
+            isExpiredToken = true; 
+            console.warn(`[Tildra Background] API Authentication Error (${status})`);
+          } else {
+            // Generic API error with status if available
+            errorMessage = status ? `API error (${status})` : error.message;
           }
-        } else if (errorOrResponse instanceof Error) { // Handle network errors or errors thrown earlier
-          errorMessage = errorOrResponse.message;
-          console.error('[Tildra Background] Network/internal error:', errorOrResponse);
+        } else if (error instanceof Error) { // Handle network errors or other JS errors
+          errorMessage = `Network or script error: ${error.message}`;
+        } else { // Handle unexpected error types
+          errorMessage = `Unexpected error occurred: ${String(error)}`;
         }
-
-        // Send the potentially specific error message back
-        sendResponse({ success: false, error: errorMessage, expired: isExpiredToken });
+        
+        console.error('[Tildra Background] Summarization error:', errorMessage);
+        sendResponse({ 
+            success: false, 
+            error: errorMessage, 
+            isExpiredToken: isExpiredToken,
+            isUsageLimit: isUsageLimit // Include the flag in the response
+        }); 
       });
     return true; // Indicate async response expected
   }
