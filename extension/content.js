@@ -161,3 +161,121 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
   return true; // Keep port open for async
 });
+
+// --- Floating TL;DR Button Injection ---
+(function injectInlineTLDR() {
+  console.log('[Tildra] injectInlineTLDR invoked');
+  // Avoid duplicate button
+  if (document.getElementById('tildra-inline-btn')) return;
+
+  // Only inject on pages with sufficient text content
+  const textLength = document.body.innerText.trim().length;
+  if (textLength < 200) {
+    console.log('[Tildra] Content too short, skipping TLDR injection');
+    return;
+  }
+
+  // Create floating button with logo
+  const btn = document.createElement('button');
+  btn.id = 'tildra-inline-btn';
+  // Use SVG for the logo instead of text
+  btn.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 4.5h14l-7 14-7-14z" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M17 4.5h4l-7 14-2-4" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+  `;
+  btn.title = "Get Summary with Tildra";
+  
+  Object.assign(btn.style, {
+    position: 'fixed',
+    bottom: '20px',
+    right: '20px',
+    zIndex: '99999',
+    background: 'rgba(0, 0, 0, 0.75)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '50%',
+    width: '56px',
+    height: '56px',
+    cursor: 'pointer',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'transform 0.2s, background-color 0.2s',
+  });
+  document.body.appendChild(btn);
+  
+  // Add hover effect
+  btn.addEventListener('mouseover', () => {
+    btn.style.background = 'rgba(40, 40, 40, 0.9)';
+    btn.style.transform = 'scale(1.05)';
+  });
+  
+  btn.addEventListener('mouseout', () => {
+    btn.style.background = 'rgba(0, 0, 0, 0.75)';
+    btn.style.transform = 'scale(1)';
+  });
+
+  btn.addEventListener('click', () => {
+    console.log('[Tildra] Inline button clicked, extracting content');
+    const { error, content: articleText } = extractContent();
+    if (error || !articleText) {
+      console.error('[Tildra] extractContent error', error);
+      alert('Tildra Error: ' + (error || 'No content to summarize'));
+      return;
+    }
+
+    getClerkSessionToken()
+      .then(token => {
+        console.log('[Tildra] Sending summarizeAPI message');
+        chrome.runtime.sendMessage(
+          { action: 'summarizeAPI', textContent: articleText, token },
+          (resp) => {
+            if (chrome.runtime.lastError) {
+              console.error('[Tildra] summarizeAPI error', chrome.runtime.lastError);
+              alert('Summarization API error: ' + chrome.runtime.lastError.message);
+              return;
+            }
+            if (!resp || !resp.success) {
+              console.error('[Tildra] summarizeAPI response error', resp);
+              alert('Summarization API error: ' + (resp?.error || 'Unknown error'));
+              return;
+            }
+
+            const { tldr, key_points } = resp.summaryData;
+            // Display overlay
+            const existing = document.getElementById('tildra-summary-overlay');
+            if (existing) existing.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'tildra-summary-overlay';
+            overlay.className = 'tildra-overlay';
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'tildra-close-btn';
+            closeBtn.innerHTML = '&times;';
+            closeBtn.onclick = () => overlay.remove();
+            overlay.appendChild(closeBtn);
+            const tldrDiv = document.createElement('div');
+            tldrDiv.className = 'tildra-content';
+            tldrDiv.innerHTML = `<strong>Summary:</strong> ${tldr}`;
+            overlay.appendChild(tldrDiv);
+            const ul = document.createElement('ul');
+            ul.className = 'tildra-content';
+            key_points.forEach(pt => {
+              const li = document.createElement('li');
+              li.textContent = pt;
+              ul.appendChild(li);
+            });
+            overlay.appendChild(ul);
+            document.body.appendChild(overlay);
+            requestAnimationFrame(() => overlay.classList.add('show'));
+          }
+        );
+      })
+      .catch(err => {
+        console.error('[Tildra] auth token error', err);
+        alert('Auth error: ' + err.message);
+      });
+  });
+})();

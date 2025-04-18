@@ -19,6 +19,52 @@ const COOKIE_NAME = '__session';
 // Constants for backend API summarization
 const API_URL = 'https://snipsummary.fly.dev/summarize';
 
+// Constants for history storage
+const MAX_HISTORY_ITEMS = 20;
+
+// Store a summary in history
+function addToSummaryHistory(summaryData, pageInfo = {}) {
+  // Get current date/time
+  console.log('[Tildra History] Adding to history:', summaryData, pageInfo);
+  const timestamp = new Date().toISOString();
+  
+  // Create history entry
+  const historyEntry = {
+    id: 'summary_' + Date.now(),
+    timestamp,
+    title: pageInfo.title || 'Untitled Page',
+    url: pageInfo.url || '',
+    summary: summaryData.tldr,
+    keyPoints: summaryData.key_points
+  };
+  
+  // Get existing history and add the new entry
+  chrome.storage.local.get(['summaryHistory'], (result) => {
+    console.log('[Tildra History] Current history:', result.summaryHistory);
+    const history = Array.isArray(result.summaryHistory) 
+      ? result.summaryHistory 
+      : [];
+    
+    // Add new entry at the beginning
+    history.unshift(historyEntry);
+    
+    // Limit history size
+    if (history.length > MAX_HISTORY_ITEMS) {
+      history.length = MAX_HISTORY_ITEMS;
+    }
+    
+    // Save updated history
+    chrome.storage.local.set({ 'summaryHistory': history }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('[Tildra History] Error saving to storage:', chrome.runtime.lastError);
+      } else {
+        console.log('[Tildra History] Saved successfully. New count:', history.length);
+      }
+      console.log('Summary saved to history:', historyEntry.title);
+    });
+  });
+}
+
 // Handle clicks on our context menu items
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (!tab?.id) return;
@@ -113,7 +159,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           if (!res.ok) throw new Error(`API error ${res.status}`);
           return res.json();
         })
-        .then(data => sendResponse({ success: true, summaryData: data }))
+        .then(data => {
+          // Store summary in history
+          chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+            if (tabs && tabs[0]) {
+              addToSummaryHistory(data, {
+                title: tabs[0].title,
+                url: tabs[0].url
+              });
+            } else {
+              addToSummaryHistory(data);
+            }
+          });
+          
+          sendResponse({ success: true, summaryData: data });
+        })
         .catch(err => {
           console.error('Tildra (background): summarization API error', err);
           sendResponse({ success: false, error: err.message });

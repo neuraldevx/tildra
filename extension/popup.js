@@ -10,6 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const errorDiv = document.getElementById('error');
   const copyButton = document.getElementById('copy-button');
 
+  // Tab Elements
+  const summarizeTab = document.getElementById('summarize-tab');
+  const historyTab = document.getElementById('history-tab');
+  const summarizeContent = document.getElementById('summarize-content');
+  const historyContent = document.getElementById('history-content');
+  const historyList = document.getElementById('history-list');
+  const historyEmpty = document.getElementById('history-empty');
+
   // Set based on your deployed backend URL
   // Ensure this matches the host_permissions in manifest.json
   const BACKEND_URL = 'https://snipsummary.fly.dev/summarize';
@@ -289,5 +297,92 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return { error: `Readability parsing failed: ${e.message}`, content: fallbackContent };
     }
+  }
+
+  // Format date for history items
+  function formatDate(isoString) {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffMins < 60) {
+      return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    } else if (diffHours < 24) {
+      return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    } else if (diffDays < 7) {
+      return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    } else {
+      // Format as date
+      return date.toLocaleDateString();
+    }
+  }
+
+  // Tab switching
+  summarizeTab.addEventListener('click', () => {
+    summarizeTab.classList.add('active');
+    historyTab.classList.remove('active');
+    summarizeContent.classList.add('active');
+    historyContent.classList.remove('active');
+  });
+
+  historyTab.addEventListener('click', () => {
+    historyTab.classList.add('active');
+    summarizeTab.classList.remove('active');
+    historyContent.classList.add('active');
+    summarizeContent.classList.remove('active');
+    loadHistorySummaries();
+  });
+
+  // Load summaries from storage
+  function loadHistorySummaries() {
+    chrome.storage.local.get(['summaryHistory'], (result) => {
+      const history = result.summaryHistory || [];
+      
+      // Show/hide empty state
+      if (history.length === 0) {
+        historyEmpty.style.display = 'block';
+        historyList.style.display = 'none';
+        return;
+      }
+      
+      // Display history items
+      historyEmpty.style.display = 'none';
+      historyList.style.display = 'block';
+      historyList.innerHTML = '';
+      
+      history.forEach(item => {
+        const historyItem = document.createElement('li');
+        historyItem.className = 'history-item';
+        historyItem.dataset.id = item.id;
+        
+        // Build the item HTML
+        historyItem.innerHTML = `
+          <div class="history-item-title">${item.title}</div>
+          <div class="history-item-summary">${item.summary}</div>
+          <div class="history-item-time">${formatDate(item.timestamp)}</div>
+        `;
+        
+        // Show details when clicked
+        historyItem.addEventListener('click', () => {
+          // Display the summary in the summary tab
+          tldrSection.textContent = item.summary;
+          keyPointsList.innerHTML = '';
+          item.keyPoints.forEach(point => {
+            const li = document.createElement('li');
+            li.textContent = point;
+            keyPointsList.appendChild(li);
+          });
+          
+          // Switch to summary tab and show the content
+          summarizeTab.click();
+          summaryDiv.style.display = 'block';
+        });
+        
+        historyList.appendChild(historyItem);
+      });
+    });
   }
 });
