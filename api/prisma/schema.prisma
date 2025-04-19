@@ -1,20 +1,11 @@
 generator client {
-  provider        = "prisma-client-py"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "prisma-client-py"
   interface       = "asyncio"
 }
 
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
-  extensions = [
-    uuid_ossp(map: "uuid-ossp", schema: "extensions"),
-    pg_graphql,
-    pg_stat_statements,
-    pgcrypto,
-    pgjwt,
-    supabase_vault
-  ]
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
