@@ -28,8 +28,6 @@ interface PricingCardProps {
   ctaDisabled?: boolean
 }
 
-const PRODUCTION_API_URL = 'https://snipsummary.fly.dev';
-
 export function PricingCard({
   title,
   price,
@@ -62,9 +60,9 @@ export function PricingCard({
         return;
       }
 
-      const apiBaseUrl = PRODUCTION_API_URL;
-      console.log(`[Upgrade] Fetching: POST ${apiBaseUrl}/create-checkout-session`);
-      const response = await fetch(`${apiBaseUrl}/create-checkout-session`, {
+      const apiUrl = '/api/create-checkout-session';
+      console.log(`[Upgrade] POST ${apiUrl}`);
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

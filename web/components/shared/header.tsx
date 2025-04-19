@@ -8,9 +8,11 @@ import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@cl
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useState } from "react"
+import { useUserStatus } from "@/app/hooks/useUserStatus"
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { isPro, loading: statusLoading } = useUserStatus();
 
   return (
     <header className="bg-background border-b border-border/40 sticky top-0 z-30">
@@ -58,6 +60,7 @@ export function Header() {
                 >
                   Summarizer
                 </Link>
+                {!isPro && (
                 <Link
                   href="/pricing"
                   className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-accent"
@@ -65,6 +68,7 @@ export function Header() {
                 >
                   Pricing
                 </Link>
+                )}
                 <Link
                   href="/#use-cases"
                   className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-accent"
@@ -88,9 +92,11 @@ export function Header() {
           <Link href="/#features" className="text-foreground/60 hover:text-foreground/80 transition-colors">
             Features
           </Link>
+          {!isPro && (
           <Link href="/pricing" className="text-foreground/60 hover:text-foreground/80 transition-colors">
             Pricing
           </Link>
+          )}
           <Link href="/#use-cases" className="text-foreground/60 hover:text-foreground/80 transition-colors">
             Use Cases
           </Link>
@@ -107,6 +113,11 @@ export function Header() {
           </SignedOut>
           <SignedIn>
             <UserButton afterSignOutUrl="/" />
+            {!statusLoading && isPro && (
+              <span className="ml-2 bg-green-500 text-white px-2 py-1 text-xs rounded-full">
+                Pro
+              </span>
+            )}
           </SignedIn>
           <Link href="/summarizer">
             <Button variant="secondary" size="sm">Try Now</Button>

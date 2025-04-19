@@ -116,20 +116,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- ADD: Function to get user subscription status ---
   async function getUserStatus() {
-    // **Placeholder:** In a real scenario, this would make an authenticated API call
-    // to your backend to check the user's subscription status.
-    console.log('[Tildra Popup] Checking user status (placeholder)...');
+    console.log('[Tildra Popup] Checking user status...');
     try {
-      // Example: const response = await fetch('/api/user/status', { headers: { Authorization: `Bearer ${token}` }});
-      // const data = await response.json();
-      // return data.is_pro; // Assuming backend returns { is_pro: true/false }
-      
-      // For now, return false for testing the free user view
-       return false; 
-      // To test the pro user view, change the above line to: return true;
+      const token = await getClerkSessionToken();
+      if (!token) return false;
+      const res = await fetch('https://snipsummary.fly.dev/api/user/status', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      return data.is_pro;
     } catch (error) {
       console.error('Error fetching user status:', error);
-      return false; // Default to free user state on error
+      return false;
     }
   }
   // --- END ADD ---
@@ -466,6 +468,10 @@ document.addEventListener('DOMContentLoaded', () => {
       footerUpsell.style.display = 'none'; // Hide footer for pro users
     } else if (footerUpsell) {
       footerUpsell.style.display = 'block'; // Ensure footer is visible for free users
+    }
+    // Hide the upgrade link in the popup for pro users
+    if (upgradeLink) {
+      upgradeLink.style.display = isProUser ? 'none' : 'block';
     }
     
     // Optionally add a message for pro users somewhere else?

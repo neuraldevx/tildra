@@ -39,14 +39,11 @@ export function PricingSection() {
           throw new Error("Failed to get session token.");
         }
 
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'; // Fallback for local dev
-        const apiUrl = `${apiBaseUrl}/api/user/status`;
+        const apiUrl = '/api/user/status'; // Proxy through Next.js API route
         console.log(`[Pricing Client] Fetching user status from ${apiUrl}`);
         
-        const response = await fetch(apiUrl, { // Use the constructed absolute URL
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+        const response = await fetch(apiUrl, { // Use the relative proxy URL
+          headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (!response.ok) {
