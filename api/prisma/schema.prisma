@@ -1,31 +1,29 @@
-// api/prisma/schema.prisma
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+generator client {
+  provider        = "prisma-client-py"
+  previewFeatures = ["postgresqlExtensions"]
+  interface       = "asyncio"
 }
 
-generator client {
-  provider        = "prisma-client-py" // Specify the Python client generator
-  interface       = "asyncio"          // Use asyncio interface
-  previewFeatures = ["postgresqlExtensions"] // Enable if using extensions
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [uuid_ossp(map: "uuid-ossp", schema: "extensions")]
 }
 
 model User {
-  id                     String    @id @default(cuid()) // ID is now auto-generated
-  clerkId                String    @unique // Link to Clerk User ID
+  id                     String    @id @default(uuid())
+  clerkId                String    @unique
   email                  String    @unique
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime
+  plan                   String    @default("free")
+  summariesUsed          Int       @default(0)
+  summaryLimit           Int       @default(5)
+  usageResetAt           DateTime  @default(now())
+  stripeCurrentPeriodEnd DateTime?
+  stripeCustomerId       String?   @unique
+  stripePriceId          String?
+  stripeSubscriptionId   String?   @unique
   firstName              String?
   lastName               String?
-  profileImageUrl        String?
-  plan                   String    @default("free") // e.g., free, premium
-  summaryLimit           Int       @default(5) // e.g., daily/monthly limit for free tier
-  summariesUsed          Int       @default(0) // Counter for usage
-  usageResetAt           DateTime  @default(now()) // Timestamp for when usage counter resets
-  stripeCustomerId       String?   @unique @map("stripe_customer_id") // Link to Stripe Customer ID
-  stripeSubscriptionId  String?   @unique @map("stripe_subscription_id") // Link to Stripe Subscription ID
-  stripePriceId          String?   @map("stripe_price_id") // ID of the active Stripe Price
-  stripeCurrentPeriodEnd DateTime? @map("stripe_current_period_end") // When the current billing period ends
-
-  @@map("users") // Explicitly map to the 'users' table if needed
 }
