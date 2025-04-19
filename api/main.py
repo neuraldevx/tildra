@@ -15,10 +15,13 @@ import httpx # Use httpx for async API calls
 import jwt # Import PyJWT
 from jwt import PyJWKClient # For fetching JWKS keys
 # --- End Edit ---
-from typing import Annotated, Optional, Dict
+from typing import Annotated, Optional, Dict, Any # Add Any
 
 # --- Prisma Client Import ---
 from prisma import Prisma
+# --- ADD Webhook Verification Import ---
+from svix.webhooks import Webhook, WebhookVerificationError # Corrected import
+# --- END ADD ---
 # --------------------------
 
 # --- Configuration ---
@@ -87,6 +90,13 @@ if not DEEPSEEK_API_KEY:
     # Application will fail later if key is missing
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 # -----------------------------------------
+
+# --- ADD Clerk Webhook Secret --- 
+CLERK_WEBHOOK_SECRET = os.getenv("CLERK_WEBHOOK_SIGNING_SECRET")
+if not CLERK_WEBHOOK_SECRET:
+    # Log a warning but don't crash the app, as other endpoints might still work
+    logger.warning("CLERK_WEBHOOK_SIGNING_SECRET environment variable not set. Webhook verification will fail.")
+# --- END ADD ---
 
 # Configure CORS (Now FRONTEND_URL is defined)
 # Define allowed origins
@@ -236,7 +246,7 @@ async def create_checkout_session(
         user = await prisma.user.find_unique(where={"clerkId": user_clerk_id})
         if not user:
             logger.error(f"User not found in database for Clerk ID: {user_clerk_id}")
-            raise HTTPException(status_code=404, detail="User profile not found.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found in our system.")
 
         stripe_customer_id = user.stripeCustomerId
 
@@ -289,14 +299,18 @@ async def create_checkout_session(
 
         return CreateCheckoutResponse(sessionId=checkout_session.id, url=checkout_session.url)
 
+    except HTTPException as http_exc:
+        # Re-raise specific HTTP exceptions (like the 404 above)
+        # This prevents them from being caught by the generic Exception handler
+        raise http_exc
     except stripe.error.StripeError as e:
         logger.error(f"Stripe API error during checkout session creation for Clerk ID {user_clerk_id}: {e}", exc_info=True)
-        # Provide a user-friendly message if available, otherwise a generic one
         detail = e.user_message if hasattr(e, 'user_message') and e.user_message else "A payment processing error occurred."
-        raise HTTPException(status_code=500, detail=f"Stripe error: {detail}")
-    except Exception as e:
+        # Use status code appropriate for Stripe errors (e.g., 500 or 502 Bad Gateway)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Stripe error: {detail}")
+    except Exception as e: # Generic handler for truly unexpected errors
         logger.error(f"Unexpected error creating checkout session for Clerk ID {user_clerk_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error creating checkout session.")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error creating checkout session.")
 
 @app.post("/stripe-webhook")
 async def stripe_webhook(request: Request):
@@ -456,6 +470,112 @@ async def stripe_webhook(request: Request):
 
     # Acknowledge receipt to Stripe
     return {"received": True}
+
+@app.post("/clerk-webhook")
+async def clerk_webhook(request: Request):
+    """Handles incoming webhooks from Clerk.
+    Verifies the signature and processes user.created events.
+    """
+    if not CLERK_WEBHOOK_SECRET:
+        logger.error("Webhook processing failed: Signing secret not configured.")
+        raise HTTPException(status_code=500, detail="Webhook secret not configured on server.")
+
+    # Get headers and body needed for verification
+    headers = request.headers
+    try:
+        payload = await request.body()
+    except Exception as e:
+        logger.error(f"Error reading webhook request body: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail="Error reading request body.")
+
+    svix_id = headers.get("svix-id")
+    svix_timestamp = headers.get("svix-timestamp")
+    svix_signature = headers.get("svix-signature")
+
+    if not svix_id or not svix_timestamp or not svix_signature:
+        logger.warning("Webhook missing required Svix headers.")
+        raise HTTPException(status_code=400, detail="Missing Svix headers")
+
+    # Verify the webhook signature
+    try:
+        wh = Webhook(CLERK_WEBHOOK_SECRET)
+        evt = wh.verify(payload, {
+            "svix-id": svix_id,
+            "svix-timestamp": svix_timestamp,
+            "svix-signature": svix_signature,
+        })
+        logger.info(f"Clerk Webhook verified successfully. Event Type: {evt.get('type')}")
+    except WebhookVerificationError as e:
+        logger.error(f"Clerk Webhook verification failed: {e}")
+        raise HTTPException(status_code=400, detail="Webhook signature verification failed.")
+    except Exception as e:
+        logger.error(f"Unexpected error during webhook verification: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error verifying webhook.")
+
+    # --- Process the validated event --- 
+    event_type = evt.get("type")
+    event_data = evt.get("data", {}) # Default to empty dict if 'data' is missing
+
+    if event_type == "user.created":
+        logger.info(f"Processing user.created event for Clerk ID: {event_data.get('id')}")
+        try:
+            clerk_id = event_data.get("id")
+            first_name = event_data.get("first_name")
+            last_name = event_data.get("last_name")
+            image_url = event_data.get("image_url")
+            # Email handling: Clerk provides an array of emails
+            email_address = None
+            email_addresses = event_data.get("email_addresses", [])
+            if email_addresses:
+                # Find the primary email or just take the first one
+                primary_email = next((e for e in email_addresses if e.get("verification", {}).get("status") == "verified"), None)
+                if primary_email:
+                     email_address = primary_email.get("email_address")
+                else: # Fallback to the first email if no primary/verified found
+                     email_address = email_addresses[0].get("email_address") 
+                
+            if not clerk_id or not email_address:
+                 logger.error(f"Webhook Error: Missing clerk_id or email in user.created event. Data: {event_data}")
+                 # Return 200 to Clerk so it doesn't retry, but log error
+                 return {"status": "error", "message": "Missing required user data in event."}
+
+            # Check if user already exists (idempotency)
+            existing_user = await prisma.user.find_unique(where={"clerkId": clerk_id})
+            if existing_user:
+                 logger.warning(f"Webhook Info: User with clerkId {clerk_id} already exists. Skipping creation.")
+                 return {"status": "ok", "message": "User already exists."}
+
+            # Create the user in the database
+            new_user = await prisma.user.create(
+                data={
+                    "clerkId": clerk_id,
+                    "email": email_address,
+                    "firstName": first_name, # Can be null
+                    "lastName": last_name,   # Can be null
+                    "profileImageUrl": image_url, # Can be null
+                    # Set defaults for plan, limits, etc.
+                    "plan": "free",
+                    "summaryLimit": 5, 
+                    "summariesUsed": 0,
+                    "usageResetAt": datetime.now(timezone.utc)
+                }
+            )
+            logger.info(f"Successfully created user in DB for Clerk ID: {new_user.clerkId}")
+            return {"status": "ok", "message": "User created successfully."}
+
+        except Exception as e:
+            logger.error(f"Webhook Error: Failed to create user for Clerk ID {event_data.get('id')}: {e}", exc_info=True)
+            # Return 500 so Clerk might retry, or handle specific DB errors
+            raise HTTPException(status_code=500, detail="Failed to process user creation.")
+
+    # Handle other event types if needed in the future (e.g., user.updated, user.deleted)
+    # elif event_type == "user.deleted":
+    #     # ... handle deletion ...
+    #     pass 
+    
+    else:
+        logger.info(f"Received Clerk webhook event type '{event_type}', but no handler is configured.")
+        return {"status": "ok", "message": "Event received but not processed."}
 
 @app.post("/summarize", response_model=SummarizeResponse)
 async def summarize_article(
