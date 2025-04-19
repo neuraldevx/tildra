@@ -36,7 +36,7 @@ RUN pip install --no-cache --no-cache-dir -r requirements.txt
 # (Adjust version 5.17.0 if your Python client requires a different one)
 RUN npm install prisma@5.17.0 --save-dev --omit=optional
 # Verify Prisma CLI installation
-RUN npx prisma --version 
+RUN npx prisma --version
 # --- END Prisma CLI Installation ---
 
 # --- Verify Stripe Installation --- 
@@ -48,8 +48,12 @@ RUN echo "Listing site-packages directory for clerk* packages:" \
     && ls -ld /usr/local/lib/python3.11/site-packages/clerk* \
     || echo "clerk_backend_api directory not found in site-packages"
 
-# --- Generate Prisma Client --- 
-# Generate the Prisma Python client code within the image
+# --- Generate Prisma Client ---
+# Add node_modules/.bin to PATH and Generate the Prisma Python client code
+ENV PATH="/app/node_modules/.bin:$PATH"
+RUN echo "Updated PATH: $PATH" # Debugging PATH
+RUN which npx # Debugging npx location
+RUN which prisma # Debugging prisma location
 RUN npx prisma generate
 # --------------------------
 
