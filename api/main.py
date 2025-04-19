@@ -21,6 +21,7 @@ from typing import Annotated, Optional, Dict, Any # Add Any
 from prisma import Prisma
 # --- ADD Webhook Verification Import ---
 from svix.webhooks import Webhook, WebhookVerificationError # Corrected import
+from prisma.errors import UniqueViolationError # Import DB constraint exception for webhook handler
 # --- END ADD ---
 # --------------------------
 
@@ -562,7 +563,18 @@ async def clerk_webhook(request: Request):
             )
             logger.info(f"Successfully created user in DB for Clerk ID: {new_user.clerkId}")
             return {"status": "ok", "message": "User created successfully."}
-
+        except UniqueViolationError as e:
+            # Handle duplicate email by linking existing user record
+            if 'email' in str(e):
+                logger.warning(f"Webhook Info: Email {email_address} already exists. Linking Clerk ID {clerk_id} to existing user.")
+                updated_user = await prisma.user.update(
+                    where={"email": email_address},
+                    data={"clerkId": clerk_id}
+                )
+                logger.info(f"Successfully linked existing user {updated_user.id} with Clerk ID: {clerk_id}")
+                return {"status": "ok", "message": "Existing user linked successfully."}
+            # Re-raise if it's a different uniqueness constraint
+            raise
         except Exception as e:
             logger.error(f"Webhook Error: Failed to create user for Clerk ID {event_data.get('id')}: {e}", exc_info=True)
             # Return 500 so Clerk might retry, or handle specific DB errors
@@ -630,18 +642,15 @@ async def summarize_article(
         # Return 403 if user object is still None after the DB check block
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User profile not found.")
 
-    # 2. Check usage limit
-    # --- Bypass limit for Admin/Dev (Keep this logic if implemented) ---
-    # if hasattr(user, 'isAdminOrDev') and user.isAdminOrDev:
-    #     logger.info(f"Admin/Dev user detected ({user_clerk_id}), bypassing usage limits.")
-    # else:
-    # --- Check actual limit ---
-    if user.summariesUsed >= user.summaryLimit:
-        logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Monthly summary limit ({user.summaryLimit}) reached for your '{user.plan}' plan.")
+    # 2. Usage Limit Enforcement (Free plan only)
+    if user.plan == "free":
+        if user.summariesUsed >= user.summaryLimit:
+            logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Daily summary limit ({user.summaryLimit}) reached for your '{user.plan}' plan.")
+        else:
+            logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
     else:
-        logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
-    # --- End Usage Limit Check ---
+        logger.info(f"Premium user bypassing usage limits for Clerk ID: {user_clerk_id}.")
 
     # --- Proceed with Summarization ---
     try:
@@ -705,8 +714,9 @@ async def summarize_article(
             logger.error(f"Failed to parse summary response from DeepSeek AI: {parse_error}\nRaw Response Content: {message_content if 'message_content' in locals() else 'N/A'}\nFull Response: {deepseek_response_data if 'deepseek_response_data' in locals() else response.text}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to parse summary response from AI.")
 
-        # Add usage tracking as a background task
-        background_tasks.add_task(track_summary_usage, user_clerk_id)
+        # Track usage only for free users
+        if user.plan == "free":
+            background_tasks.add_task(track_summary_usage, user_clerk_id)
 
         return summary_data
 
@@ -752,18 +762,13 @@ class UserStatusResponse(BaseModel):
 async def get_user_status(user_id: str = Depends(get_authenticated_user_id)):
     """
     Checks if the authenticated user has an active Stripe subscription 
-    (indicated by a non-null stripe_customer_id).
+    (indicated by stripe_subscription_id and its current period end).
     """
+    now = datetime.now(timezone.utc)
     try:
         user = await prisma.user.find_unique(where={"id": user_id})
-        if user and user.stripe_customer_id:
-             # Further check subscription status via Stripe if needed for more accuracy
-             # For now, presence of customer ID implies pro status
+        if user and user.stripe_subscription_id and user.stripe_current_period_end and user.stripe_current_period_end > now:
             return UserStatusResponse(is_pro=True)
-        else:
-            return UserStatusResponse(is_pro=False)
     except Exception as e:
-        print(f"Error checking user status for {user_id}: {e}")
-        # Return false by default on error, but log it
-        return UserStatusResponse(is_pro=False) 
-# --- End Add User Status Endpoint ---
+        logger.error(f"Error checking user status for {user_id}: {e}")
+    return UserStatusResponse(is_pro=False)
