@@ -7,7 +7,14 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [uuid_ossp(map: "uuid-ossp", schema: "extensions")]
+  extensions = [
+    uuid_ossp(map: "uuid-ossp", schema: "extensions"),
+    pg_graphql,
+    pg_stat_statements,
+    pgcrypto,
+    pgjwt,
+    supabase_vault
+  ]
 }
 
 model User {
