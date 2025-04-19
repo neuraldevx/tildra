@@ -48,9 +48,9 @@ RUN echo "Listing site-packages directory for clerk* packages:" \
     && ls -ld /usr/local/lib/python3.11/site-packages/clerk* \
     || echo "clerk_backend_api directory not found in site-packages"
 
-# --- Generate Prisma Client ---
-# No longer run generate here, as the client is in site-packages
-# RUN prisma generate # REMOVED/COMMENTED OUT
+# --- Generate Prisma Client --- 
+# Generate the Prisma Python client code within the image
+RUN npx prisma generate
 # --------------------------
 
 # Copy the main application file (relative to build context root)
