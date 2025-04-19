@@ -1,6 +1,18 @@
 # Use the full official Python runtime as a parent image
 FROM python:3.11
 
+# --- ADD Node.js Installation ---
+# Install Node.js and npm (needed for npx and Prisma CLI)
+# Using NodeSource setup script (common method)
+RUN apt-get update && \
+    apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs
+# Verify installations
+RUN node --version
+RUN npm --version
+# --- END Node.js Installation ---
+
 WORKDIR /app
 
 # Set environment variables
@@ -19,6 +31,14 @@ RUN pip install --upgrade pip
 # Install from requirements file
 RUN pip install --no-cache --no-cache-dir -r requirements.txt
 
+# --- ADD Prisma CLI Installation ---
+# Install the specific version of Prisma CLI needed by the Python client
+# (Adjust version 5.17.0 if your Python client requires a different one)
+RUN npm install prisma@5.17.0 --save-dev --omit=optional
+# Verify Prisma CLI installation
+RUN npx prisma --version 
+# --- END Prisma CLI Installation ---
+
 # --- Verify Stripe Installation --- 
 RUN echo "Verifying stripe installation:" && pip freeze | grep stripe || (echo "ERROR: stripe not found after pip install!" && exit 1)
 # ---------------------------------
@@ -29,7 +49,8 @@ RUN echo "Listing site-packages directory for clerk* packages:" \
     || echo "clerk_backend_api directory not found in site-packages"
 
 # --- Generate Prisma Client ---
-RUN prisma generate
+# No longer run generate here, as the client is in site-packages
+# RUN prisma generate # REMOVED/COMMENTED OUT
 # --------------------------
 
 # Copy the main application file (relative to build context root)
