@@ -54,7 +54,7 @@ ENV PATH="/app/node_modules/.bin:$PATH"
 RUN echo "Updated PATH: $PATH" # Debugging PATH
 RUN which npx # Debugging npx location
 RUN which prisma # Debugging prisma location
-RUN npx prisma generate
+RUN python3 -m prisma generate --schema=./prisma/schema.prisma
 # --------------------------
 
 # Copy the main application file (relative to build context root)
