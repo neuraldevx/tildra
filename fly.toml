@@ -29,3 +29,5 @@ primary_region = "ord"   # Replace with your chosen region if different
 #  cpu_kind = "shared"
 #  cpus = 1
 #  memory_mb = 256 
+
+  release_command = "npx prisma migrate deploy"
