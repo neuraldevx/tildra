@@ -28,6 +28,9 @@ interface PricingCardProps {
   ctaDisabled?: boolean
 }
 
+// Use the API base URL from environment, default to localhost
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000';
+
 export function PricingCard({
   title,
   price,
@@ -60,9 +63,9 @@ export function PricingCard({
         return;
       }
 
-      const apiUrl = '/api/create-checkout-session';
-      console.log(`[Upgrade] POST ${apiUrl}`);
-      const response = await fetch(apiUrl, {
+      const apiBaseUrl = API_BASE_URL;
+      console.log(`[Upgrade] Fetching: POST ${apiBaseUrl}/create-checkout-session`);
+      const response = await fetch(`${apiBaseUrl}/create-checkout-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

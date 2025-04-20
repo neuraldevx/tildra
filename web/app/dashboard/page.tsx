@@ -74,13 +74,11 @@ export default async function DashboardPage() {
                 Upgrade to Premium
               </Link>
             )}
-            {/* Optionally show something for Pro users? 
             {isProUser && (
-              <span className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-                 <Sparkles size={14} className="text-green-500" /> Pro Plan
+              <span className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-green-500">
+                <Sparkles size={14} className="text-green-500" /> Premium Access
               </span>
-            )} 
-            */}
+            )}
             <ThemeToggle />
           </div>
         </div>
@@ -90,7 +88,7 @@ export default async function DashboardPage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-foreground">Article Summarizer</h1>
-            {/* Conditionally render mobile Upgrade link */}
+            {/* Conditionally render mobile Upgrade link and Premium badge */}
             {!isProUser && (
               <Link
                 href="/pricing"
@@ -99,6 +97,11 @@ export default async function DashboardPage() {
                 <Sparkles size={14} className="text-primary" />
                 Upgrade
               </Link>
+            )}
+            {isProUser && (
+              <span className="sm:hidden flex items-center gap-1.5 text-sm font-medium text-green-500">
+                <Sparkles size={14} className="text-green-500" /> Premium
+              </span>
             )}
           </div>
           <Summarizer />

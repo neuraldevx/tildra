@@ -285,7 +285,7 @@ async def create_checkout_session(
             ],
             mode='subscription',
             allow_promotion_codes=True, # Optional: Allow discount codes
-            success_url=f'{FRONTEND_URL}/dashboard?session_id={{CHECKOUT_SESSION_ID}}', # Redirect back to app
+            success_url=f'{FRONTEND_URL}/premium-tools', # Redirect to Premium Tools page after successful upgrade
             cancel_url=f'{FRONTEND_URL}/pricing', # Redirect back to pricing on cancel
             # Pass metadata that might be useful in webhooks
             metadata={
@@ -761,14 +761,15 @@ class UserStatusResponse(BaseModel):
 @app.get("/api/user/status", response_model=UserStatusResponse)
 async def get_user_status(user_id: str = Depends(get_authenticated_user_id)):
     """
-    Checks if the authenticated user has an active Stripe subscription 
-    (indicated by stripe_subscription_id and its current period end).
+    Checks if the authenticated user has an active Premium plan
+    (indicated by user.plan == 'premium').
     """
-    now = datetime.now(timezone.utc)
     try:
         user = await prisma.user.find_unique(where={"id": user_id})
-        if user and user.stripe_subscription_id and user.stripe_current_period_end and user.stripe_current_period_end > now:
+        if user and user.plan == "premium":
             return UserStatusResponse(is_pro=True)
+        else:
+            return UserStatusResponse(is_pro=False)
     except Exception as e:
         logger.error(f"Error checking user status for {user_id}: {e}")
-    return UserStatusResponse(is_pro=False)
+        return UserStatusResponse(is_pro=False)

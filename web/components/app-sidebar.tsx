@@ -32,7 +32,7 @@ import {
   useSidebar
 } from "@/components/ui/sidebar"
 import { Logo } from "@/components/ui/logo"
-import { useUser, UserButton, SignOutButton } from "@clerk/nextjs"
+import { useAuth, useUser, UserButton, SignOutButton } from "@clerk/nextjs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -76,9 +76,48 @@ export function AppSidebar() {
   const router = useRouter()
   const { state, toggleSidebar } = useSidebar()
   const { isLoaded, isSignedIn, user } = useUser()
+  const { getToken } = useAuth()
+  const [isProUser, setIsProUser] = useState(false)
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true)
   
   // State to track the current URL hash
   const [currentHash, setCurrentHash] = useState('');
+
+  // Fetch premium status for rendering badge
+  useEffect(() => {
+    let isMounted = true
+    const fetchStatus = async () => {
+      if (!isSignedIn) {
+        if (isMounted) {
+          setIsProUser(false)
+          setIsLoadingStatus(false)
+        }
+        return
+      }
+      try {
+        const token = await getToken()
+        if (!token) throw new Error("Failed to get session token.")
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'
+        const response = await fetch(`${apiBaseUrl}/api/user/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (!response.ok) throw new Error(`Status fetch error: ${response.status}`)
+        const data = await response.json()
+        if (isMounted) {
+          setIsProUser(data.is_pro)
+          setIsLoadingStatus(false)
+        }
+      } catch (err) {
+        console.error("[AppSidebar] Failed to fetch user status:", err)
+        if (isMounted) {
+          setIsProUser(false)
+          setIsLoadingStatus(false)
+        }
+      }
+    }
+    fetchStatus()
+    return () => { isMounted = false }
+  }, [isSignedIn, getToken])
 
   // Handle navigation for both regular and hash links
   const handleNavigation = (url: string) => {
@@ -320,6 +359,11 @@ export function AppSidebar() {
                 <span className="text-xs text-muted-foreground truncate">
                   {user?.primaryEmailAddress?.emailAddress}
                 </span>
+                {!isLoadingStatus && isProUser && (
+                  <span className="text-xs text-green-500 truncate">
+                    Premium
+                  </span>
+                )}
               </div>
             </div>
           </SignedIn>
