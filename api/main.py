@@ -765,7 +765,8 @@ async def get_user_status(user_id: str = Depends(get_authenticated_user_id)):
     (indicated by user.plan == 'premium').
     """
     try:
-        user = await prisma.user.find_unique(where={"id": user_id})
+        # Find user by Clerk ID provided by the authentication dependency
+        user = await prisma.user.find_unique(where={"clerkId": user_id})
         if user and user.plan == "premium":
             return UserStatusResponse(is_pro=True)
         else:

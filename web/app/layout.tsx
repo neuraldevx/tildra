@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkProvider } from '@clerk/nextjs'
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { ChromeTokenHelper } from "@/components/chrome-token-helper"
 import { cn } from "@/lib/utils"
 
 const lexend = Lexend({ subsets: ["latin"] })
@@ -35,6 +36,7 @@ export default function RootLayout({
       <html lang="en" suppressHydrationWarning>
         <body className={lexend.className}>
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+            <ChromeTokenHelper />
             <SidebarProvider defaultOpen={defaultOpen}>
               <div className="flex w-full min-h-screen">
                 <AppSidebar />
