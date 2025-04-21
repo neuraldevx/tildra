@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -11,7 +12,7 @@ datasource db {
 // /Users/jakechristensen/snipsummary/prisma/schema.prisma
 
 model User {
-  id            String   @id
+  id            String   @id @default(uuid())
   clerkId       String   @unique
   email         String   @unique
   firstName     String?

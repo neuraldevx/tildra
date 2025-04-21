@@ -81,10 +81,14 @@ export async function POST(req: Request) {
         data: {
           clerkId: clerkId,
           email: primaryEmail,
-          // Add other fields if needed and available in webhook, e.g.:
-          // firstName: first_name,
-          // lastName: last_name,
-          // imageUrl: image_url,
+          firstName: first_name,
+          lastName: last_name,
+          // profileImageUrl: image_url, // Field does not exist in this schema
+          // Explicitly set default values
+          plan: "free",
+          summaryLimit: 5,
+          summariesUsed: 0, // Re-add default
+          usageResetAt: new Date(), // Re-add default
         },
       });
       console.log(`Successfully created user ${newUser.id} in DB for Clerk ID: ${clerkId}`);
