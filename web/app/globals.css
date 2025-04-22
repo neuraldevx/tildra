@@ -111,3 +111,36 @@ a[class*="SidebarMenuButton"] {
   background-color: transparent !important;
   background: transparent !important;
 }
+
+/* --- ADDED: Animated Gradient Border for Pro Badge --- */
+@layer utilities {
+  .pro-badge-animated {
+    @apply relative inline-block overflow-hidden rounded-full p-px text-xs font-semibold;
+  }
+
+  .pro-badge-animated::before {
+    content: '';
+    @apply absolute inset-[-2px] z-[-1] rounded-full;
+    /* Using emerald/teal colors for the gradient */
+    background: conic-gradient(from var(--gradient-angle, 0deg), #059669, #0d9488, #06b6d4, #0d9488, #059669);
+    animation: spin 3s linear infinite;
+    background-size: 200% 200%; /* Helps with smoother animation */
+  }
+
+  /* Inner span to clip the background */
+  .pro-badge-animated > span {
+     @apply block rounded-full bg-background px-2 py-0.5 text-emerald-500;
+     /* Dark mode adjustments for inner background */
+     @apply dark:bg-secondary dark:text-emerald-400;
+  }
+}
+
+@keyframes spin {
+  0% {
+    --gradient-angle: 0deg;
+  }
+  100% {
+    --gradient-angle: 360deg;
+  }
+}
+/* --- END ADDED --- */

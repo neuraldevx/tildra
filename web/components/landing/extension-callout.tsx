@@ -37,7 +37,7 @@ export function ExtensionCallout() {
               experience.
             </motion.p>
             <motion.button
-              className="bg-white text-primary px-6 py-3 rounded-lg font-medium hover:shadow-lg transition-shadow hover-lift flex items-center gap-2"
+              className="bg-white text-zinc-900 px-6 py-3 rounded-lg font-medium hover:shadow-lg transition-shadow hover-lift flex items-center gap-2"
               initial={{ opacity: 0, y: 10 }}
               animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
               transition={{ duration: 0.6, delay: 0.4 }}

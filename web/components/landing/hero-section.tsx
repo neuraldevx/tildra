@@ -90,7 +90,7 @@ export function HeroSection() {
           transition={{ duration: 0.8, delay: 0.4 }}
         >
           <motion.div
-            className="relative z-10 bg-card text-card-foreground rounded-xl shadow-xl p-6 max-w-md mx-auto"
+            className="relative z-10 bg-card text-card-foreground rounded-xl shadow-xl p-6 max-w-md mx-auto dark:shadow-primary/10 shadow-primary/20"
             whileHover={{ y: -5 }}
             transition={{ type: "spring", stiffness: 300 }}
           >

@@ -85,7 +85,14 @@ export function Header() {
           <Logo size="sm" animated={true} href="/" />
         </div>
 
-        <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
+        <div className="flex items-center gap-4">
+           {/* ... Mobile menu trigger ... */}
+           {/* ... Logo ... */}
+           {/* ... Desktop Sidebar Toggle ... */}
+        </div>
+
+        {/* Center Navigation - Re-adding flex-1 and justify-center */}
+        <nav className="hidden md:flex items-center space-x-6 text-sm font-medium flex-1 justify-center">
           <Link href="/#how-it-works" className="text-foreground/60 hover:text-foreground/80 transition-colors">
             How It Works
           </Link>
@@ -102,7 +109,8 @@ export function Header() {
           </Link>
         </nav>
 
-        <div className="flex flex-1 items-center justify-end space-x-4">
+        {/* Right side: Auth & Theme */}
+        <div className="flex items-center justify-end space-x-4">
           <SignedOut>
             <SignInButton mode="modal">
               <Button variant="ghost" size="sm">Sign in</Button>
@@ -114,8 +122,8 @@ export function Header() {
           <SignedIn>
             <UserButton afterSignOutUrl="/" />
             {!statusLoading && isPro && (
-              <span className="ml-2 bg-green-500 text-white px-2 py-1 text-xs rounded-full">
-                Pro
+              <span className="pro-badge-animated ml-1">
+                <span>PRO</span>
               </span>
             )}
           </SignedIn>

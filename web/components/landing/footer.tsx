@@ -6,7 +6,7 @@ export function Footer() {
     <footer className="container mx-auto px-4 py-12 border-t border-border relative z-10">
       <div className="flex flex-col md:flex-row justify-between items-center">
         <div className="flex items-center gap-2 mb-4 md:mb-0">
-          <Logo size="sm" />
+          <Logo size="md" />
         </div>
 
         <div className="flex flex-wrap justify-center gap-6 text-sm text-foreground/60">
@@ -30,7 +30,7 @@ export function Footer() {
           </Link>
         </div>
 
-        <div className="mt-4 md:mt-0 text-sm text-foreground/40">© 2024 Tildra. All rights reserved.</div>
+        <div className="mt-4 md:mt-0 text-sm text-foreground/40">© 2025 Tildra. All rights reserved.</div>
       </div>
     </footer>
   )
