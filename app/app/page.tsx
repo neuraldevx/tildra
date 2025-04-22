@@ -1,4 +1,5 @@
 import { HeroSection } from "@/components/landing/hero-section"
+// import { HeroScrollDemo } from "@/components/landing/hero-scroll-demo"
 import { HowItWorks } from "@/components/landing/how-it-works"
 import { Features } from "@/components/landing/features"
 import { UseCases } from "@/components/landing/use-cases"
@@ -9,7 +10,7 @@ import { Logo } from "@/components/ui/logo"
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/50 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/50 relative">
       {/* Background pattern */}
       <div className="absolute inset-0 bg-wave-pattern opacity-30 pointer-events-none"></div>
 

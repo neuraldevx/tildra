@@ -337,22 +337,33 @@ export function AppSidebar() {
         </SidebarContent>
 
         <div className={cn(
-          "p-3 border-t border-border/40 mt-auto",
-          state === 'collapsed' && "flex flex-col items-center justify-start px-[10px] py-1"
+          "border-t border-border/40 mt-auto",
+          state === 'collapsed'
+            ? "flex items-center justify-center px-3 py-2"
+            : "p-3"
         )}>
           {!isLoaded ? (
-            <div className={cn("flex items-center gap-3 p-3", state === 'collapsed' && "justify-center p-0 py-3")}>
-              <Skeleton className="h-8 w-8 rounded-full" />
-              <Skeleton className={cn("h-4 w-20", state === 'collapsed' && "hidden")} />
-            </div>
+            // Loading state: show placeholder avatar
+            <Skeleton className="h-8 w-8 rounded-full mx-auto" />
+          ) : state === 'collapsed' ? (
+            // Collapsed state: only show user avatar centered
+            <UserButton
+              afterSignOutUrl="/"
+              appearance={{ elements: { avatarBox: "h-8 w-8 mx-auto" } }}
+            />
           ) : (
+            // Expanded state: full footer with user info and links
             <>
               <SignedIn>
-                <div className={cn("flex items-center gap-3 p-3", state === 'collapsed' && "justify-center p-0 py-3")}>
-                  <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "h-8 w-8" } }} />
-                  <div className={cn("flex flex-col truncate", state === 'collapsed' && "hidden")}>
-                    <span className="text-sm font-medium truncate">{user?.primaryEmailAddress?.emailAddress}</span>
-                    {/* Pro Badge Logic (already re-added) */}
+                <div className="flex items-center gap-3 p-3">
+                  <UserButton
+                    afterSignOutUrl="/"
+                    appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+                  />
+                  <div className="flex flex-col truncate">
+                    <span className="text-sm font-medium truncate">
+                      {user?.username ?? user?.primaryEmailAddress?.emailAddress}
+                    </span>
                     {isLoadingStatus ? (
                       <Skeleton className="h-3 w-8 mt-1" />
                     ) : isProUser ? (
@@ -362,55 +373,61 @@ export function AppSidebar() {
                     ) : null}
                   </div>
                 </div>
-                {/* Manage Subscription Link */}
-                <SidebarMenuItem className={cn(state === 'collapsed' && "px-0")}>
-                  <a 
+                <SidebarMenuItem>
+                  <a
                     href="https://billing.stripe.com/p/login/test_dR64hffWb55Ze084gg"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={cn(
                       SIDEBAR_STYLES.button.base,
-                      SIDEBAR_STYLES.button.inactive, 
-                      SIDEBAR_STYLES.button.overrides,
-                      SIDEBAR_STYLES.hoverEffect,
-                      SIDEBAR_STYLES.transition
-                    )}
-                    aria-label="Manage Subscription"
-                  >
-                    <Settings className={cn(SIDEBAR_STYLES.icon.base, SIDEBAR_STYLES.icon.inactive)} />
-                    <span className={cn(SIDEBAR_STYLES.text.base, SIDEBAR_STYLES.text.inactive)}>Manage Subscription</span>
-                  </a>
-                </SidebarMenuItem>
-                {/* Sign Out Button */}
-                <SidebarMenuItem className={cn(state === 'collapsed' && "px-0")}> 
-                  <SignOutButton redirectUrl="/">
-                    <button className={cn(
-                      SIDEBAR_STYLES.button.base,
-                      SIDEBAR_STYLES.button.inactive, 
-                      SIDEBAR_STYLES.button.overrides,
-                      SIDEBAR_STYLES.hoverEffect,
-                      SIDEBAR_STYLES.transition
-                    )}>
-                      <LogOut className={cn(SIDEBAR_STYLES.icon.base, SIDEBAR_STYLES.icon.inactive)} />
-                      <span className={cn(SIDEBAR_STYLES.text.base, SIDEBAR_STYLES.text.inactive)}>Sign Out</span>
-                    </button>
-                  </SignOutButton>
-                </SidebarMenuItem>
-              </SignedIn>
-
-              <SignedOut>
-                {/* Sign In Button */}
-                <SidebarMenuItem className={cn(state === 'collapsed' && "px-0")}>
-                  <SignInButton mode="modal">
-                    <button className={cn(
-                      SIDEBAR_STYLES.button.base,
                       SIDEBAR_STYLES.button.inactive,
                       SIDEBAR_STYLES.button.overrides,
                       SIDEBAR_STYLES.hoverEffect,
                       SIDEBAR_STYLES.transition
-                    )}>
+                    )}
+                    aria-label="Subscription"
+                  >
+                    <Settings className={cn(SIDEBAR_STYLES.icon.base, SIDEBAR_STYLES.icon.inactive)} />
+                    <span className={cn(SIDEBAR_STYLES.text.base, SIDEBAR_STYLES.text.inactive)}>
+                      Subscription
+                    </span>
+                  </a>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SignOutButton redirectUrl="/">
+                    <button
+                      className={cn(
+                        SIDEBAR_STYLES.button.base,
+                        SIDEBAR_STYLES.button.inactive,
+                        SIDEBAR_STYLES.button.overrides,
+                        SIDEBAR_STYLES.hoverEffect,
+                        SIDEBAR_STYLES.transition
+                      )}
+                    >
+                      <LogOut className={cn(SIDEBAR_STYLES.icon.base, SIDEBAR_STYLES.icon.inactive)} />
+                      <span className={cn(SIDEBAR_STYLES.text.base, SIDEBAR_STYLES.text.inactive)}>
+                        Sign Out
+                      </span>
+                    </button>
+                  </SignOutButton>
+                </SidebarMenuItem>
+              </SignedIn>
+              <SignedOut>
+                <SidebarMenuItem>
+                  <SignInButton mode="modal">
+                    <button
+                      className={cn(
+                        SIDEBAR_STYLES.button.base,
+                        SIDEBAR_STYLES.button.inactive,
+                        SIDEBAR_STYLES.button.overrides,
+                        SIDEBAR_STYLES.hoverEffect,
+                        SIDEBAR_STYLES.transition
+                      )}
+                    >
                       <User className={cn(SIDEBAR_STYLES.icon.base, SIDEBAR_STYLES.icon.inactive)} />
-                      <span className={cn(SIDEBAR_STYLES.text.base, SIDEBAR_STYLES.text.inactive)}>Sign In</span>
+                      <span className={cn(SIDEBAR_STYLES.text.base, SIDEBAR_STYLES.text.inactive)}>
+                        Sign In
+                      </span>
                     </button>
                   </SignInButton>
                 </SidebarMenuItem>

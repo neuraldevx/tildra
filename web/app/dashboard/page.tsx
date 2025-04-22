@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Sparkles } from "lucide-react"
 import { auth } from "@clerk/nextjs/server"
 import { headers } from "next/headers"
+import { redirect } from "next/navigation"
 
 // Fetch user status on the server
 async function getUserStatusData(userId: string | null, token: string | null) {
@@ -48,12 +49,17 @@ async function getUserStatusData(userId: string | null, token: string | null) {
 
 export default async function DashboardPage() {
   // Get user ID and token on the server
-  const { userId, getToken } = await auth(); // Await the auth() promise
-  const token = await getToken(); // Get the raw token
+  const { userId, getToken } = await auth();
+  const token = await getToken();
 
   // Fetch status for this page load
   const userData = await getUserStatusData(userId, token);
-  const isProUser = userData?.is_pro ?? false; // Use optional chaining and nullish coalescing
+  const isProUser = userData?.is_pro ?? false;
+
+  // Only premium users can access the hub
+  if (!isProUser) {
+    redirect('/pricing');
+  }
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -86,25 +92,43 @@ export default async function DashboardPage() {
 
       <main className="container mx-auto px-4 py-8 relative z-10">
         <div className="max-w-4xl mx-auto">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-foreground">Article Summarizer</h1>
-            {/* Conditionally render mobile Upgrade link and Premium badge */}
-            {!isProUser && (
-              <Link
-                href="/pricing"
-                className="sm:hidden flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
-              >
-                <Sparkles size={14} className="text-primary" />
-                Upgrade
-              </Link>
-            )}
-            {isProUser && (
-              <span className="sm:hidden flex items-center gap-1.5 text-sm font-medium text-green-500">
-                <Sparkles size={14} className="text-green-500" /> Premium
-              </span>
-            )}
+          <h1 className="text-2xl font-bold text-foreground mb-4">Insights Hub</h1>
+          <div className="bg-card p-6 rounded-lg shadow mb-8">
+            <h2 className="text-xl font-semibold mb-2">Article Summarizer</h2>
+            <Summarizer />
           </div>
-          <Summarizer />
+
+          {/* Pro Modules Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-card p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-1">Library</h3>
+              <p className="text-sm text-foreground/70">Full-text search across originals & summaries.</p>
+            </div>
+            <div className="bg-card p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-1">Tags & Topics</h3>
+              <p className="text-sm text-foreground/70">Auto‑tag and filter by project or client.</p>
+            </div>
+            <div className="bg-card p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-1">Export & Sync</h3>
+              <p className="text-sm text-foreground/70">Export to Notion, Obsidian, Readwise, PDF, Markdown.</p>
+            </div>
+            <div className="bg-card p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-1">Time Saved Analytics</h3>
+              <p className="text-sm text-foreground/70">See cumulative minutes saved and reading trends.</p>
+            </div>
+            <div className="bg-card p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-1">Flashcards</h3>
+              <p className="text-sm text-foreground/70">Auto‑generate Q&A flashcards & daily quizzes.</p>
+            </div>
+            <div className="bg-card p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-1">Citation Trail</h3>
+              <p className="text-sm text-foreground/70">Hover bullets to view original source sentences.</p>
+            </div>
+            <div className="bg-card p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-1">Regen Styles</h3>
+              <p className="text-sm text-foreground/70">Switch between Tweet, Executive, Student output.</p>
+            </div>
+          </div>
         </div>
       </main>
     </div>

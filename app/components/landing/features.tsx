@@ -34,7 +34,7 @@ export function Features() {
       >
         <h2 className="text-3xl md:text-4xl font-bold mb-4">Key Features</h2>
         <p className="text-foreground/70 max-w-2xl mx-auto">
-          Brevity is packed with powerful features to help you digest information faster
+          Tildra is packed with powerful features to help you digest information faster
         </p>
       </motion.div>
 

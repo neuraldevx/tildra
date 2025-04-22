@@ -10,9 +10,9 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
 // Use more compact width constants
-const SIDEBAR_WIDTH = "15rem"
-const SIDEBAR_WIDTH_MOBILE = "16rem"
-const SIDEBAR_WIDTH_ICON = "3rem"
+const SIDEBAR_WIDTH = "12rem"
+const SIDEBAR_WIDTH_MOBILE = "14rem"
+const SIDEBAR_WIDTH_ICON = "2.5rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
 type SidebarContextProps = {
