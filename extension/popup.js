@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Set based on your deployed backend URL
   // Ensure this matches the host_permissions in manifest.json
-  const BACKEND_URL = 'https://snipsummary.fly.dev/summarize';
+  const BACKEND_URL = 'https://tildra.fly.dev/summarize';
   const COOKIE_DOMAIN_URL = 'https://www.tildra.xyz'; // Domain where the auth cookie is set
   const COOKIE_NAME = '__session'; // Clerk's session cookie name
 
@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const token = await getClerkSessionToken();
       if (!token) return false;
-      const res = await fetch('https://snipsummary.fly.dev/api/user/status', {
+      const res = await fetch('https://tildra.fly.dev/api/user/status', {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'

@@ -4,6 +4,7 @@ import logging
 import json # For parsing DeepSeek response
 from datetime import datetime, timezone, timedelta # For usage reset logic
 import stripe
+import time
 
 # Third-party imports
 from fastapi import FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, status
@@ -16,6 +17,7 @@ import jwt # Import PyJWT
 from jwt import PyJWKClient # For fetching JWKS keys
 # --- End Edit ---
 from typing import Annotated, Optional, Dict, Any # Add Any
+from dotenv import load_dotenv
 
 # --- Prisma Client Import ---
 from prisma import Prisma
@@ -63,7 +65,7 @@ CLERK_JWKS_URL = f"{CLERK_ISSUER}/.well-known/jwks.json"
 # JWK Client to fetch and cache Clerk's public keys
 # Use verify_ssl=True in production (default)
 # Add a User-Agent header as recommended practice
-jwks_client = PyJWKClient(CLERK_JWKS_URL, headers={"User-Agent": "SnipSummaryAPI/1.0"})
+jwks_client = PyJWKClient(CLERK_JWKS_URL, headers={"User-Agent": "TildraAPI/1.0"})
 
 # --- Moved Block: Stripe Configuration --- 
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
@@ -218,7 +220,7 @@ async def track_summary_usage(user_clerk_id: str):
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
-    return {"message": "SnipSummary API is running!"}
+    return {"message": "Tildra API is running!"}
 
 @app.post("/create-checkout-session", response_model=CreateCheckoutResponse)
 async def create_checkout_session(

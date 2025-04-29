@@ -1,3 +1,5 @@
+console.log("Tildra Background Script Loaded");
+
 // Register context menu items on installation
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -10,19 +12,24 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "Summarize with Tildra",
     contexts: ["link"]
   });
+  chrome.contextMenus.create({
+    id: "summarizePage",
+    title: "Summarize with Tildra",
+    contexts: ["page"],
+  });
 });
 
 // Constants for Clerk session cookie retrieval
 // --- CHANGE FOR LOCAL TESTING --- 
 // const COOKIE_DOMAIN_URL = 'https://www.tildra.xyz'; 
-const COOKIE_DOMAIN_URL = 'http://localhost:3000'; 
+const COOKIE_DOMAIN_URL = 'https://www.tildra.xyz'; 
 // --- END CHANGE --- 
 const COOKIE_NAME = '__session';
 
 // Constants for backend API summarization
 // --- ENSURE THIS POINTS TO YOUR DEPLOYED OR LOCAL BACKEND AS NEEDED ---
 // const API_URL = 'http://127.0.0.1:8000/summarize'; // If testing API locally
-const API_URL = 'https://snipsummary.fly.dev/summarize'; // If testing against deployed API
+const API_URL = 'https://tildra.fly.dev'; // If testing against deployed API
 // --- END ENSURE ---
 
 // Constants for history storage
@@ -81,39 +88,42 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   } else if (info.menuItemId === "summarize-link" && info.linkUrl) {
     // For link summaries, send the URL and let content script fetch/parse
     payload = info.linkUrl;
-  }
-  if (!payload) return;
-
-  // Fallback: send message or inject scripts if no listener
-  const sendToContent = () => {
-    chrome.tabs.sendMessage(
-      tab.id,
-      { action: "summarizeContext", content: payload },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          console.warn(
-            "Tildra (background): No content script listener on tab", tab.id, ":", chrome.runtime.lastError.message
-          );
-          // Inject content scripts and retry
-          chrome.scripting.executeScript(
-            { target: { tabId: tab.id }, files: ["readability.js", "content.js"] },
-            () => {
-              console.log(
-                "Tildra (background): Content scripts injected, retrying summarizeContext"
-              );
-              chrome.tabs.sendMessage(tab.id, { action: "summarizeContext", content: payload });
+  } else if (info.menuItemId === "summarizePage" && tab && tab.id) {
+    console.log("Context menu clicked for tab:", tab.id);
+    // Send message to content script to get page content first
+    chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+            // This function runs in the content script's context
+            // Attempt to grab basic info if Readability hasn't loaded yet
+            // This is a basic fallback
+            function getBasicPageInfo() {
+                return {
+                    title: document.title,
+                    textContent: document.body.innerText.substring(0, 10000), // Limit initial grab
+                    url: window.location.href
+                }
             }
-          );
-        } else {
-          console.log(
-            "Tildra (background): summarizeContext message delivered to tab", tab.id
-          );
+            return getBasicPageInfo();
         }
-      }
-    );
-  };
-
-  sendToContent();
+    }, (injectionResults) => {
+        if (chrome.runtime.lastError) {
+            console.error("Scripting error:", chrome.runtime.lastError.message);
+            chrome.runtime.sendMessage({ // Send error back to popup if open
+                type: "SUMMARIZE_ERROR",
+                payload: { message: "Error accessing page content." }
+            });
+            return;
+        }
+        for (const frameResult of injectionResults) {
+            if (frameResult.result) {
+                console.log("Got basic page info:", frameResult.result.title);
+                handleSummarizationRequest(frameResult.result, tab.id);
+                break; // Use the first successful result
+            }
+        }
+    });
+  }
 });
 
 // Commented out old message listeners
@@ -270,3 +280,136 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   return false; // unknown message
 }); 
+
+// Use dynamic URL for backend
+const getApiUrl = () => {
+  // In production, chrome.runtime.id should be defined
+  // You might need to adjust this logic based on how you deploy
+  // if (chrome.runtime.id) {
+  //   return 'https://tildra.fly.dev'; // Production URL
+  // } else {
+  //   return 'http://localhost:8000'; // Development URL
+  // }
+  // For simplicity, always using the deployed URL for now:
+  return 'https://tildra.fly.dev';
+};
+
+const API_URL_BASE = getApiUrl();
+const SUMMARIZE_API_URL = `${API_URL_BASE}/summarize`;
+const USER_STATUS_API_URL = `${API_URL_BASE}/api/user/status`;
+
+// --- Cookie Management --- 
+
+async function getClerkSessionCookie() {
+  return new Promise((resolve, reject) => {
+    chrome.cookies.get({ url: COOKIE_DOMAIN_URL, name: COOKIE_NAME }, (cookie) => {
+      if (chrome.runtime.lastError) {
+        // Handle error, e.g., cookie not found or permissions issue
+        console.warn("Could not get cookie:", chrome.runtime.lastError.message);
+        resolve(null);
+      } else {
+        resolve(cookie);
+      }
+    });
+  });
+}
+
+async function getAuthToken() {
+  const cookie = await getClerkSessionCookie();
+  return cookie ? cookie.value : null;
+}
+
+// --- API Interaction --- 
+
+async function fetchFromApi(url, method = 'GET', body = null) {
+  const token = await getAuthToken();
+  if (!token) {
+    console.warn("No auth token found. API request might fail.");
+    // Depending on the endpoint, you might want to throw an error or proceed
+    // For summarization, we require auth, so throw an error.
+    if (url.includes('/summarize')) { 
+      throw new Error("Authentication required. Please log in on Tildra.");
+    }
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const options = {
+    method: method,
+    headers: headers,
+  };
+
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+      console.error(`API Error ${response.status}:`, errorData);
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Fetch API error:', error);
+    throw error; // Re-throw the error to be caught by the caller
+  }
+}
+
+// --- Summarization Logic --- 
+
+async function handleSummarizationRequest(payload, tabId) {
+  console.log("Handling summarization request for tab:", tabId);
+  const { content, textContent, url, title } = payload;
+
+  // Prefer textContent from Readability if available, otherwise use content (HTML) or fallback
+  const textToSummarize = textContent || content; // Assuming `content` might be raw HTML if textContent failed
+
+  if (!textToSummarize && !url) {
+    console.error("No content or URL provided for summarization.");
+    throw new Error("No content available to summarize.");
+  }
+
+  // Notify popup/tab that processing has started
+  if (tabId) {
+      chrome.runtime.sendMessage({ // Send to popup/potentially other listeners
+          type: "SUMMARIZE_START",
+          payload: { title: title || "Page" }
+      });
+  }
+
+  try {
+    console.log(`Sending content (length: ${textToSummarize?.length}) or URL (${url}) to API...`);
+    const summaryData = await fetchFromApi(SUMMARIZE_API_URL, 'POST', {
+      content: textToSummarize, // Send the extracted text content
+      url: url // Also send URL for context or if content extraction failed
+    });
+
+    console.log("API Summary successful:", summaryData);
+
+    // Send successful summary back
+    chrome.runtime.sendMessage({ 
+        type: "SUMMARIZE_SUCCESS",
+        payload: { ...summaryData, originalTitle: title, originalUrl: url }
+    });
+
+    return summaryData; // Resolve the promise for the original caller
+
+  } catch (error) {
+    console.error("Summarization failed:", error);
+    // Send error back
+    chrome.runtime.sendMessage({ 
+        type: "SUMMARIZE_ERROR",
+        payload: { message: error.message || "An unknown error occurred during summarization.", originalTitle: title }
+    });
+    throw error; // Reject the promise for the original caller
+  }
+}
+
+console.log("Tildra Background Script Finished Loading"); 

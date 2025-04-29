@@ -14,8 +14,10 @@ export default function LandingPage() {
       {/* Background pattern */}
       <div className="absolute inset-0 bg-wave-pattern opacity-30 pointer-events-none"></div>
 
-      <header className="container mx-auto px-4 py-6 flex justify-between items-center relative z-10">
-        <Logo size="md" animated={true} />
+      <header className="container mx-auto px-4 md:px-6 py-8 flex justify-between items-center relative z-[60]">
+        <div className="flex-shrink-0 mr-6">
+          <Logo size="md" animated={true} />
+        </div>
         <div className="flex items-center gap-6">
           <nav className="hidden md:flex gap-6">
             <a

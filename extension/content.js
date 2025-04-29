@@ -15,7 +15,7 @@
 })();
 
 // --- Add after style injection and before extractContent ---
-const API_URL = 'https://snipsummary.fly.dev/summarize';
+const API_URL = 'https://tildra.fly.dev/summarize';
 const COOKIE_DOMAIN_URL = 'https://www.tildra.xyz';
 const COOKIE_NAME = '__session';
 
@@ -42,7 +42,7 @@ function getClerkSessionToken() {
 function extractContent() {
     // Check if Readability is available
     if (typeof Readability === 'undefined') {
-        console.error("SnipSummary (content script): Readability library not loaded.");
+        console.error("Tildra (content script): Readability library not loaded.");
         return { error: "Readability library not loaded on the page.", content: null };
     }
 
@@ -59,7 +59,7 @@ function extractContent() {
             // Return success object
             return { error: null, content: article.textContent };
         } else {
-            console.warn("SnipSummary (content script): Readability could not parse article content.");
+            console.warn("Tildra (content script): Readability could not parse article content.");
             // Fallback: attempt to get text from the main element or body
             let fallbackContent = document.body ? document.body.innerText : '';
             const mainElement = document.querySelector('main');
@@ -70,7 +70,7 @@ function extractContent() {
             return { error: "Readability could not parse effectively.", content: fallbackContent }; 
         }
     } catch (e) {
-        console.error("SnipSummary (content script): Error during Readability parsing:", e);
+        console.error("Tildra (content script): Error during Readability parsing:", e);
         // Fallback in case of error
          let fallbackContent = document.body ? document.body.innerText : '';
          const mainElement = document.querySelector('main');
@@ -322,3 +322,5 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
   });
 })();
+
+console.log("Tildra Content Script Finished Execution");

@@ -1,19 +1,18 @@
 {
   "manifest_version": 3,
-  "name": "Tildra",
-  "version": "1.1",
-  "description": "AI-powered article summarizer and key point extractor.",
+  "name": "Tildra: AI Summarizer",
+  "version": "1.0.1",
+  "description": "Get instant AI summaries (TL;DR) of any webpage or article.",
   "permissions": [
     "activeTab",
     "scripting",
-    "cookies",
-    "contextMenus",
     "storage",
-    "notifications"
+    "cookies",
+    "contextMenus"
   ],
   "host_permissions": [
-    "https://snipsummary.fly.dev/*",
-    "https://www.tildra.xyz/"
+    "<all_urls>",
+    "https://tildra.fly.dev/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -21,21 +20,27 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "images/icon16.png",
-      "48": "images/icon48.png",
-      "128": "images/icon128.png"
+      "16": "icons/tildra-16.png",
+      "48": "icons/tildra-48.png",
+      "128": "icons/tildra-128.png"
     }
   },
   "icons": {
-    "16": "images/icon16.png",
-    "48": "images/icon48.png",
-    "128": "images/icon128.png"
+    "16": "icons/tildra-16.png",
+    "48": "icons/tildra-48.png",
+    "128": "icons/tildra-128.png"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["readability.js", "content.js"],
+      "js": ["lib/Readability.js", "content.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["lib/Readability.js"],
+      "matches": ["<all_urls>"]
     }
   ]
 } 

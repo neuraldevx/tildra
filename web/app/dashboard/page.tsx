@@ -6,6 +6,8 @@ import { Sparkles } from "lucide-react"
 import { auth } from "@clerk/nextjs/server"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import { Library } from "@/components/dashboard/library"
+import { TimeSavedAnalytics } from "@/components/dashboard/time-saved-analytics"
 
 // Fetch user status on the server
 async function getUserStatusData(userId: string | null, token: string | null) {
@@ -92,41 +94,20 @@ export default async function DashboardPage() {
 
       <main className="container mx-auto px-4 py-8 relative z-10">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold text-foreground mb-4">Insights Hub</h1>
-          <div className="bg-card p-6 rounded-lg shadow mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-6">Pro Dashboard</h1>
+          {/* Core Summarizer Module */}
+          <div className="bg-card p-6 rounded-lg shadow mb-8 transition-opacity duration-300 ease-in-out opacity-100">
             <h2 className="text-xl font-semibold mb-2">Article Summarizer</h2>
             <Summarizer />
           </div>
 
-          {/* Pro Modules Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Pro Features Grid: Library & Analytics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-card p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium mb-1">Library</h3>
-              <p className="text-sm text-foreground/70">Full-text search across originals & summaries.</p>
+              <Library />
             </div>
             <div className="bg-card p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium mb-1">Tags & Topics</h3>
-              <p className="text-sm text-foreground/70">Auto‑tag and filter by project or client.</p>
-            </div>
-            <div className="bg-card p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium mb-1">Export & Sync</h3>
-              <p className="text-sm text-foreground/70">Export to Notion, Obsidian, Readwise, PDF, Markdown.</p>
-            </div>
-            <div className="bg-card p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium mb-1">Time Saved Analytics</h3>
-              <p className="text-sm text-foreground/70">See cumulative minutes saved and reading trends.</p>
-            </div>
-            <div className="bg-card p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium mb-1">Flashcards</h3>
-              <p className="text-sm text-foreground/70">Auto‑generate Q&A flashcards & daily quizzes.</p>
-            </div>
-            <div className="bg-card p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium mb-1">Citation Trail</h3>
-              <p className="text-sm text-foreground/70">Hover bullets to view original source sentences.</p>
-            </div>
-            <div className="bg-card p-6 rounded-lg shadow">
-              <h3 className="text-lg font-medium mb-1">Regen Styles</h3>
-              <p className="text-sm text-foreground/70">Switch between Tweet, Executive, Student output.</p>
+              <TimeSavedAnalytics />
             </div>
           </div>
         </div>

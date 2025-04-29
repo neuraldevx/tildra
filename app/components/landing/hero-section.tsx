@@ -9,8 +9,8 @@ export function HeroSection() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   return (
-    <section className="container mx-auto px-4 py-20 md:py-32 relative z-10">
-      <div className="flex flex-col md:flex-row items-center gap-12" ref={containerRef}>
+    <section className="container mx-auto px-4 py-16 md:py-28 relative z-10">
+      <div className="flex flex-col md:flex-row items-center gap-12 md:gap-16" ref={containerRef}>
         <motion.div
           className="flex-1 space-y-6"
           initial={{ opacity: 0, y: 20 }}
