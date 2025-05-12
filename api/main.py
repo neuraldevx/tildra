@@ -16,7 +16,7 @@ import httpx # Use httpx for async API calls
 import jwt # Import PyJWT
 from jwt import PyJWKClient # For fetching JWKS keys
 # --- End Edit ---
-from typing import Annotated, Optional, Dict, Any # Add Any
+from typing import Annotated, Optional, Dict, Any, List # Add Any and List
 from dotenv import load_dotenv
 
 # --- Prisma Client Import ---
@@ -26,6 +26,24 @@ from svix.webhooks import Webhook, WebhookVerificationError # Corrected import
 from prisma.errors import UniqueViolationError # Import DB constraint exception for webhook handler
 # --- END ADD ---
 # --------------------------
+
+# --- Explicitly load .env from project root ---
+# Assuming this main.py is in an 'api' subdirectory of the project root
+project_root_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+dotenv_project_path = os.path.join(project_root_directory, '.env')
+
+# Get Python's root logger
+logger_root = logging.getLogger() # Get the root logger
+# Basic Config if not already configured (e.g. by uvicorn)
+if not logger_root.hasHandlers():
+    logging.basicConfig(level=logging.INFO)
+
+if os.path.exists(dotenv_project_path):
+    logger_root.info(f"Attempting to load .env file from: {dotenv_project_path}")
+    load_dotenv(dotenv_path=dotenv_project_path, override=True) # Override to ensure it takes precedence
+else:
+    logger_root.warning(f".env file not found at: {dotenv_project_path}. Relying on system environment variables.")
+# --- END Explicit Load ---
 
 # --- Configuration ---
 # Setup logging
@@ -38,6 +56,10 @@ app = FastAPI()
 # --- Prisma Initialization ---
 # Instantiate Prisma Client outside endpoint functions for reuse
 prisma = Prisma()
+
+# --- ADDED: Debug print for DATABASE_URL ---
+logger.info(f"DATABASE_URL at Prisma init: {os.getenv('DATABASE_URL')}")
+# --- END ADDED ---
 
 # --- App Lifecycle for Prisma Connection ---
 @app.on_event("startup")
@@ -124,6 +146,8 @@ app.add_middleware(
 # --- Models ---
 class SummarizeRequest(BaseModel):
     article_text: str
+    url: Optional[str] = None # Add optional URL field
+    title: Optional[str] = None # Add optional Title field
 
 class SummarizeResponse(BaseModel):
     tldr: str
@@ -137,6 +161,36 @@ class CreateCheckoutRequest(BaseModel):
 class CreateCheckoutResponse(BaseModel):
     sessionId: str
     url: str
+
+# --- ADDED: Model for User Account Details ---
+class UserAccountDetailsResponse(BaseModel):
+    email: Optional[str] = None
+    plan: str
+    summariesUsed: int
+    summaryLimit: int
+    is_pro: bool
+# --- END ADDED ---
+
+# --- ADDED: Model for User Status Endpoint --- 
+class UserStatusResponse(BaseModel):
+    is_pro: bool
+# --- END ADDED ---
+
+# --- ADDED: History Endpoint --- 
+from typing import List # Add List import
+
+# Define response model based on Prisma model (adjust if needed)
+class HistoryItemResponse(BaseModel):
+    id: str
+    userId: str 
+    url: Optional[str] = None
+    title: Optional[str] = None
+    tldr: str
+    keyPoints: List[str] # Ensure this matches schema type
+    createdAt: datetime # Ensure this matches schema type
+    # updatedAt: datetime # Optionally include
+    class Config: # Add Config for ORM mode if returning Prisma model instances directly
+        orm_mode = True 
 
 # --- Authentication Dependency (Manual JWT Verification) ---
 async def get_authenticated_user_id(request: Request) -> str:
@@ -501,6 +555,7 @@ async def clerk_webhook(request: Request):
 
     # Verify the webhook signature
     try:
+        # logger.info(f"Attempting to verify webhook with secret: {CLERK_WEBHOOK_SECRET}") 
         wh = Webhook(CLERK_WEBHOOK_SECRET)
         evt = wh.verify(payload, {
             "svix-id": svix_id,
@@ -716,7 +771,29 @@ async def summarize_article(
             logger.error(f"Failed to parse summary response from DeepSeek AI: {parse_error}\nRaw Response Content: {message_content if 'message_content' in locals() else 'N/A'}\nFull Response: {deepseek_response_data if 'deepseek_response_data' in locals() else response.text}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to parse summary response from AI.")
 
-        # Track usage only for free users
+        # --- ADDED: Save Summary to History --- 
+        try:
+            # --- MODIFIED: Use URL/Title from request_data --- 
+            url_from_request = request_data.url # Get URL from request
+            title_from_request = request_data.title # Get Title from request
+            # --- END MODIFIED ---
+            
+            await prisma.summaryhistory.create(
+                data={
+                    "userId": user_clerk_id, # Link to the authenticated user
+                    "url": url_from_request, 
+                    "title": title_from_request,
+                    "tldr": summary_data.tldr,
+                    "keyPoints": summary_data.key_points
+                }
+            )
+            logger.info(f"Successfully saved summary to history for user {user_clerk_id}")
+        except Exception as save_error:
+            # Log the error but don't fail the main summarize request
+            logger.error(f"Failed to save summary to history for user {user_clerk_id}: {save_error}", exc_info=True)
+        # --- END ADDED --- 
+
+        # Track usage only for free users AFTER successful summarization
         if user.plan == "free":
             background_tasks.add_task(track_summary_usage, user_clerk_id)
 
@@ -756,23 +833,68 @@ if __name__ == "__main__":
     # else:
         # logger.info("Not running locally, set RUN_LOCALLY=true to start development server.")
 
-# --- Add User Status Endpoint ---
-class UserStatusResponse(BaseModel):
-    is_pro: bool
-
-@app.get("/api/user/status", response_model=UserStatusResponse)
-async def get_user_status(user_id: str = Depends(get_authenticated_user_id)):
+# --- MODIFIED: User Account Details Endpoint ---
+@app.get("/api/user/account-details", response_model=UserAccountDetailsResponse)
+async def get_user_account_details(user_id: str = Depends(get_authenticated_user_id)):
     """
-    Checks if the authenticated user has an active Premium plan
-    (indicated by user.plan == 'premium').
+    Retrieves account details for the authenticated user.
     """
     try:
-        # Find user by Clerk ID provided by the authentication dependency
         user = await prisma.user.find_unique(where={"clerkId": user_id})
-        if user and user.plan == "premium":
-            return UserStatusResponse(is_pro=True)
+        if user:
+            return UserAccountDetailsResponse(
+                email=user.email,
+                plan=user.plan,
+                summariesUsed=user.summariesUsed,
+                summaryLimit=user.summaryLimit,
+                is_pro=user.plan == "premium"
+            )
         else:
-            return UserStatusResponse(is_pro=False)
+            # This case should ideally not happen if user_id from token is valid
+            # and Clerk webhooks are correctly creating users.
+            logger.error(f"User not found in DB for Clerk ID: {user_id} during account details fetch.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found.")
     except Exception as e:
-        logger.error(f"Error checking user status for {user_id}: {e}")
-        return UserStatusResponse(is_pro=False)
+        logger.error(f"Error fetching user account details for {user_id}: {e}", exc_info=True)
+        # Return a generic error response, or re-raise for FastAPI's default 500 handling
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching account details.")
+
+# --- ADDED: User Status Endpoint --- 
+@app.get("/api/user/status", response_model=UserStatusResponse)
+async def get_user_status(user_id: AuthenticatedUserId):
+    """Retrieves the pro status for the authenticated user."""
+    logger.info(f"Fetching status for Clerk ID: {user_id}")
+    try:
+        user = await prisma.user.find_unique(where={"clerkId": user_id})
+        if not user:
+            logger.error(f"User status check failed: User not found in DB for Clerk ID: {user_id}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found.")
+        
+        is_pro_status = user.plan == "premium"
+        logger.info(f"User {user_id} status check complete. Is Pro: {is_pro_status}")
+        return UserStatusResponse(is_pro=is_pro_status)
+        
+    except Exception as e:
+        logger.error(f"Error fetching user status for {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching user status.")
+# --- END ADDED --- 
+
+# --- ADDED: History Endpoint --- 
+@app.get("/api/history", response_model=List[HistoryItemResponse])
+async def get_user_history(user_id: AuthenticatedUserId):
+    """Retrieves the summary history for the authenticated user."""
+    logger.info(f"Fetching history for Clerk ID: {user_id}")
+    try:
+        history_items = await prisma.summaryhistory.find_many(
+            where={"userId": user_id},
+            order={"createdAt": "desc"},
+            take=50 # Limit results
+        )
+        logger.info(f"Found {len(history_items)} history items for user {user_id}")
+        # Directly return the list - Pydantic with orm_mode handles conversion
+        return history_items 
+
+    except Exception as e:
+        logger.error(f"Error fetching history for {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching summary history.")
+# --- END ADDED --- 

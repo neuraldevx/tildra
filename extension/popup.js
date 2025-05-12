@@ -23,10 +23,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const historyEmpty = document.getElementById('history-empty');
   const clearHistoryButton = document.getElementById('clear-history-button');
 
-  // Set based on your deployed backend URL
-  // Ensure this matches the host_permissions in manifest.json
-  const BACKEND_URL = 'https://tildra.fly.dev/summarize';
-  const COOKIE_DOMAIN_URL = 'https://www.tildra.xyz'; // Domain where the auth cookie is set
+  // Configuration will be fetched from background script
+  let BG_CONFIG = {
+    apiUrlBase: 'https://tildra.fly.dev', // Default to Production
+    cookieDomainUrl: 'https://www.tildra.xyz', // Default to Production
+    isDevMode: false
+  };
+
+  // const BACKEND_URL = 'http://127.0.0.1:8000/summarize'; // LOCAL DEV - REMOVED
+  // const COOKIE_DOMAIN_URL = 'http://localhost:3000'; // LOCAL DEV - REMOVED
   const COOKIE_NAME = '__session'; // Clerk's session cookie name
 
   // --- Start Edit: Add checks for element existence ---
@@ -95,7 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!chrome || !chrome.cookies) {
         return reject(new Error("Chrome cookies API is not available."));
       }
-      chrome.cookies.get({ url: COOKIE_DOMAIN_URL, name: COOKIE_NAME }, (cookie) => {
+      // Use cookie domain from background config
+      chrome.cookies.get({ url: BG_CONFIG.cookieDomainUrl, name: COOKIE_NAME }, (cookie) => {
         if (chrome.runtime.lastError) {
           // Handle errors, e.g., permissions missing or cookie not found
           console.error('Error getting cookie:', chrome.runtime.lastError.message);
@@ -120,7 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const token = await getClerkSessionToken();
       if (!token) return false;
-      const res = await fetch('https://tildra.fly.dev/api/user/status', {
+      // Use API URL from background config
+      const res = await fetch(`${BG_CONFIG.apiUrlBase}/api/user/status`, { 
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -461,7 +468,23 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Initial Load --- 
   // Check user status and update UI accordingly
   async function initializePopup() {
-    const isProUser = await getUserStatus();
+    // Fetch config from background script first
+    chrome.runtime.sendMessage({ action: 'getConfig' }, (configResponse) => {
+      if (chrome.runtime.lastError) {
+        console.error("[Tildra Popup] Error fetching config from background:", chrome.runtime.lastError.message);
+        // Proceed with default prod values, or handle error more gracefully
+      } else if (configResponse) {
+        console.log("[Tildra Popup] Received config from background:", configResponse);
+        BG_CONFIG = configResponse;
+      }
+
+      // Now proceed with original initializePopup logic that might use BG_CONFIG
+      updateProStatusUI(); // Renamed the original logic
+    });
+  }
+
+  async function updateProStatusUI() { // Original initializePopup logic, now uses BG_CONFIG
+    const isProUser = await getUserStatus(); // getUserStatus will now use BG_CONFIG.apiUrlBase
     console.log('[Tildra Popup] User is Pro:', isProUser);
 
     if (isProUser && footerUpsell) {

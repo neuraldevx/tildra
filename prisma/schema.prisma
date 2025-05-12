@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  // directUrl = env("DIRECT_URL")
 }
 
 // /Users/jakechristensen/snipsummary/prisma/schema.prisma
@@ -32,5 +32,28 @@ model User {
   stripePriceId          String?          // Optional: Maps to the Stripe Price ID (e.g., monthly/yearly premium)
   stripeCurrentPeriodEnd DateTime?      // Optional: Tracks when the current paid period ends
   profileImageUrl        String?       // Optional: stores the user's profile image URL
+
+  // --- ADDED: Relation to Summary History ---
+  summaryHistory SummaryHistory[]
+  // --- END ADDED ---
+
   @@map("users")
+}
+
+// --- ADDED: Model for storing Summary History ---
+model SummaryHistory {
+  id        String   @id @default(uuid())
+  userId    String   // Foreign key to User
+  user      User     @relation(fields: [userId], references: [clerkId]) // Relation field
+
+  url       String?
+  title     String?
+  tldr      String
+  keyPoints String[] @default([]) @map("key_points")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId]) // Index for faster history lookups by user
+  @@map("summary_history")
 }
