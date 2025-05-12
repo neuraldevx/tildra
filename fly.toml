@@ -8,8 +8,7 @@ primary_region = "sjc"
 console_command = "/bin/bash"
 
 [build]
-  builder = "paketobuildpacks/builder-jammy-full"
-  buildpacks = ["gcr.io/paketo-buildpacks/python", "gcr.io/paketo-buildpacks/nodejs"]
+  dockerfile = "Dockerfile"
 
 [http_service]
   internal_port = 8080
@@ -29,6 +28,7 @@ console_command = "/bin/bash"
   destination="/data"
 
 [[checks]]
+  name = "health" # Explicitly naming the check
   port = 8080
   type = "http"
   interval = "15s"

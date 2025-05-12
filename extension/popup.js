@@ -252,16 +252,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Use background script for the API call
           chrome.runtime.sendMessage(
-            { action: 'summarizeAPI', textContent: articleText, token: sessionToken }, 
+            { 
+              action: 'summarizeAPI', 
+              textContent: articleText, 
+              token: sessionToken,
+              url: currentTab.url, 
+              title: currentTab.title || 'Untitled Page' 
+            }, 
             (response) => {
               if (chrome.runtime.lastError) {
                 console.error("BG message error:", chrome.runtime.lastError.message);
                 displayError(`Communication error: ${chrome.runtime.lastError.message}`);
               } else if (response && response.success) {
                 displaySummary(response.summaryData);
-                // --- ADDED: Save successful summary to history ---
-                saveSummaryToHistory(currentTab.url, currentTab.title || 'Untitled Page', response.summaryData);
-                // --- END ADDED ---
               } else if (response && response.expired) {
                 displayError("Session expired. Please log back in to tildra.xyz.");
               } else if (response && response.isUsageLimit) {
