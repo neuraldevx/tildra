@@ -1,364 +1,335 @@
 'use client'
 
-import { SignedIn, useUser, useAuth } from "@clerk/nextjs";
-import { useState, useEffect } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Header } from "@/components/shared/header"; // Assuming shared header
-import { Summarizer } from "@/components/dashboard/summarizer"
-import { ThemeToggle } from "@/components/ui/theme-toggle"
-import { Logo } from "@/components/ui/logo"
-import Link from "next/link"
-import { Sparkles, TrendingUp } from "lucide-react"
-import { auth } from "@clerk/nextjs/server"
-import { headers } from "next/headers"
-import { redirect } from "next/navigation"
-import { Library } from "@/components/dashboard/library"
-import { TimeSavedAnalytics } from "@/components/dashboard/time-saved-analytics"
-
-// Import Card and Chart components
+import React, { useEffect, useState } from 'react';
+import { useAuth, SignedIn, useUser } from '@clerk/nextjs'; // Combined Clerk imports
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Trash2, Sparkles } from 'lucide-react'; // Combined Lucide imports
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import Link from 'next/link';
+import { Skeleton } from "@/components/ui/skeleton"; // For loading states
+import { Progress } from "@/components/ui/progress"; // Added for the Progress component
+
+// Chart components (assuming these are correctly set up for usage display)
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, XAxis } from "recharts" // Import Recharts components
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table" // Import Table components
+} from "@/components/ui/chart";
+import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 
-// Updated type for Account Details
-type UserAccountDetails = {
-  email: string | null;
-  plan: string;
-  summariesUsed: number;
-  summaryLimit: number;
-  is_pro: boolean; 
-  // isLoggedIn: boolean; // This will be derived from Clerk's isSignedIn
-};
-
-// Updated type for History Item to match backend (assuming schema.prisma fields)
-type HistoryItem = { 
+interface HistoryItem {
   id: string;
   url: string | null;
   title: string | null;
   tldr: string;
   keyPoints: string[];
-  createdAt: string; // Assuming ISO string from backend
-  // updatedAt: string;
-};
+  createdAt: string;
+}
 
-// Placeholder chart config (can be refined)
+interface UserAccountDetails {
+  email: string | null;
+  plan: string;
+  summariesUsed: number;
+  summaryLimit: number;
+  is_pro: boolean;
+}
+
 const chartConfig = {
-  used: {
-    label: "Used",
-    color: "hsl(var(--chart-1))",
-  },
-  limit: {
-    label: "Limit",
-    color: "hsl(var(--chart-2))",
-  },
+  used: { label: "Used", color: "hsl(var(--chart-1))" },
+  limit: { label: "Limit", color: "hsl(var(--muted))" }, // Muted for background bar
 } satisfies ChartConfig;
 
 export default function DashboardPage() {
+  const { getToken } = useAuth();
   const { isLoaded: isUserLoaded, isSignedIn, user } = useUser();
-  const { getToken } = useAuth(); // Get token function
-
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [accountDetails, setAccountDetails] = useState<UserAccountDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSummary, setSelectedSummary] = useState<HistoryItem | null>(null);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!isSignedIn) {
+        setIsLoading(false); // Not signed in, nothing to load
+        return;
+      }
       setIsLoading(true);
       setError(null);
       try {
         const token = await getToken();
-        if (!token) {
-          throw new Error("Not authenticated");
-        }
+        if (!token) throw new Error('Authentication token not available.');
 
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000';
-        
-        // Fetch Account Details (ensure it includes summariesUsed and summaryLimit)
-        const accountResponse = await fetch(`${apiBaseUrl}/api/user/account-details`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!accountResponse.ok) {
-          const errorData = await accountResponse.json();
-          // Try to parse specific error detail
-          let errorMessage = 'Failed to fetch account details';
-          if (errorData && errorData.detail) {
-            errorMessage = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail);
-          } else if (accountResponse.statusText) {
-            errorMessage = `${accountResponse.status}: ${accountResponse.statusText}`;
-          }
-          throw new Error(errorMessage);
-        }
-        const accountData: UserAccountDetails = await accountResponse.json();
-        setAccountDetails(accountData);
+        const headers = { Authorization: `Bearer ${token}` };
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || ''; // Use relative path if not set
 
-        // Fetch History
-        const historyResponse = await fetch(`${apiBaseUrl}/api/history`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!historyResponse.ok) {
-           // Try to parse specific error detail
-           let historyErrorMessage = 'Failed to fetch history';
-           try {
-             const historyErrorData = await historyResponse.json();
-             if (historyErrorData && historyErrorData.detail) {
-               historyErrorMessage = typeof historyErrorData.detail === 'string' ? historyErrorData.detail : JSON.stringify(historyErrorData.detail);
-             } else if (historyResponse.statusText) {
-                historyErrorMessage = `${historyResponse.status}: ${historyResponse.statusText}`;
-             }
-           } catch (parseError) {
-             // If parsing error fails, use status text
-             historyErrorMessage = historyResponse.statusText || 'Failed to fetch history (unknown error)';
-           }
-           throw new Error(historyErrorMessage);
-        }
-        const historyData: HistoryItem[] = await historyResponse.json();
+        const [historyRes, accountRes] = await Promise.all([
+          fetch(`${apiBaseUrl}/api/history`, { headers }),
+          fetch(`${apiBaseUrl}/api/user/account-details`, { headers })
+        ]);
+
+        if (!historyRes.ok) throw new Error(`Failed to fetch history: ${historyRes.statusText} (${historyRes.status})`);
+        const historyData = await historyRes.json();
         setHistory(historyData);
 
-      } catch (err: any) {
-        console.error("Error fetching dashboard data:", err);
-        setError(err.message || "An error occurred while loading data.");
-      } finally {
-        setIsLoading(false);
+        if (!accountRes.ok) throw new Error(`Failed to fetch account details: ${accountRes.statusText} (${accountRes.status})`);
+        const accountData = await accountRes.json();
+        setAccountDetails(accountData);
+
+      } catch (err) {
+        if (err instanceof Error) setError(err.message);
+        else setError('An unknown error occurred');
+        console.error("Fetch error in dashboard:", err);
       }
+      setIsLoading(false);
     };
 
-    if (isSignedIn) { // Only fetch if Clerk reports user is signed in
-      fetchData();
-    } else if (isUserLoaded) { // If user is loaded but not signed in
-      setIsLoading(false);
+    if (isUserLoaded) { // Only fetch data once Clerk user state is loaded
+        fetchData();
     }
-  }, [isSignedIn, isUserLoaded, getToken]); // Re-run if auth state changes
+  }, [getToken, isSignedIn, isUserLoaded]);
 
-  // Prepare data for the chart (use actual data when available)
+  const handleViewSummary = (summary: HistoryItem) => {
+    setSelectedSummary(summary);
+    setIsSummaryModalOpen(true);
+  };
+
+  const handleDeleteSummary = async (summaryId: string) => {
+    if (!confirm('Are you sure you want to delete this summary?')) return;
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Authentication token not available.');
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+
+      const res = await fetch(`${apiBaseUrl}/api/history/${summaryId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ detail: 'Failed to delete summary.' }));
+        throw new Error(errorData.detail || `Failed to delete summary: ${res.statusText}`);
+      }
+      setHistory(prevHistory => prevHistory.filter(item => item.id !== summaryId));
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+      else setError('An unknown error occurred while deleting.');
+      console.error(err);
+    }
+  };
+
+  const handleClearAllSummaries = async () => {
+    if (!confirm('Are you sure you want to delete ALL your summaries? This action cannot be undone.')) return;
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Authentication token not available.');
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+
+      const res = await fetch(`${apiBaseUrl}/api/history`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ detail: 'Failed to clear summaries.' }));
+        throw new Error(errorData.detail || `Failed to clear summaries: ${res.statusText}`);
+      }
+      setHistory([]);
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+      else setError('An unknown error occurred while clearing history.');
+      console.error(err);
+    }
+  };
+
   const usageChartData = accountDetails ? [
     { 
       label: "Usage", 
       used: accountDetails.summariesUsed, 
-      limit: accountDetails.is_pro ? Infinity : accountDetails.summaryLimit // Or handle differently for Pro
-    } 
+      limit: accountDetails.is_pro ? (accountDetails.summaryLimit || 1 ) : accountDetails.summaryLimit // Handle limit for pro if needed
+    }
   ] : [];
   
   const usagePercentage = accountDetails && !accountDetails.is_pro && accountDetails.summaryLimit > 0 
     ? Math.round((accountDetails.summariesUsed / accountDetails.summaryLimit) * 100) 
-    : accountDetails?.is_pro ? 0 : 0; // Show 0% for pro or if limit is 0
+    : 0;
+
+  if (!isUserLoaded || isLoading) return (
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card><CardHeader><Skeleton className="h-6 w-32"/></CardHeader><CardContent><Skeleton className="h-4 w-48"/><Skeleton className="h-4 w-32 mt-2"/></CardContent></Card>
+            <Card><CardHeader><Skeleton className="h-6 w-32"/></CardHeader><CardContent><Skeleton className="h-10 w-full"/></CardContent></Card>
+        </div>
+        <Card><CardHeader><Skeleton className="h-6 w-48"/></CardHeader><CardContent><Skeleton className="h-32 w-full"/></CardContent></Card>
+    </div>
+  );
+  
+  if (error && !isLoading) return (
+     <div className="container mx-auto p-4 text-center text-red-500">
+       Error: {error} <Button onClick={() => window.location.reload()} variant="outline" className="ml-2">Retry</Button>
+     </div>
+  );
+
+  if (!isSignedIn) return (
+    <div className="container mx-auto p-4 text-center">
+        Please <Link href="/sign-in"><Button variant="link">sign in</Button></Link> to view your dashboard.
+    </div>
+  );
+
+  if (!accountDetails) return <div className="container mx-auto p-4 text-center">Could not load account details.</div>;
+
+  const { email, plan, summariesUsed, summaryLimit, is_pro } = accountDetails;
 
   return (
-    <SignedIn> { /* Route protection via middleware is primary, this hides UI */}
-      <div className="flex flex-col min-h-screen">
-        {/* <Header /> */}
-        <main className="flex-1 container mx-auto px-4 py-8">
-          <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
-          
-          <section className="mb-8 grid md:grid-cols-2 gap-6">
-             <Card>
-               <CardHeader>
-                 <CardTitle>Account Info</CardTitle>
-               </CardHeader>
-               <CardContent>
-                 {(!isUserLoaded) ? (
-                  <div className="space-y-2">
-                     <Skeleton className="h-4 w-48" />
-                     <Skeleton className="h-4 w-24" />
-                  </div>
-                ) : !isSignedIn ? (
-                     <p className="text-muted-foreground">Please sign in.</p>
-                ) : (
-                  <div className="text-foreground/80 space-y-1">
-                    <p>Email: {user?.primaryEmailAddress?.emailAddress}</p>
-                    {isLoading && !accountDetails ? (
-                       <Skeleton className="h-4 w-24 mt-1" />
-                    ) : (
-                       <p>Plan: <span className="capitalize">{accountDetails?.plan}</span> {accountDetails?.is_pro ? <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full dark:bg-green-700 dark:text-green-100">PRO</span> : ''}</p>
-                    )}
-                     {/* Display usage text only if loaded and not pro */}
-                     {!accountDetails?.is_pro && !isLoading && accountDetails && (
-                       <p>Usage: {accountDetails.summariesUsed} / {accountDetails.summaryLimit} summaries used this period.</p>
-                     )}
-                      {/* Add Upgrade Button if not pro */}
-                     {!isLoading && accountDetails && !accountDetails.is_pro && (
-                       <Link href="/pricing" className="inline-block mt-2 text-sm text-primary hover:underline">
-                         Upgrade to Pro
-                       </Link>
-                     )}
-                  </div>
+    <SignedIn> {/* Ensure UI is only rendered for signed-in users */}
+      <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+
+        <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl">Account Info</CardTitle>
+              <CardDescription className="text-xs">{user?.primaryEmailAddress?.emailAddress || email}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm">Plan: <Badge variant={is_pro ? 'default' : 'secondary'} className={`text-xs ${is_pro ? 'bg-green-600 border-green-600 text-primary-foreground hover:bg-green-600/90' : ''}`}>{plan?.toUpperCase()}</Badge></div>
+              {!is_pro && (
+                <Link href="/pricing" className="mt-1.5 inline-block">
+                  <Button variant="link" className="p-0 h-auto text-xs text-primary hover:underline">Upgrade to Pro</Button>
+                </Link>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl">Usage This Period</CardTitle>
+              {is_pro ? (
+                <CardDescription className="text-xs">You have unlimited summaries.</CardDescription>
+              ) : (
+                <CardDescription className="text-xs">You've used {summariesUsed} of your {summaryLimit} free summaries.</CardDescription>
+              )}
+            </CardHeader>
+            <CardContent>
+              {is_pro ? (
+                <div className="flex items-center text-green-600 pt-1">
+                  <Sparkles className="h-5 w-5 mr-1.5 text-yellow-400" />
+                  <span className="text-sm font-medium">Unlimited Access</span>
+                </div>
+              ) : (
+                <div className="space-y-1.5 pt-1">
+                   <Progress value={usagePercentage} className="h-2" />
+                   <p className="text-xs text-muted-foreground">{summariesUsed} / {summaryLimit} used ({usagePercentage}%)</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
+            <div>
+              <CardTitle className="text-xl">Recent Summaries</CardTitle>
+              <CardDescription className="text-sm">View or manage your recent summaries.</CardDescription>
+            </div>
+            {history.length > 0 && (
+              <Button variant="outline" size="sm" onClick={handleClearAllSummaries} className="ml-auto">
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Clear All
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {history.length === 0 ? (
+              <div className="text-center text-muted-foreground py-12">
+                No summaries yet. Try summarizing a page with the extension!
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[65%] md:w-[70%] pl-2">Title / URL</TableHead>
+                    <TableHead className="text-right hidden sm:table-cell">Date</TableHead>
+                    <TableHead className="text-right pr-2"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {history.map((item) => (
+                    <TableRow key={item.id} className="group">
+                      <TableCell 
+                        className="font-medium cursor-pointer hover:bg-muted/50 py-2 pl-2"
+                        onClick={() => handleViewSummary(item)}
+                      >
+                        <div className="font-semibold text-sm truncate" title={item.title || 'Untitled Summary'}>{item.title || 'Untitled Summary'}</div>
+                        {item.url && <div className="text-xs text-muted-foreground truncate" title={item.url}>{item.url}</div>}
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground hidden sm:table-cell py-2">{new Date(item.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right py-2 pr-2">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-50 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleDeleteSummary(item.id); }} title="Delete summary">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {selectedSummary && (
+          <Dialog open={isSummaryModalOpen} onOpenChange={setIsSummaryModalOpen}>
+            <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="pr-12 truncate">{selectedSummary.title || 'Summary Details'}</DialogTitle>
+                {selectedSummary.url && (
+                  <DialogDescription className="text-xs text-muted-foreground truncate">
+                    <a href={selectedSummary.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                      {selectedSummary.url}
+                    </a>
+                  </DialogDescription>
                 )}
-               </CardContent>
-             </Card>
-
-             {/* New Usage Chart Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Usage This Period</CardTitle>
-                   <CardDescription>
-                    {accountDetails?.is_pro 
-                       ? "You have unlimited summaries as a Pro user." 
-                       : `Summaries used: ${accountDetails?.summariesUsed ?? '-'} / ${accountDetails?.summaryLimit ?? '-'}`
-                     }
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                   {isLoading && !accountDetails ? (
-                     <Skeleton className="h-40 w-full" /> // Placeholder for chart loading
-                   ) : error ? (
-                      <p className="text-destructive text-center py-10">Could not load usage data.</p>
-                   ) : accountDetails && !accountDetails.is_pro ? (
-                      <ChartContainer config={chartConfig} className="h-[100px] w-full">
-                        {/* Using a simple bar chart for Used vs Limit */}
-                        <BarChart 
-                           accessibilityLayer 
-                           data={usageChartData} 
-                           layout="vertical" 
-                           margin={{ left: 10, right: 10 }}
-                        >
-                          <CartesianGrid horizontal={false} />
-                           {/* Hide X axis for simple progress-like bar */}
-                           <XAxis type="number" dataKey="limit" hide /> 
-                           {/* Y axis shows the category label if needed, can be hidden */}
-                           {/* <YAxis type="category" dataKey="label" hide /> */}
-                          
-                          <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent hideLabel />} // Simpler tooltip
-                          />
-                           {/* Background bar representing the limit */}
-                          <Bar 
-                             dataKey="limit" 
-                             fill="var(--color-limit, hsl(var(--muted)))" 
-                             radius={4} 
-                             barSize={30}
-                             stackId="a" // Stack limit first
-                             /> 
-                          {/* Foreground bar representing usage */}
-                          <Bar 
-                            dataKey="used" 
-                            fill="var(--color-used, hsl(var(--primary)))" 
-                            radius={4} 
-                            barSize={30}
-                            stackId="a" // Stack used on top
-                           /> 
-                        </BarChart>
-                      </ChartContainer>
-                   ) : accountDetails && accountDetails.is_pro ? (
-                      <div className="flex items-center justify-center h-[100px] text-muted-foreground">
-                         {/* Optional: Show something visual for Pro users */}
-                         <Sparkles className="w-8 h-8 text-yellow-500 mr-2" /> Unlimited Access
-                      </div>
-                   ) : (
-                       <p className="text-muted-foreground text-center py-10">Usage data unavailable.</p>
-                   )}
-                </CardContent>
-                {!accountDetails?.is_pro && (
-                  <CardFooter className="flex-col items-start gap-2 text-sm">
-                    <div className="leading-none text-muted-foreground">
-                       {isLoading && !accountDetails ? <Skeleton className="h-4 w-32" /> : 
-                          `${usagePercentage}% of limit used.`}
-                    </div>
-                  </CardFooter>
-                )}
-              </Card>
-          </section>
-
-          {/* Refactored Recent Summaries Section */}
-          <section>
-             <Card>
-               <CardHeader>
-                 <CardTitle>Recent Summaries</CardTitle>
-                 <CardDescription>Your most recent summaries.</CardDescription>
-               </CardHeader>
-               <CardContent>
-                 {isLoading ? (
-                   // Loading Skeleton for Table
-                   <div className="space-y-4">
-                     <div className="flex justify-between items-center"> <Skeleton className="h-5 w-3/4" /> <Skeleton className="h-5 w-1/4" /> </div>
-                     <Skeleton className="h-px w-full" />
-                     <div className="flex justify-between items-center"> <Skeleton className="h-5 w-3/4" /> <Skeleton className="h-5 w-1/4" /> </div>
-                     <Skeleton className="h-px w-full" />
-                     <div className="flex justify-between items-center"> <Skeleton className="h-5 w-3/4" /> <Skeleton className="h-5 w-1/4" /> </div>
-                   </div>
-                 ) : error ? (
-                   <p className="text-destructive text-center py-4">{error}</p> 
-                 ) : (
-                   <Table>
-                     {/* <TableCaption>A list of your recent summaries.</TableCaption> */}
-                     <TableHeader>
-                       <TableRow>
-                         <TableHead className="w-[70%]">Title / URL</TableHead>
-                         <TableHead className="text-right">Date Summarized</TableHead>
-                         {/* <TableHead className="text-right">Actions</TableHead> */}
-                       </TableRow>
-                     </TableHeader>
-                     <TableBody>
-                       {history.length === 0 ? (
-                         <TableRow>
-                           <TableCell colSpan={2} className="h-24 text-center text-muted-foreground"> 
-                             No summary history found.
-                           </TableCell>
-                         </TableRow>
-                       ) : (
-                         history.map((item) => (
-                           <TableRow key={item.id}>
-                             <TableCell className="font-medium align-top py-3">
-                                <a 
-                                   href={item.url || '#'} 
-                                   target="_blank" 
-                                   rel="noopener noreferrer" 
-                                   className={`block hover:underline ${!item.url ? 'pointer-events-none text-muted-foreground' : ''}`}
-                                   title={item.title || 'Untitled Summary'} // Tooltip for full title
-                                 >
-                                 <span className="block truncate max-w-md">{item.title || 'Untitled Summary'}</span>
-                               </a>
-                               {item.url && 
-                                 <a 
-                                   href={item.url} 
-                                   target="_blank" 
-                                   rel="noopener noreferrer" 
-                                   className="text-xs text-muted-foreground hover:underline block truncate max-w-md"
-                                   title={item.url} // Tooltip for full URL
-                                  >
-                                  {item.url}
-                                 </a>
-                               }
-                             </TableCell>
-                             <TableCell className="text-right align-top text-xs text-muted-foreground py-3">
-                               {new Date(item.createdAt).toLocaleDateString()}
-                             </TableCell>
-                             {/* <TableCell className="text-right align-top py-3"> */}
-                               {/* TODO: Add Buttons here if needed */}
-                               {/* <Button variant="outline" size="sm">View</Button> */}
-                             {/* </TableCell> */}
-                           </TableRow>
-                         ))
-                       )}
-                     </TableBody>
-                   </Table>
-                 )}
-               </CardContent>
-             </Card>
-          </section>
-
-        </main>
+              </DialogHeader>
+              <div className="grid gap-4 py-4 text-sm">
+                <div>
+                  <h3 className="font-semibold mb-1.5">TL;DR:</h3>
+                  <p className="text-muted-foreground bg-muted/50 p-3 rounded-md overflow-hidden break-words">
+                    {selectedSummary.tldr}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-1.5">Key Points:</h3>
+                  <ScrollArea className="h-auto max-h-48 w-full rounded-md border p-3">
+                    <ul className="list-disc pl-5 space-y-1.5 text-muted-foreground">
+                      {selectedSummary.keyPoints.map((point, index) => (
+                        <li key={index} className="break-words">{point}</li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Close
+                  </Button>
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </SignedIn>
   );

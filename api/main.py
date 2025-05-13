@@ -898,3 +898,51 @@ async def get_user_history(user_id: AuthenticatedUserId):
         logger.error(f"Error fetching history for {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching summary history.")
 # --- END ADDED --- 
+
+# --- ADDED: Delete Single History Item Endpoint ---
+@app.delete("/api/history/{history_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_single_history_item(history_id: str, user_id: AuthenticatedUserId):
+    """Deletes a specific summary history item for the authenticated user."""
+    logger.info(f"Attempting to delete history item {history_id} for user {user_id}")
+    try:
+        # Find the item first to ensure it belongs to the user
+        item_to_delete = await prisma.summaryhistory.find_first(
+            where={
+                "id": history_id,
+                "userId": user_id # IMPORTANT: Ensure user owns the item
+            }
+        )
+
+        if not item_to_delete:
+            logger.warning(f"History item {history_id} not found or not owned by user {user_id}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="History item not found or access denied.")
+
+        # If found and owned, proceed with deletion
+        await prisma.summaryhistory.delete(where={"id": history_id})
+        logger.info(f"Successfully deleted history item {history_id} for user {user_id}")
+        # Return No Content on successful deletion
+        return
+
+    except HTTPException as http_exc: # Re-raise HTTP exceptions directly
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Error deleting history item {history_id} for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error deleting history item.")
+
+# --- ADDED: Delete All History Items Endpoint ---
+@app.delete("/api/history", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_user_history(user_id: AuthenticatedUserId):
+    """Deletes all summary history items for the authenticated user."""
+    logger.info(f"Attempting to delete ALL history for user {user_id}")
+    try:
+        await prisma.summaryhistory.delete_many(
+            where={"userId": user_id} # Delete only items belonging to this user
+        )
+        logger.info(f"Successfully deleted all history for user {user_id}")
+        # Return No Content on successful deletion
+        return
+
+    except Exception as e:
+        logger.error(f"Error deleting all history for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error clearing history.")
+# --- END ADDED --- 
