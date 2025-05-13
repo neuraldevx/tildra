@@ -19,14 +19,17 @@ export function HeroSection() {
             transition={{ duration: 0.6 }}
           >
             <motion.h1
-              className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight"
+              className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-tight md:leading-tight lg:leading-tight"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.2 }}
             >
-              <span className="block">Get the Essence of</span>
+              Get the Essence
+              <br />
+              of
+              <br />
               <motion.span
-                className="gradient-text inline-block"
+                className="gradient-text"
                 animate={{
                   backgroundPosition: ["0% 0%", "100% 0%", "0% 0%"],
                 }}
@@ -41,10 +44,11 @@ export function HeroSection() {
               >
                 Long Articles
               </motion.span>
-              <span className="block mt-1 md:mt-2">in Seconds</span>
+              <br />
+              in Seconds
             </motion.h1>
             <motion.p
-              className="text-lg md:text-xl text-foreground/70 max-w-xl"
+              className="text-lg md:text-xl text-foreground/70 max-w-lg"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.4 }}

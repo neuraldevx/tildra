@@ -1,11 +1,11 @@
 import { HeroSection } from "@/components/landing/hero-section"
-import { HowItWorks } from "@/components/landing/how-it-works"
+// import { HowItWorks } from "@/components/landing/how-it-works"; // Commented out
 import { Features } from "@/components/landing/features"
 import { AboutSection } from "@/components/landing/about-section"
 import { TestimonialSection } from "@/components/landing/testimonial-section"
 import { WhyChooseSection } from "@/components/landing/why-choose-section"
 import { FaqSection } from "@/components/landing/faq-section"
-import { CtaSection } from "@/components/landing/cta-section"
+// import { CtaSection } from "@/components/landing/cta-section"; // Commented out
 import { ExtensionCallout } from "@/components/landing/extension-callout"
 import { Footer } from "@/components/landing/footer"
 import { Header } from "@/components/shared/header"
@@ -17,13 +17,13 @@ export default function LandingPage() {
       <Header />
       <main className="flex-1 overflow-y-auto">
         <HeroSection />
-        <HowItWorks />
+        {/* <HowItWorks /> */ /* Commented out */}
         <Features />
         <AboutSection />
         <WhyChooseSection />
         <TestimonialSection />
         <FaqSection />
-        <CtaSection />
+        {/* <CtaSection /> */ /* Commented out */}
         <ExtensionCallout />
         <Footer />
       </main>

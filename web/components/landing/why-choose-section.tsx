@@ -80,23 +80,23 @@ export function WhyChooseSection() {
             <div className="col-span-1 text-foreground/80">{item.feature}</div>
             <div className="col-span-1 flex justify-center">
               {item.tildra ? (
-                <div className="bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full p-1">
-                  <Check className="h-5 w-5" />
+                <div className="bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-100 rounded-full p-1.5 w-8 h-8 flex items-center justify-center">
+                  <Check className="h-4 w-4" />
                 </div>
               ) : (
-                <div className="bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 rounded-full p-1">
-                  <X className="h-5 w-5" />
+                <div className="bg-red-100 dark:bg-red-800/50 text-red-700 dark:text-red-100 rounded-full p-1.5 w-8 h-8 flex items-center justify-center">
+                  <X className="h-4 w-4" />
                 </div>
               )}
             </div>
             <div className="col-span-1 flex justify-center">
               {item.competitors ? (
-                <div className="bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full p-1">
-                  <Check className="h-5 w-5" />
+                <div className="bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-100 rounded-full p-1.5 w-8 h-8 flex items-center justify-center">
+                  <Check className="h-4 w-4" />
                 </div>
               ) : (
-                <div className="bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 rounded-full p-1">
-                  <X className="h-5 w-5" />
+                <div className="bg-red-100 dark:bg-red-800/50 text-red-700 dark:text-red-100 rounded-full p-1.5 w-8 h-8 flex items-center justify-center">
+                  <X className="h-4 w-4" />
                 </div>
               )}
             </div>

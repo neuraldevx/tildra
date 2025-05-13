@@ -40,13 +40,6 @@ export function Header() {
                   Home
                 </Link>
                 <Link
-                  href="/#how-it-works"
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-accent"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  How It Works
-                </Link>
-                <Link
                   href="/#features"
                   className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-accent"
                   onClick={() => setIsMenuOpen(false)}
@@ -100,9 +93,6 @@ export function Header() {
 
         {/* Center Navigation - Re-adding flex-1 and justify-center */}
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium flex-1 justify-center">
-          <Link href="/#how-it-works" className="text-foreground/60 hover:text-foreground/80 transition-colors">
-            How It Works
-          </Link>
           <Link href="/#features" className="text-foreground/60 hover:text-foreground/80 transition-colors">
             Features
           </Link>
