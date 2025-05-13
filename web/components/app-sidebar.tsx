@@ -41,12 +41,10 @@ import React, { useState, useEffect } from "react"
 
 // Define your actual navigation items
 const mainItems = [
-  { title: "Home", url: "/", icon: Home },
-  { title: "How It Works", url: "/#how-it-works", icon: Info },
   { title: "Features", url: "/#features", icon: Sparkles },
-  { title: "Dashboard", url: "/dashboard", icon: FileText },
+  { title: "About", url: "/#about", icon: Info },
+  { title: "Testimonials", url: "/#testimonials", icon: User },
   { title: "Pricing", url: "/pricing", icon: DollarSign },
-  { title: "Use Cases", url: "/#use-cases", icon: BookOpen }
 ]
 
 // Define consistent styling for all sidebar elements
@@ -228,24 +226,27 @@ export function AppSidebar() {
               Tildra
             </span>
           </Link>
-          <Button 
-            variant="ghost"
-            size="icon" 
-            className={cn(
-              "h-8 w-8 shadow-md rounded-md ml-2",
-              SIDEBAR_STYLES.transition,
-              SIDEBAR_STYLES.hoverEffect,
-              "bg-secondary/90"
-            )}
-            onClick={toggleSidebar}
-            aria-label={state === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            {state === 'expanded' ? (
-              <PanelLeftClose className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
-            ) : (
-              <PanelLeftOpen className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
-            )}
-          </Button>
+          {/* Only show the toggle in the header when expanded */}
+          {state !== 'collapsed' && (
+            <Button 
+              variant="ghost"
+              size="icon" 
+              className={cn(
+                "h-8 w-8 shadow-md rounded-md ml-2",
+                SIDEBAR_STYLES.transition,
+                SIDEBAR_STYLES.hoverEffect,
+                "bg-secondary/90"
+              )}
+              onClick={toggleSidebar}
+              aria-label={state === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              {state === 'expanded' ? (
+                <PanelLeftClose className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
+              ) : (
+                <PanelLeftOpen className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
+              )}
+            </Button>
+          )}
         </SidebarHeader>
 
         <SidebarContent className="px-3 py-3 flex-1 overflow-y-auto">
@@ -254,26 +255,12 @@ export function AppSidebar() {
               <SidebarMenu>
                 {mainItems.map((item) => {
                    const isActive = (() => {
-                     // Use hash from state now
-                     // Exact match for Home (only if path is / AND there's no hash from state)
-                     if (item.url === "/" && currentHash === "") { 
-                       const result = pathname === "/";
-                       return result;
+                     if (item.url === "/" && currentHash === "") return pathname === "/";
+                     if (!item.url.includes("#") && item.url !== "/") return pathname.startsWith(item.url);
+                     if (item.url.startsWith("/#") && pathname === "/") {
+                       const itemHash = item.url.substring(1);
+                       return itemHash === currentHash;
                      }
-                     
-                     // StartsWith for non-hash links (e.g., /dashboard)
-                     if (!item.url.includes("#") && item.url !== "/") { 
-                       const result = pathname.startsWith(item.url);
-                       return result;
-                     }
-                     
-                     // Check hash links: active if path is / AND hash from state matches item's hash
-                     if (item.url.startsWith("/#") && pathname === "/") { 
-                        const itemHash = item.url.substring(1); // Extract #hash from item.url
-                        const result = itemHash === currentHash;
-                        return result;
-                     }
-
                      return false;
                    })();
 
@@ -321,6 +308,14 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                   )
                 })}
+                {/* Try Now CTA */}
+                <SidebarMenuItem className={cn("mt-4")}> 
+                  <Link href="/dashboard" passHref legacyBehavior>
+                    <a className="w-full block text-center rounded-full bg-gradient-to-r from-primary to-fuchsia-500 text-white font-bold py-2 px-4 shadow-md hover:from-fuchsia-500 hover:to-primary transition-all duration-200 dark:from-purple-600 dark:to-pink-500 dark:hover:from-pink-500 dark:hover:to-purple-600">
+                      Try Now
+                    </a>
+                  </Link>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
