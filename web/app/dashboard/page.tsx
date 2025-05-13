@@ -353,15 +353,15 @@ export default function DashboardPage() {
                 <p className="text-sm opacity-70 mt-1">Try summarizing a page with the extension!</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-border/20">
-                    <TableHead className="w-[65%] md:w-[70%] pl-4">Title / URL</TableHead>
-                    <TableHead className="text-right hidden sm:table-cell">Date</TableHead>
-                    <TableHead className="text-right pr-4 w-[60px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <ScrollArea className="max-h-[500px]">
+              <ScrollArea className="max-h-[500px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent border-b border-border/20">
+                      <TableHead className="w-[65%] md:w-[70%] pl-4">Title / URL</TableHead>
+                      <TableHead className="text-right hidden sm:table-cell">Date</TableHead>
+                      <TableHead className="text-right pr-4 w-[60px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
                     {history.map((item) => (
                       <TableRow key={item.id} className="group border-b border-border/10 last:border-0 transition-colors hover:bg-muted/5">
@@ -431,8 +431,8 @@ export default function DashboardPage() {
                       </TableRow>
                     ))}
                   </TableBody>
-                </ScrollArea>
-              </Table>
+                </Table>
+              </ScrollArea>
             )}
           </CardContent>
         </Card>

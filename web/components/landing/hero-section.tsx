@@ -19,33 +19,26 @@ export function HeroSection() {
             transition={{ duration: 0.6 }}
           >
             <motion.h1
-              className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-tight md:leading-tight lg:leading-tight"
+              className="font-bold tracking-tight"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.2 }}
             >
-              Get the Essence
-              <br />
-              of
-              <br />
-              <motion.span
-                className="gradient-text"
-                animate={{
-                  backgroundPosition: ["0% 0%", "100% 0%", "0% 0%"],
-                }}
-                transition={{
-                  duration: 8,
-                  repeat: Number.POSITIVE_INFINITY,
-                  ease: "easeInOut",
-                }}
+              <span className="block text-3xl md:text-4xl lg:text-5xl mb-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.25)]" style={{lineHeight: '1.15'}}>Get the Essence of</span>
+              <span
+                className="block text-5xl md:text-6xl lg:text-7xl mb-2 font-extrabold bg-clip-text text-transparent animate-gradient"
                 style={{
-                  backgroundSize: "200% 100%",
+                  backgroundImage: 'linear-gradient(90deg, #6366f1 0%, #a21caf 50%, #f472b6 100%)',
+                  backgroundSize: '200% 200%',
+                  animation: 'gradient-move 4s ease-in-out infinite',
+                  textShadow: '0 2px 16px rgba(164, 86, 255, 0.18), 0 2px 8px rgba(0,0,0,0.10)',
+                  lineHeight: '1.18',
+                  paddingBottom: '0.1em',
                 }}
               >
                 Long Articles
-              </motion.span>
-              <br />
-              in Seconds
+              </span>
+              <span className="block text-4xl md:text-5xl lg:text-6xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.18)]" style={{lineHeight: '1.15'}}>in Seconds</span>
             </motion.h1>
             <motion.p
               className="text-lg md:text-xl text-foreground/70 max-w-lg"
