@@ -54,6 +54,20 @@ export function Header() {
                   Features
                 </Link>
                 <Link
+                  href="/#about"
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-accent"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  About
+                </Link>
+                <Link
+                  href="/#why-choose"
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-accent"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Why Choose Us
+                </Link>
+                <Link
                   href="/summarizer"
                   className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-accent"
                   onClick={() => setIsMenuOpen(false)}
@@ -69,13 +83,6 @@ export function Header() {
                   Pricing
                 </Link>
                 )}
-                <Link
-                  href="/#use-cases"
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-accent"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Use Cases
-                </Link>
               </nav>
             </div>
           </SheetContent>
@@ -99,14 +106,17 @@ export function Header() {
           <Link href="/#features" className="text-foreground/60 hover:text-foreground/80 transition-colors">
             Features
           </Link>
+          <Link href="/#about" className="text-foreground/60 hover:text-foreground/80 transition-colors">
+            About
+          </Link>
+          <Link href="/#testimonials" className="text-foreground/60 hover:text-foreground/80 transition-colors">
+            Testimonials
+          </Link>
           {!isPro && (
           <Link href="/pricing" className="text-foreground/60 hover:text-foreground/80 transition-colors">
             Pricing
           </Link>
           )}
-          <Link href="/#use-cases" className="text-foreground/60 hover:text-foreground/80 transition-colors">
-            Use Cases
-          </Link>
         </nav>
 
         {/* Right side: Auth & Theme */}

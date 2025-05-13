@@ -1,7 +1,11 @@
 import { HeroSection } from "@/components/landing/hero-section"
 import { HowItWorks } from "@/components/landing/how-it-works"
 import { Features } from "@/components/landing/features"
-import { UseCases } from "@/components/landing/use-cases"
+import { AboutSection } from "@/components/landing/about-section"
+import { TestimonialSection } from "@/components/landing/testimonial-section"
+import { WhyChooseSection } from "@/components/landing/why-choose-section"
+import { FaqSection } from "@/components/landing/faq-section"
+import { CtaSection } from "@/components/landing/cta-section"
 import { ExtensionCallout } from "@/components/landing/extension-callout"
 import { Footer } from "@/components/landing/footer"
 import { Header } from "@/components/shared/header"
@@ -15,7 +19,11 @@ export default function LandingPage() {
         <HeroSection />
         <HowItWorks />
         <Features />
-        <UseCases />
+        <AboutSection />
+        <WhyChooseSection />
+        <TestimonialSection />
+        <FaqSection />
+        <CtaSection />
         <ExtensionCallout />
         <Footer />
       </main>
