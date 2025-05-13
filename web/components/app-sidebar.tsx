@@ -212,53 +212,45 @@ export function AppSidebar() {
       {/* Add a style tag to the DOM */}
       <style dangerouslySetInnerHTML={{ __html: customStyles }} />
       
-      {/* Desktop sidebar toggle button - fixed position outside sidebar */}
-      <div className="fixed top-4 z-50 hidden md:block" style={{
-        left: state === 'expanded' 
-          ? 'calc(var(--sidebar-width) - 0.75rem)' 
-          : 'calc(var(--sidebar-width-icon) - 0.75rem)',
-        transition: 'left 0.2s ease-linear'
-      }}>
-        <Button 
-          variant="ghost"
-          size="icon" 
-          className={cn(
-            "h-8 w-8 shadow-md rounded-md",
-            SIDEBAR_STYLES.transition,
-            SIDEBAR_STYLES.hoverEffect,
-            "bg-secondary/90"
-          )}
-          onClick={toggleSidebar}
-          aria-label={state === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'}
-        >
-          {state === 'expanded' ? (
-            <PanelLeftClose className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
-          ) : (
-            <PanelLeftOpen className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
-          )}
-        </Button>
-      </div>
-
       <Sidebar
         collapsible="icon"
         variant="sidebar"
         className={cn(
-          "border-r border-border/40",
+          // Glassy, rounded, shadowed sidebar
+          "border-r border-border/40 bg-white/80 dark:bg-black/60 backdrop-blur-xl rounded-xl shadow-xl transition-all duration-300",
           state === 'collapsed' && "sidebar-collapsed"
         )}
         data-state={state}
       >
-        <SidebarHeader className="h-14 flex items-center justify-center px-4 border-b border-border/40">
-          <Link href="/" className="focus-ring-animate relative focus:outline-none rounded-lg">
+        <SidebarHeader className="h-14 flex items-center justify-between px-4 border-b border-border/40 gap-2">
+          <Link href="/" className="focus-ring-animate relative focus:outline-none rounded-lg flex items-center gap-2">
             <span className="font-semibold gradient-text text-lg logo-text group-data-[collapsible=icon]:hidden">
               Tildra
             </span>
           </Link>
+          <Button 
+            variant="ghost"
+            size="icon" 
+            className={cn(
+              "h-8 w-8 shadow-md rounded-md ml-2",
+              SIDEBAR_STYLES.transition,
+              SIDEBAR_STYLES.hoverEffect,
+              "bg-secondary/90"
+            )}
+            onClick={toggleSidebar}
+            aria-label={state === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            {state === 'expanded' ? (
+              <PanelLeftClose className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
+            ) : (
+              <PanelLeftOpen className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
+            )}
+          </Button>
         </SidebarHeader>
 
         <SidebarContent className="px-3 py-3 flex-1 overflow-y-auto">
           <SidebarGroup>
-            <SidebarGroupContent className="mt-1 space-y-1">
+            <SidebarGroupContent className="mt-1 space-y-2">
               <SidebarMenu>
                 {mainItems.map((item) => {
                    const isActive = (() => {
@@ -290,7 +282,7 @@ export function AppSidebar() {
                       key={item.title} 
                       className={cn(
                         "group sidebar-menu-item",
-                        state === 'collapsed' ? 'my-1.5' : 'my-1'
+                        state === 'collapsed' ? 'my-2' : 'my-1.5'
                       )}
                     >
                       <SidebarMenuButton
@@ -299,11 +291,9 @@ export function AppSidebar() {
                           SIDEBAR_STYLES.button.base,
                           SIDEBAR_STYLES.transition,
                           isActive
-                            ? SIDEBAR_STYLES.button.active
-                            : SIDEBAR_STYLES.button.inactive,
-                          SIDEBAR_STYLES.button.overrides,
-                          "sidebar-menu-button",
-                          !isActive && "hover:text-accent-foreground",
+                            ? "bg-accent/20 text-accent-foreground shadow-sm"
+                            : "hover:bg-accent/10 hover:text-accent-foreground",
+                          "rounded-full px-3 py-2",
                           state === 'collapsed' && "justify-center items-center p-0 gap-0"
                         )}
                         style={{ backgroundColor: 'transparent' }}
@@ -313,8 +303,8 @@ export function AppSidebar() {
                           className={cn(
                             SIDEBAR_STYLES.icon.base,
                             isActive
-                              ? SIDEBAR_STYLES.icon.active
-                              : SIDEBAR_STYLES.icon.inactive,
+                              ? "text-accent-foreground"
+                              : "text-foreground/70",
                             "group-hover:scale-110 group-data-[collapsible=icon]:group-hover:scale-125",
                             state === 'collapsed' && "mx-auto"
                           )}
@@ -322,8 +312,8 @@ export function AppSidebar() {
                         <span className={cn(
                            SIDEBAR_STYLES.text.base,
                            isActive
-                             ? SIDEBAR_STYLES.text.active
-                             : SIDEBAR_STYLES.text.inactive
+                             ? "font-semibold"
+                             : "font-normal"
                          )}>
                           {item.title}
                         </span>
@@ -337,10 +327,10 @@ export function AppSidebar() {
         </SidebarContent>
 
         <div className={cn(
-          "border-t border-border/40 mt-auto",
+          "border-t border-border/40 mt-auto pt-3 pb-2 px-3 bg-white/60 dark:bg-black/40 rounded-b-xl shadow-inner",
           state === 'collapsed'
-            ? "flex items-center justify-center px-3 py-2"
-            : "p-3"
+            ? "flex items-center justify-center px-3 py-2 bg-transparent shadow-none"
+            : ""
         )}>
           {!isLoaded ? (
             // Loading state: show placeholder avatar
@@ -435,18 +425,19 @@ export function AppSidebar() {
             </>
           )}
         </div>
-
-        {/* Mobile menu trigger */}
-        <div className="fixed top-4 left-4 z-50 md:hidden">
-          <SidebarTrigger className={cn(
-            "rounded-md shadow-md p-2 bg-transparent",
-            SIDEBAR_STYLES.transition,
-            "hover:bg-accent/10 hover:text-accent-foreground hover:scale-105"
-          )}>
-            <PanelLeft className={cn(SIDEBAR_STYLES.icon.base, "group-hover:scale-110")} />
-          </SidebarTrigger>
-        </div>
       </Sidebar>
+
+      {/* Floating toggle button for collapsed sidebar (ChatGPT style) */}
+      {state === 'collapsed' && (
+        <button
+          onClick={toggleSidebar}
+          aria-label="Expand sidebar"
+          className="fixed top-4 left-3 z-50 flex items-center justify-center h-10 w-10 rounded-full bg-white/90 dark:bg-black/80 shadow-lg border border-border/40 hover:bg-accent/20 transition-colors duration-200"
+          tabIndex={0}
+        >
+          <PanelLeftOpen className="h-6 w-6 text-accent-foreground" />
+        </button>
+      )}
     </>
   )
 }
