@@ -12,7 +12,8 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
-  PanelLeft
+  PanelLeft,
+  Rocket
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
@@ -314,7 +315,7 @@ export function AppSidebar() {
                   {state === 'collapsed' ? (
                     <Link href="/dashboard" passHref legacyBehavior>
                       <a className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-primary to-fuchsia-500 shadow-md hover:from-fuchsia-500 hover:to-primary transition-all duration-200 dark:from-purple-600 dark:to-pink-500 dark:hover:from-pink-500 dark:hover:to-purple-600">
-                        <Logo size="sm" animated={false} />
+                        <Rocket className="w-6 h-6 text-white" />
                       </a>
                     </Link>
                   ) : (

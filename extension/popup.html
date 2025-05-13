@@ -8,7 +8,7 @@
     <!-- Inter font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <!-- Overall Container -->
@@ -16,11 +16,11 @@
 
         <!-- HEADER -->
         <header class="header">
+            <h1 class="logo-text">Tildra</h1>
             <button class="open-tab-button" aria-label="Open Tildra in new tab">
                 <!-- ExternalLink icon (lucide path) -->
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
             </button>
-            <h1 class="logo-text">Tildra</h1>
         </header>
 
         <!-- TABS -->
@@ -72,11 +72,11 @@
 
             <!-- Follow-up (Pro) Panel -->
             <section id="panel-followup" class="panel" role="tabpanel" aria-labelledby="followup-tab" hidden>
-                <div class="followup-skeleton" style="text-align:center; margin-top:2rem;">
-                  <div class="skeleton-title" style="font-weight:600; font-size:1.1rem; margin-bottom:0.5rem;">Pro feature coming soon</div>
-                  <div class="skeleton-desc" style="color:var(--text-secondary); margin-bottom:1.5rem;">Use AI to ask follow-up questions about your summaries.</div>
-                  <input type="text" placeholder="Ask a follow-up..." disabled style="width:80%; max-width:260px; border-radius:0.75rem; padding:0.75rem; font-size:1rem; margin-bottom:0.5rem; opacity:0.7;" />
-                  <button disabled style="border-radius:0.75rem; padding:0.75rem 1.5rem; font-weight:600; background:linear-gradient(90deg,#7c3aed 0%,#a21caf 100%); color:#fff; opacity:0.7; border:none; margin-left:0.5rem;">Ask</button>
+                <div class="followup-skeleton">
+                  <div class="skeleton-title">Pro feature coming soon</div>
+                  <div class="skeleton-desc">Use AI to ask follow-up questions about your summaries.</div>
+                  <input type="text" placeholder="Ask a follow-up..." disabled />
+                  <button disabled>Ask</button>
                 </div>
             </section>
         </main>
