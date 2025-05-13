@@ -676,3 +676,87 @@ body > .header, /* Old header */
 
 /* Optional: Adjustments for dark mode if needed */
 /* .dark .history-item-delete { ... } */ 
+
+/* Popup container */
+body, .popup-container {
+  border-radius: 1.25rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 1.5px 6px rgba(80,80,180,0.08);
+  background: linear-gradient(135deg, var(--popup-bg1, #18181b) 0%, var(--popup-bg2, #232336) 100%);
+  padding: 1.5rem 1.25rem;
+  min-width: 340px;
+  min-height: 420px;
+}
+
+@media (prefers-color-scheme: light) {
+  body, .popup-container {
+    background: linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.10), 0 1.5px 6px rgba(80,80,180,0.06);
+  }
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  border-radius: 9999px;
+  background: rgba(120,120,180,0.08);
+  padding: 0.25rem;
+  margin-bottom: 1.25rem;
+}
+.tab {
+  flex: 1;
+  border-radius: 9999px;
+  padding: 0.5rem 0;
+  font-weight: 600;
+  color: #888;
+  background: none;
+  transition: background 0.2s, color 0.2s;
+  cursor: pointer;
+}
+.tab.active {
+  background: linear-gradient(90deg, #7c3aed 0%, #a21caf 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124,58,237,0.10);
+}
+
+/* Main action button */
+.summarize-btn {
+  width: 100%;
+  border-radius: 1rem;
+  background: linear-gradient(90deg, #7c3aed 0%, #a21caf 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.15rem;
+  padding: 1rem 0;
+  margin: 1.5rem 0 0.5rem 0;
+  box-shadow: 0 2px 12px rgba(124,58,237,0.10);
+  transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+}
+.summarize-btn:hover, .summarize-btn:focus {
+  background: linear-gradient(90deg, #a21caf 0%, #7c3aed 100%);
+  box-shadow: 0 4px 16px rgba(124,58,237,0.18);
+  transform: translateY(-2px) scale(1.03);
+}
+
+/* History items */
+.history-item {
+  background: rgba(60,60,80,0.18);
+  border-radius: 1rem;
+  padding: 1rem 1rem 0.75rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1.5px 6px rgba(80,80,180,0.06);
+  transition: box-shadow 0.2s, background 0.2s;
+}
+.history-item:hover {
+  background: rgba(124,58,237,0.08);
+  box-shadow: 0 4px 16px rgba(124,58,237,0.10);
+}
+
+/* Card-like look for history */
+.history-list {
+  margin-top: 1rem;
+}
+
+/* Smooth transitions for all */
+*, *:before, *:after {
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s, border-radius 0.2s;
+}

@@ -41,6 +41,7 @@ import React, { useState, useEffect } from "react"
 
 // Define your actual navigation items
 const mainItems = [
+  { title: "Dashboard", url: "/dashboard", icon: FileText },
   { title: "Features", url: "/#features", icon: Sparkles },
   { title: "About", url: "/#about", icon: Info },
   { title: "Testimonials", url: "/#testimonials", icon: User },
@@ -308,13 +309,21 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                   )
                 })}
-                {/* Try Now CTA */}
-                <SidebarMenuItem className={cn("mt-4")}> 
-                  <Link href="/dashboard" passHref legacyBehavior>
-                    <a className="w-full block text-center rounded-full bg-gradient-to-r from-primary to-fuchsia-500 text-white font-bold py-2 px-4 shadow-md hover:from-fuchsia-500 hover:to-primary transition-all duration-200 dark:from-purple-600 dark:to-pink-500 dark:hover:from-pink-500 dark:hover:to-purple-600">
-                      Try Now
-                    </a>
-                  </Link>
+                {/* Try Now CTA: pill button when expanded, icon button when collapsed */}
+                <SidebarMenuItem className={cn("mt-4 flex justify-center")}> 
+                  {state === 'collapsed' ? (
+                    <Link href="/dashboard" passHref legacyBehavior>
+                      <a className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-primary to-fuchsia-500 shadow-md hover:from-fuchsia-500 hover:to-primary transition-all duration-200 dark:from-purple-600 dark:to-pink-500 dark:hover:from-pink-500 dark:hover:to-purple-600">
+                        <Logo size="sm" animated={false} />
+                      </a>
+                    </Link>
+                  ) : (
+                    <Link href="/dashboard" passHref legacyBehavior>
+                      <a className="w-full block text-center rounded-full bg-gradient-to-r from-primary to-fuchsia-500 text-white font-bold py-2 px-4 shadow-md hover:from-fuchsia-500 hover:to-primary transition-all duration-200 dark:from-purple-600 dark:to-pink-500 dark:hover:from-pink-500 dark:hover:to-purple-600">
+                        Try Now
+                      </a>
+                    </Link>
+                  )}
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>

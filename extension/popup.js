@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabUnderline = document.querySelector('.tab-underline');
   const summarizeButton = document.getElementById('summarize-button');
   const upgradeLink = document.getElementById('upgrade-link'); // If needed
+  const followupTab = document.getElementById('followup-tab');
+  const followupPanel = document.getElementById('panel-followup');
 
   // --- Existing/Modified element references ---
   const loadingSpinner = document.getElementById('loading'); // Keep for potential future use, though hidden by CSS
@@ -149,31 +151,37 @@ document.addEventListener('DOMContentLoaded', () => {
   // Tab Switching Logic
   function switchTab(targetTab) {
     const isSummarize = targetTab === summarizeTab;
-    
-    // Update button states and ARIA attributes
+    const isHistory = targetTab === historyTab;
+    const isFollowup = targetTab === followupTab;
+
     summarizeTab.classList.toggle('active', isSummarize);
-    historyTab.classList.toggle('active', !isSummarize);
+    historyTab.classList.toggle('active', isHistory);
+    followupTab.classList.toggle('active', isFollowup);
     summarizeTab.setAttribute('aria-selected', String(isSummarize));
-    historyTab.setAttribute('aria-selected', String(!isSummarize));
+    historyTab.setAttribute('aria-selected', String(isHistory));
+    followupTab.setAttribute('aria-selected', String(isFollowup));
 
-    // Update panel visibility using the hidden attribute ONLY
     summarizePanel.hidden = !isSummarize;
-    historyPanel.hidden = isSummarize;
+    historyPanel.hidden = !isHistory;
+    followupPanel.hidden = !isFollowup;
 
-    // Move underline
+    // Move underline for three tabs
     if (tabUnderline) {
-      tabUnderline.style.transform = isSummarize ? 'translateX(0%)' : 'translateX(100%)';
+      if (isSummarize) tabUnderline.style.transform = 'translateX(0%)';
+      else if (isHistory) tabUnderline.style.transform = 'translateX(100%)';
+      else tabUnderline.style.transform = 'translateX(200%)';
+      tabUnderline.style.width = '33.33%';
     }
 
-    // Load history only when switching to history tab
-    if (!isSummarize) {
+    if (isHistory) {
       loadHistorySummaries();
     }
   }
 
-  if (summarizeTab && historyTab) {
+  if (summarizeTab && historyTab && followupTab) {
     summarizeTab.addEventListener('click', () => switchTab(summarizeTab));
     historyTab.addEventListener('click', () => switchTab(historyTab));
+    followupTab.addEventListener('click', () => switchTab(followupTab));
   }
 
   summarizeButton.addEventListener('click', () => {

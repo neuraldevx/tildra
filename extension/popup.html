@@ -27,6 +27,7 @@
         <nav class="tabs" role="tablist">
             <button id="summarize-tab" class="tab active" role="tab" aria-controls="panel-summarize" aria-selected="true">Summarize</button>
             <button id="history-tab" class="tab" role="tab" aria-controls="panel-history" aria-selected="false">History</button>
+            <button id="followup-tab" class="tab" role="tab" aria-controls="panel-followup" aria-selected="false">Follow-up (Pro)</button>
             <span class="tab-underline" aria-hidden="true"></span>
         </nav>
 
@@ -67,6 +68,16 @@
                     <p>No summary history yet.</p>
                  </div>
                 <ul id="history-list" class="history-list"></ul>
+            </section>
+
+            <!-- Follow-up (Pro) Panel -->
+            <section id="panel-followup" class="panel" role="tabpanel" aria-labelledby="followup-tab" hidden>
+                <div class="followup-skeleton" style="text-align:center; margin-top:2rem;">
+                  <div class="skeleton-title" style="font-weight:600; font-size:1.1rem; margin-bottom:0.5rem;">Pro feature coming soon</div>
+                  <div class="skeleton-desc" style="color:var(--text-secondary); margin-bottom:1.5rem;">Use AI to ask follow-up questions about your summaries.</div>
+                  <input type="text" placeholder="Ask a follow-up..." disabled style="width:80%; max-width:260px; border-radius:0.75rem; padding:0.75rem; font-size:1rem; margin-bottom:0.5rem; opacity:0.7;" />
+                  <button disabled style="border-radius:0.75rem; padding:0.75rem 1.5rem; font-weight:600; background:linear-gradient(90deg,#7c3aed 0%,#a21caf 100%); color:#fff; opacity:0.7; border:none; margin-left:0.5rem;">Ask</button>
+                </div>
             </section>
         </main>
 
