@@ -16,7 +16,7 @@ export function Header() {
 
   return (
     <header className="bg-background border-b border-border/40 sticky top-0 z-30">
-      <div className="container mx-auto h-14 flex items-center px-4">
+      <div className="container mx-auto h-16 flex items-center px-4">
         {/* Mobile menu trigger - only visible on mobile */}
         <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
           <SheetTrigger asChild>

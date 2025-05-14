@@ -250,34 +250,41 @@ export function AppSidebar() {
       >
         <SidebarHeader
           className={cn(
-            "h-16 flex items-center border-b border-border/40 gap-2",
+            "h-16 flex items-center border-b border-border/40",
             state === 'collapsed'
-              ? 'justify-center px-0'
-              : 'justify-between px-5'
+              ? 'justify-center px-0 cursor-pointer hover:bg-accent/10 active:bg-accent/20'
+              : 'justify-between px-5 gap-2'
           )}
+          onClick={state === 'collapsed' ? toggleSidebar : undefined}
+          role={state === 'collapsed' ? "button" : undefined}
+          aria-label={state === 'collapsed' ? "Expand sidebar" : "Sidebar header"}
+          tabIndex={state === 'collapsed' ? 0 : undefined}
         >
-          {/* Logo, centered when collapsed */}
-          <Logo
-            animated={true}
-            href="/"
-            size={state === 'collapsed' ? "md" : "lg"}
-            showText={state !== 'collapsed'}
-          />
-          {/* Only show the toggle in the header when expanded */}
-          {state !== 'collapsed' && (
-            <Button 
-              variant="ghost"
-              size="icon" 
-              className={cn(
-                "h-9 w-9 rounded-full border border-transparent",
-                SIDEBAR_STYLES.transition,
-                "hover:border-border/40 hover:bg-background/50"
-              )}
-              onClick={toggleSidebar}
-              aria-label={state === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'}
-            >
-              <PanelLeftClose className={cn("h-4 w-4 text-foreground/70")} />
-            </Button>
+          {state === 'collapsed' ? (
+            <div className="p-2 rounded-md">
+              <PanelLeftOpen className="h-5 w-5 text-foreground/80" />
+            </div>
+          ) : (
+            <>
+              <Logo
+                animated={true}
+                href="/"
+                size={"lg"}
+                showText={true}
+              />
+              <SidebarTrigger
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-9 w-9 rounded-full border border-transparent",
+                  SIDEBAR_STYLES.transition,
+                  "hover:border-border/40 hover:bg-background/50"
+                )}
+                aria-label="Collapse sidebar"
+              >
+                <PanelLeftClose className="h-4 w-4 text-foreground/70" />
+              </SidebarTrigger>
+            </>
           )}
         </SidebarHeader>
 
@@ -457,25 +464,6 @@ export function AppSidebar() {
           )}
         </div>
       </Sidebar>
-
-      {/* Floating toggle button for collapsed sidebar */}
-      {state === 'collapsed' && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleSidebar}
-          aria-label="Expand sidebar"
-          className={cn(
-            "fixed top-4 left-20 z-50", // Adjusted left position to avoid overlap
-            // unified toggle size and style
-            "h-9 w-9 rounded-full border border-transparent shadow-md",
-            SIDEBAR_STYLES.transition,
-            "hover:border-border/40 hover:bg-background/50 hover:shadow-accent/20 hover:border-accent/50"
-          )}
-        >
-          <PanelLeftOpen className="h-4 w-4 text-accent-foreground" />
-        </Button>
-      )}
     </>
   )
 }
