@@ -79,7 +79,7 @@ export function Logo({ size = "md", animated = false, href = "/", showText = tru
       
       {/* Only show text when needed */}
       {showText && (
-        <span className={`font-medium ${sizes[size].text} logo-text gradient-logo-text ${animated ? 'animated-gradient' : ''} group-data-[collapsible=icon]:hidden`}>
+        <span className={`font-medium ${sizes[size].text} logo-text gradient-logo-text self-center ${animated ? 'animated-gradient' : ''} group-data-[collapsible=icon]:hidden`}>
           Tildra
         </span>
       )}
