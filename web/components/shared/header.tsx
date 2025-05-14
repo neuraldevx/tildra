@@ -80,10 +80,9 @@ export function Header() {
           </SheetContent>
         </Sheet>
 
-        <div className="flex items-center gap-4">
-           {/* ... Mobile menu trigger ... */}
-           {/* ... Logo ... */}
-           {/* ... Desktop Sidebar Toggle ... */}
+        {/* Logo placement in main header */}
+        <div className="flex items-center mr-8">
+          <Logo size="md" animated={true} showText={true} href="/" />
         </div>
 
         {/* Center Navigation - Re-adding flex-1 and justify-center */}

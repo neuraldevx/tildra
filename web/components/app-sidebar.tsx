@@ -266,24 +266,19 @@ export function AppSidebar() {
             </div>
           ) : (
             <>
-              <Logo
-                animated={true}
-                href="/"
-                size={"lg"}
-                showText={true}
-              />
-              <SidebarTrigger
-                variant="ghost"
-                size="icon"
+              <div className="flex-1"></div>
+              <button
+                onClick={() => toggleSidebar()}
                 className={cn(
                   "h-9 w-9 rounded-full border border-transparent",
+                  "flex items-center justify-center",
                   SIDEBAR_STYLES.transition,
-                  "hover:border-border/40 hover:bg-background/50"
+                  "hover:border-border/40"
                 )}
                 aria-label="Collapse sidebar"
               >
-                <PanelLeftClose className="h-4 w-4 text-foreground/70" />
-              </SidebarTrigger>
+                <PanelLeftClose className="h-5 w-5" />
+              </button>
             </>
           )}
         </SidebarHeader>
