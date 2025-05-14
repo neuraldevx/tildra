@@ -29,7 +29,6 @@ export function Header() {
             <div className="flex flex-col h-full">
               <div className="h-14 flex items-center px-4 border-b">
                 <Logo size="sm" />
-                <span className="ml-2 font-semibold">Tildra</span>
               </div>
               <nav className="flex-1 p-4 space-y-2">
                 <Link
@@ -80,10 +79,6 @@ export function Header() {
             </div>
           </SheetContent>
         </Sheet>
-
-        <div className="mr-6 flex items-center">
-          <Logo size="sm" animated={true} href="/" />
-        </div>
 
         <div className="flex items-center gap-4">
            {/* ... Mobile menu trigger ... */}

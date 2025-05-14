@@ -9,6 +9,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Favicon links -->
+    <link rel="icon" type="image/png" href="favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="favicon/favicon.svg" />
+    <link rel="shortcut icon" href="favicon/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon/apple-touch-icon.png" />
+    <link rel="manifest" href="favicon/site.webmanifest" />
 </head>
 <body>
     <!-- Overall Container -->
@@ -16,9 +23,17 @@
 
         <!-- HEADER -->
         <header class="header">
-            <h1 class="logo-text">Tildra</h1>
+            <h1 class="logo-text">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="logo-icon">
+                    <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+                    <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <line x1="9" y1="9" x2="10" y2="9"></line>
+                    <line x1="9" y1="13" x2="15" y2="13"></line>
+                    <line x1="9" y1="17" x2="15" y2="17"></line>
+                </svg>
+                Tildra
+            </h1>
             <button class="open-tab-button" aria-label="Open Tildra in new tab">
-                <!-- ExternalLink icon (lucide path) -->
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
             </button>
         </header>
@@ -40,17 +55,16 @@
                 </div>
 
                 <div class="status-section" id="status-section">
-                    <!-- Loading state will be handled by button style -->
-                     <div id="error" class="error" style="display: none;"></div>
+                    <div id="error" class="error" style="display: none;"></div>
                 </div>
 
                 <!-- Existing Summary Container (initially hidden) -->
                 <div id="summary-container" class="summary-container" style="display: none;">
                     <div class="summary-header">
-                         <h3>Summary</h3>
-                         <button id="copy-button" class="icon-button" title="Copy Summary">
+                        <h3>Summary</h3>
+                        <button id="copy-button" class="icon-button" title="Copy Summary">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
-                         </button>
+                        </button>
                     </div>
                     <h4>TL;DR</h4>
                     <p id="tldr" class="summary-text"></p>
@@ -86,8 +100,7 @@
             ✨ Summaries limited on free plan. <a href="https://www.tildra.xyz" target="_blank" id="upgrade-link">Upgrade</a>
         </footer>
 
-    </div> <!-- End popup-container -->
-
+    </div>
     <script src="popup.js"></script> 
 </body>
 </html> 

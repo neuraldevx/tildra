@@ -1,6 +1,5 @@
 "use client"
 
-import { motion } from "framer-motion"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -8,64 +7,100 @@ interface LogoProps {
   size?: "sm" | "md" | "lg"
   animated?: boolean
   href?: string
+  showText?: boolean
 }
 
-export function Logo({ size = "md", animated = false, href = "/" }: LogoProps) {
+export function Logo({ size = "md", animated = false, href = "/", showText = true }: LogoProps) {
   const sizes = {
-    sm: { logo: "w-6 h-6", text: "text-lg" },
-    md: { logo: "w-8 h-8", text: "text-xl" },
-    lg: { logo: "w-10 h-10", text: "text-2xl" },
+    sm: { logo: "w-8 h-8", text: "text-lg" },
+    md: { logo: "w-10 h-10", text: "text-xl" },
+    lg: { logo: "w-12 h-12", text: "text-2xl" },
   }
 
+  // Add CSS for the gradient animation and logo effects
+  const logoStyles = `
+    @keyframes gradientShift {
+      0% { background-position: 0% 50% }
+      50% { background-position: 100% 50% }
+      100% { background-position: 0% 50% }
+    }
+    
+    .gradient-logo-text {
+      background: linear-gradient(90deg, #7873f5, #ec4899, #8b5cf6);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      transition: all 0.3s ease;
+    }
+    
+    .animated-gradient {
+      animation: gradientShift 4s ease infinite;
+    }
+    
+    .logo-container:hover .gradient-logo-text {
+      filter: brightness(1.2);
+    }
+    
+    .logo-image {
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+      transition: all 0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67);
+    }
+    
+    .logo-container:hover .logo-image {
+      transform: scale(1.05);
+      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+    }
+    
+    @keyframes subtle-float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-2px); }
+      100% { transform: translateY(0px); }
+    }
+    
+    .animated-logo {
+      animation: subtle-float 3s ease-in-out infinite;
+    }
+  `;
+
   const LogoContent = () => (
-    <div className="flex items-center gap-2">
-      {animated ? (
-        <motion.div
-          className={`relative ${sizes[size].logo} rounded-lg overflow-hidden`}
-          animate={{ y: [0, -5, 0] }}
-          transition={{
-            duration: 3,
-            repeat: Number.POSITIVE_INFINITY,
-            ease: "easeInOut",
-            type: "tween"
-          }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-primary to-secondary opacity-90"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Image
-              src="/images/logo.png"
-              alt="Tildra Logo"
-              width={40}
-              height={40}
-              className="w-full h-full object-contain p-1"
-            />
-          </div>
-        </motion.div>
-      ) : (
-        <div className={`relative ${sizes[size].logo} rounded-lg overflow-hidden`}>
-          <div className="absolute inset-0 bg-gradient-to-br from-primary to-secondary opacity-90"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Image
-              src="/images/logo.png"
-              alt="Tildra Logo"
-              width={40}
-              height={40}
-              className="w-full h-full object-contain p-1"
-            />
-          </div>
-        </div>
+    <div className={`flex items-center gap-3 logo-container`}>
+      {/* The logo image - direct, without background divs */}
+      <div className={`${sizes[size].logo} relative flex-shrink-0`}>
+        <Image
+          src="/images/logo-new.png"
+          alt="Tildra Logo"
+          width={60}
+          height={60}
+          className={`w-full h-full object-contain logo-image ${animated ? 'animated-logo' : ''}`}
+          priority
+        />
+      </div>
+      
+      {/* Only show text when needed */}
+      {showText && (
+        <span className={`font-medium ${sizes[size].text} logo-text gradient-logo-text ${animated ? 'animated-gradient' : ''} group-data-[collapsible=icon]:hidden`}>
+          Tildra
+        </span>
       )}
-      <span className={`font-semibold gradient-text ${sizes[size].text} logo-text`}>Tildra</span>
     </div>
   )
 
   if (href) {
     return (
-      <Link href={href} className="focus-ring-animate relative focus:outline-none rounded-lg">
-        <LogoContent />
-      </Link>
+      <>
+        <style jsx global>{logoStyles}</style>
+        <Link href={href} className="focus-ring-animate relative focus:outline-none">
+          <LogoContent />
+        </Link>
+      </>
     )
   }
 
-  return <LogoContent />
+  return (
+    <>
+      <style jsx global>{logoStyles}</style>
+      <LogoContent />
+    </>
+  )
 }

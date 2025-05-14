@@ -13,14 +13,6 @@ const lexend = Lexend({ subsets: ["latin"] })
 export const metadata = {
   title: "Tildra - AI-Powered Article Summarizer",
   description: "Get the essence of articles in seconds with AI-generated summaries and key points",
-  icons: {
-    icon: [
-      {
-        url: "/images/logo.png",
-        href: "/images/logo.png",
-      },
-    ],
-  },
   generator: 'v0.dev'
 }
 

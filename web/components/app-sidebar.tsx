@@ -68,7 +68,6 @@ const SIDEBAR_STYLES = {
     inactive: "font-normal",
   },
   transition: "transition-all duration-200 ease-in-out",
-  hoverEffect: "hover:scale-105 hover:text-accent-foreground",
 }
 
 export function AppSidebar() {
@@ -98,17 +97,44 @@ export function AppSidebar() {
         const token = await getToken()
         if (!token) throw new Error("Failed to get session token.")
         const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'
-        const response = await fetch(`${apiBaseUrl}/api/user/status`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        if (!response.ok) throw new Error(`Status fetch error: ${response.status}`)
-        const data = await response.json()
-        if (isMounted) {
-          setIsProUser(data.is_pro)
-          setIsLoadingStatus(false)
+        
+        // Add timeout for fetch requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        try {
+          const response = await fetch(`${apiBaseUrl}/api/user/status`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+            signal: controller.signal
+          })
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            console.warn(`Status fetch returned ${response.status}: ${response.statusText}`);
+            // Don't throw, just handle gracefully
+            if (isMounted) {
+              setIsProUser(false);
+              setIsLoadingStatus(false);
+            }
+            return;
+          }
+          
+          const data = await response.json()
+          if (isMounted) {
+            setIsProUser(data.is_pro)
+            setIsLoadingStatus(false)
+          }
+        } catch (fetchErr) {
+          clearTimeout(timeoutId);
+          console.warn("[AppSidebar] Fetch error:", fetchErr instanceof Error ? fetchErr.message : fetchErr);
+          if (isMounted) {
+            setIsProUser(false);
+            setIsLoadingStatus(false);
+          }
         }
       } catch (err) {
-        console.error("[AppSidebar] Failed to fetch user status:", err)
+        console.warn("[AppSidebar] Auth token error:", err instanceof Error ? err.message : err)
         if (isMounted) {
           setIsProUser(false)
           setIsLoadingStatus(false)
@@ -222,31 +248,29 @@ export function AppSidebar() {
         )}
         data-state={state}
       >
-        <SidebarHeader className="h-14 flex items-center justify-between px-4 border-b border-border/40 gap-2">
-          <Link href="/" className="focus-ring-animate relative focus:outline-none rounded-lg flex items-center gap-2">
-            <span className="font-semibold gradient-text text-lg logo-text group-data-[collapsible=icon]:hidden">
-              Tildra
-            </span>
-          </Link>
+        <SidebarHeader className="h-16 flex items-center justify-between px-5 border-b border-border/40 gap-2">
+          <div className="flex items-center">
+            <Logo 
+              animated={true} 
+              href="/" 
+              size={state === 'collapsed' ? "md" : "lg"}
+              showText={state !== 'collapsed'} 
+            />
+          </div>
           {/* Only show the toggle in the header when expanded */}
           {state !== 'collapsed' && (
             <Button 
               variant="ghost"
               size="icon" 
               className={cn(
-                "h-8 w-8 shadow-md rounded-md ml-2",
+                "h-9 w-9 rounded-full border border-transparent",
                 SIDEBAR_STYLES.transition,
-                SIDEBAR_STYLES.hoverEffect,
-                "bg-secondary/90"
+                "hover:border-border/40 hover:bg-background/50"
               )}
               onClick={toggleSidebar}
               aria-label={state === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'}
             >
-              {state === 'expanded' ? (
-                <PanelLeftClose className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
-              ) : (
-                <PanelLeftOpen className={cn(SIDEBAR_STYLES.icon.base, "h-4 w-4")} />
-              )}
+              <PanelLeftClose className={cn("h-4 w-4 text-foreground/70")} />
             </Button>
           )}
         </SidebarHeader>
@@ -294,7 +318,6 @@ export function AppSidebar() {
                             isActive
                               ? "text-accent-foreground"
                               : "text-foreground/70",
-                            "group-hover:scale-110 group-data-[collapsible=icon]:group-hover:scale-125",
                             state === 'collapsed' && "mx-auto"
                           )}
                         />
@@ -377,7 +400,6 @@ export function AppSidebar() {
                       SIDEBAR_STYLES.button.base,
                       SIDEBAR_STYLES.button.inactive,
                       SIDEBAR_STYLES.button.overrides,
-                      SIDEBAR_STYLES.hoverEffect,
                       SIDEBAR_STYLES.transition
                     )}
                     aria-label="Subscription"
@@ -395,7 +417,6 @@ export function AppSidebar() {
                         SIDEBAR_STYLES.button.base,
                         SIDEBAR_STYLES.button.inactive,
                         SIDEBAR_STYLES.button.overrides,
-                        SIDEBAR_STYLES.hoverEffect,
                         SIDEBAR_STYLES.transition
                       )}
                     >
@@ -415,7 +436,6 @@ export function AppSidebar() {
                         SIDEBAR_STYLES.button.base,
                         SIDEBAR_STYLES.button.inactive,
                         SIDEBAR_STYLES.button.overrides,
-                        SIDEBAR_STYLES.hoverEffect,
                         SIDEBAR_STYLES.transition
                       )}
                     >
@@ -437,10 +457,16 @@ export function AppSidebar() {
         <button
           onClick={toggleSidebar}
           aria-label="Expand sidebar"
-          className="fixed top-4 left-3 z-50 flex items-center justify-center h-10 w-10 rounded-full bg-white/90 dark:bg-black/80 shadow-lg border border-border/40 hover:bg-accent/20 transition-colors duration-200"
+          className={cn(
+            "fixed top-4 left-16 z-50 flex items-center justify-center",
+            "h-8 w-8 rounded-full bg-white/80 dark:bg-black/70",
+            "backdrop-blur-sm shadow-md border border-border/30",
+            "transition-all duration-300 ease-out",
+            "hover:shadow-accent/20 hover:border-accent/50"
+          )}
           tabIndex={0}
         >
-          <PanelLeftOpen className="h-6 w-6 text-accent-foreground" />
+          <PanelLeftOpen className="h-4 w-4 text-accent-foreground transition-opacity" />
         </button>
       )}
     </>
