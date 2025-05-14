@@ -248,15 +248,21 @@ export function AppSidebar() {
         )}
         data-state={state}
       >
-        <SidebarHeader className="h-16 flex items-center justify-between px-5 border-b border-border/40 gap-2">
-          <div className="flex items-center">
-            <Logo 
-              animated={true} 
-              href="/" 
-              size={state === 'collapsed' ? "md" : "lg"}
-              showText={state !== 'collapsed'} 
-            />
-          </div>
+        <SidebarHeader
+          className={cn(
+            "h-16 flex items-center border-b border-border/40 gap-2",
+            state === 'collapsed'
+              ? 'justify-center px-0'
+              : 'justify-between px-5'
+          )}
+        >
+          {/* Logo, centered when collapsed */}
+          <Logo
+            animated={true}
+            href="/"
+            size={state === 'collapsed' ? "md" : "lg"}
+            showText={state !== 'collapsed'}
+          />
           {/* Only show the toggle in the header when expanded */}
           {state !== 'collapsed' && (
             <Button 

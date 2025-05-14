@@ -27,8 +27,8 @@ export function Header() {
           </SheetTrigger>
           <SheetContent side="left" className="w-[240px] p-0">
             <div className="flex flex-col h-full">
-              <div className="h-14 flex items-center px-4 border-b">
-                <Logo size="sm" />
+              <div className="h-16 flex items-center px-5 border-b">
+                <Logo size="md" animated={true} />
               </div>
               <nav className="flex-1 p-4 space-y-2">
                 <Link
