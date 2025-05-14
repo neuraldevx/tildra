@@ -458,22 +458,23 @@ export function AppSidebar() {
         </div>
       </Sidebar>
 
-      {/* Floating toggle button for collapsed sidebar (ChatGPT style) */}
+      {/* Floating toggle button for collapsed sidebar */}
       {state === 'collapsed' && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={toggleSidebar}
           aria-label="Expand sidebar"
           className={cn(
-            "fixed top-4 left-16 z-50 flex items-center justify-center",
-            "h-8 w-8 rounded-full bg-white/80 dark:bg-black/70",
-            "backdrop-blur-sm shadow-md border border-border/30",
-            "transition-all duration-300 ease-out",
-            "hover:shadow-accent/20 hover:border-accent/50"
+            "fixed top-4 left-20 z-50", // Adjusted left position to avoid overlap
+            // unified toggle size and style
+            "h-9 w-9 rounded-full border border-transparent shadow-md",
+            SIDEBAR_STYLES.transition,
+            "hover:border-border/40 hover:bg-background/50 hover:shadow-accent/20 hover:border-accent/50"
           )}
-          tabIndex={0}
         >
-          <PanelLeftOpen className="h-4 w-4 text-accent-foreground transition-opacity" />
-        </button>
+          <PanelLeftOpen className="h-4 w-4 text-accent-foreground" />
+        </Button>
       )}
     </>
   )
