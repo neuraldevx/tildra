@@ -1,11 +1,11 @@
 :root {
-  /* Dark theme colors */
+  /* Dark theme colors - adjusted to match screenshot */
   --bg-dark: #1a1a24;
   --bg-card-dark: #232336;
   --text-primary-dark: #ffffff;
   --text-secondary-dark: #b3b3c6;
   --text-muted-dark: #8e8ea0;
-  --border-dark: #383854;
+  --border-dark: #2a2a3c; /* Slightly more visible but still subtle */
   --accent-primary: #7c3aed;
   --accent-secondary: #a21caf;
   --accent-solid: #7c3aed;
@@ -23,7 +23,7 @@
   --border-radius-sm: 8px;
   --border-radius-md: 12px;
   --border-radius-lg: 16px;
-  --border-radius-xl: 20px;
+  --border-radius-xl: 24px;
   
   /* Font */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -55,14 +55,15 @@ body {
 /* Chrome extension popup container */
 .popup-container {
   background-color: var(--bg-dark);
-  border: 2px solid var(--border-dark);
-  border-radius: var(--border-radius-lg);
-  padding: var(--spacing-md);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--border-radius-xl);
+  padding: var(--spacing-lg); /* Increased from md to lg */
   width: 100%;
   display: flex;
   flex-direction: column;
   position: relative;
   max-height: 580px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
 /* Header */
@@ -86,6 +87,10 @@ body {
 .logo-icon {
   color: var(--accent-primary);
   margin-right: var(--spacing-xs);
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 8px;
 }
 
 .open-tab-button {
@@ -131,18 +136,18 @@ body {
   position: relative;
   transition: color 0.2s, background-color 0.2s;
   text-align: center;
-  border-radius: var(--border-radius-md);
+  border-radius: var(--border-radius-xl);
 }
 
 .tab.active {
   color: var(--text-primary-dark);
   font-weight: 600;
   background: var(--accent-solid);
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
 }
 
 .tab:not(.active) {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: #232336;
 }
 
 /* Hide the underline since we're using background color instead */
@@ -160,6 +165,8 @@ body {
 
 .panel {
   display: block;
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-lg);
 }
 
 .panel[hidden] {
@@ -174,12 +181,12 @@ body {
   background: var(--accent-solid);
   color: white;
   border: none;
-  border-radius: var(--border-radius-lg);
+  border-radius: var(--border-radius-xl);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3); /* Enhanced shadow */
   margin: var(--spacing-md) 0;
 }
 
@@ -403,12 +410,15 @@ body {
 /* Pro Features */
 .followup-skeleton {
   text-align: center;
-  padding: var(--spacing-xl) var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .skeleton-title {
   font-weight: 600;
-  font-size: 16px;
+  font-size: 18px;
   margin-bottom: var(--spacing-md);
   color: var(--text-primary-dark);
 }
@@ -416,29 +426,32 @@ body {
 .skeleton-desc {
   color: var(--text-secondary-dark);
   margin-bottom: var(--spacing-xl);
+  max-width: 280px;
 }
 
-/* Disabled input and button in pro tab */
+/* Improved input and button in pro tab to match screenshot */
 .followup-skeleton input {
-  background-color: var(--bg-card-dark);
-  border: 1px solid var(--border-dark);
+  background-color: #232336;
+  border: 1px solid #383854;
   color: var(--text-primary-dark);
-  border-radius: var(--border-radius-md);
-  padding: var(--spacing-md);
-  width: 80%;
+  border-radius: var(--border-radius-xl);
+  padding: var(--spacing-lg);
+  width: 100%;
   font-size: 14px;
-  opacity: 0.7;
-  margin-bottom: var(--spacing-md);
+  opacity: 0.9;
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
 }
 
 .followup-skeleton button {
   background: var(--accent-solid);
   color: white;
   border: none;
-  border-radius: var(--border-radius-md);
+  border-radius: var(--border-radius-xl);
   padding: var(--spacing-md) var(--spacing-xl);
   font-weight: 600;
-  opacity: 0.7;
+  opacity: 0.9;
+  width: 120px;
 }
 
 /* Loading Animation */

@@ -46,25 +46,43 @@ export function PricingSection() {
         }
         const apiUrl = `${baseApiUrl}/api/user/status`;
         console.log(`[Pricing Client] Fetching user status from ${apiUrl}`);
-        
-        const response = await fetch(apiUrl, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
 
-        if (!response.ok) {
-          const errorBody = await response.text();
-          console.error(`[Pricing Client] API error ${response.status}: ${errorBody}`);
-          throw new Error(`API error fetching status (${response.status}): ${response.statusText}`);
-        }
+        // Add timeout for fetch requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
 
-        const data = await response.json();
-        console.log("[Pricing Client] Received user status:", data);
-        if (isMounted) {
-          setIsProUser(data.is_pro);
-          setIsLoadingStatus(false);
+        try {
+          const response = await fetch(apiUrl, {
+            headers: { 'Authorization': `Bearer ${token}` },
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const errorBody = await response.text(); // Get more details from error
+            console.error(`[Pricing Client] API error ${response.status} (${response.statusText}): ${errorBody}`);
+            // It's better to throw an error that includes the status and detailed message
+            throw new Error(`API error fetching status (${response.status} ${response.statusText}): ${errorBody}`);
+          }
+
+          const data = await response.json();
+          console.log("[Pricing Client] Received user status:", data);
+          if (isMounted) {
+            setIsProUser(data.is_pro);
+            setIsLoadingStatus(false);
+          }
+        } catch (fetchErr) { // Catch errors specific to the fetch operation
+          clearTimeout(timeoutId); // Clear timeout here as well
+          console.warn("[Pricing Client] Fetch operation error:", fetchErr instanceof Error ? fetchErr.message : fetchErr);
+          if (isMounted) {
+            setIsProUser(false); // Assume not pro on fetch error
+            setIsLoadingStatus(false);
+          }
+          // Optionally re-throw or handle: if (fetchErr.name === 'AbortError') { console.log('Fetch aborted due to timeout'); }
         }
-      } catch (err) {
-        console.error("[Pricing Client] Failed to fetch user status:", err);
+      } catch (err) { // Catch outer errors (e.g., token, config)
+        console.error("[Pricing Client] Failed to fetch user status (outer catch):", err instanceof Error ? err.message : err);
         if (isMounted) {
             setIsProUser(false); // Assume not pro on error
             setIsLoadingStatus(false); 

@@ -42,6 +42,7 @@ import React, { useState, useEffect } from "react"
 
 // Define your actual navigation items
 const mainItems = [
+  { title: "Home", url: "/", icon: Home },
   { title: "Dashboard", url: "/dashboard", icon: FileText },
   { title: "Features", url: "/#features", icon: Sparkles },
   { title: "About", url: "/#about", icon: Info },
