@@ -13,6 +13,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const upgradeLink = document.getElementById('upgrade-link'); // If needed
   const followupTab = document.getElementById('followup-tab');
   const followupPanel = document.getElementById('panel-followup');
+  // --- New Sections tab ---
+  const sectionsTab = document.getElementById('sections-tab');
+  const sectionsPanel = document.getElementById('panel-sections');
+  // Settings controls
+  const themeSelect = document.getElementById('theme-select');
+  const accentColorPicker = document.getElementById('accent-color-picker');
+  const disableOverlayToggle = document.getElementById('disable-overlay-toggle');
+  const exportHistoryButton = document.getElementById('export-history-button');
 
   // --- Existing/Modified element references ---
   const loadingSpinner = document.getElementById('loading'); // Keep for potential future use, though hidden by CSS
@@ -153,24 +161,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const isSummarize = targetTab === summarizeTab;
     const isHistory = targetTab === historyTab;
     const isFollowup = targetTab === followupTab;
+    const isSections = targetTab === sectionsTab;
 
     summarizeTab.classList.toggle('active', isSummarize);
     historyTab.classList.toggle('active', isHistory);
     followupTab.classList.toggle('active', isFollowup);
+    sectionsTab.classList.toggle('active', isSections);
     summarizeTab.setAttribute('aria-selected', String(isSummarize));
     historyTab.setAttribute('aria-selected', String(isHistory));
     followupTab.setAttribute('aria-selected', String(isFollowup));
+    sectionsTab.setAttribute('aria-selected', String(isSections));
 
     summarizePanel.hidden = !isSummarize;
     historyPanel.hidden = !isHistory;
     followupPanel.hidden = !isFollowup;
+    sectionsPanel.hidden = !isSections;
 
-    // Move underline for three tabs
+    // Move underline for four tabs
     if (tabUnderline) {
       if (isSummarize) tabUnderline.style.transform = 'translateX(0%)';
       else if (isHistory) tabUnderline.style.transform = 'translateX(100%)';
-      else tabUnderline.style.transform = 'translateX(200%)';
-      tabUnderline.style.width = '33.33%';
+      else if (isFollowup) tabUnderline.style.transform = 'translateX(200%)';
+      else tabUnderline.style.transform = 'translateX(300%)';
+      tabUnderline.style.width = '25%';
     }
 
     if (isHistory) {
@@ -178,10 +191,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  if (summarizeTab && historyTab && followupTab) {
+  if (summarizeTab && historyTab && followupTab && sectionsTab) {
     summarizeTab.addEventListener('click', () => switchTab(summarizeTab));
     historyTab.addEventListener('click', () => switchTab(historyTab));
     followupTab.addEventListener('click', () => switchTab(followupTab));
+    sectionsTab.addEventListener('click', () => switchTab(sectionsTab));
   }
 
   summarizeButton.addEventListener('click', () => {
@@ -518,6 +532,110 @@ document.addEventListener('DOMContentLoaded', () => {
       chrome.tabs.create({ url: 'https://www.tildra.xyz' }); // Point to actual site
     });
   }
+
+  // --- Settings: Theme, Accent Color, Overlay ---
+  function saveSettings(settings) {
+    chrome.storage.local.set({ tildraSettings: settings });
+  }
+  function loadSettings() {
+    chrome.storage.local.get(['tildraSettings'], (result) => {
+      const settings = result.tildraSettings || {};
+      // Theme
+      if (themeSelect && settings.theme) themeSelect.value = settings.theme;
+      if (accentColorPicker && settings.accentColor) accentColorPicker.value = settings.accentColor;
+      if (disableOverlayToggle) disableOverlayToggle.checked = !!settings.disableOverlay;
+      applyTheme(settings.theme, settings.accentColor);
+    });
+  }
+  function applyTheme(theme, accentColor) {
+    const root = document.documentElement;
+    if (accentColor) {
+      root.style.setProperty('--accent-primary', accentColor);
+      root.style.setProperty('--accent-solid', accentColor);
+    }
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else if (theme === 'light') {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    } else {
+      root.classList.remove('dark');
+      root.classList.remove('light');
+    }
+  }
+  if (themeSelect) {
+    themeSelect.addEventListener('change', () => {
+      chrome.storage.local.get(['tildraSettings'], (result) => {
+        const settings = result.tildraSettings || {};
+        settings.theme = themeSelect.value;
+        saveSettings(settings);
+        applyTheme(settings.theme, settings.accentColor);
+      });
+    });
+  }
+  if (accentColorPicker) {
+    accentColorPicker.addEventListener('input', () => {
+      chrome.storage.local.get(['tildraSettings'], (result) => {
+        const settings = result.tildraSettings || {};
+        settings.accentColor = accentColorPicker.value;
+        saveSettings(settings);
+        applyTheme(settings.theme, settings.accentColor);
+      });
+    });
+  }
+  if (disableOverlayToggle) {
+    disableOverlayToggle.addEventListener('change', () => {
+      chrome.storage.local.get(['tildraSettings'], (result) => {
+        const settings = result.tildraSettings || {};
+        settings.disableOverlay = disableOverlayToggle.checked;
+        saveSettings(settings);
+      });
+    });
+  }
+  // --- Export History ---
+  if (exportHistoryButton) {
+    exportHistoryButton.addEventListener('click', () => {
+      chrome.storage.local.get(['summaryHistory'], (result) => {
+        const history = result.summaryHistory || [];
+        let txt = '';
+        history.forEach(item => {
+          txt += `Title: ${item.title}\nDate: ${item.timestamp}\nURL: ${item.url}\nTL;DR: ${item.summary}\nKey Points:\n`;
+          (item.keyPoints || []).forEach(pt => { txt += `- ${pt}\n`; });
+          txt += '\n---\n\n';
+        });
+        const blob = new Blob([txt], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'tildra-summary-history.txt';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+      });
+    });
+  }
+  // --- Focus Ring for Accessibility ---
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      document.body.classList.add('user-is-tabbing');
+    }
+  });
+  document.addEventListener('mousedown', () => {
+    document.body.classList.remove('user-is-tabbing');
+  });
+  // --- Accordion ARIA/Keyboard ---
+  document.querySelectorAll('.accordion-header').forEach(header => {
+    header.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        header.click();
+      }
+    });
+  });
 
   initializePopup(); // Call initialization logic
 });
