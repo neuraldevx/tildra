@@ -239,11 +239,11 @@ function buildSummaryToPageBlockMap() {
         left: 0 !important;
         width: 100vw !important;
         height: 100vh !important;
-        background-color: rgba(124, 58, 237, 0.1) !important; /* Faint accent color */
+        background-color: rgba(124, 58, 237, 0.01) !important; /* ULTRA-LOW OPACITY */
         z-index: 2147483640 !important; /* High, but below Tildra UI */
         opacity: 0;
         pointer-events: none; /* Allow clicks to pass through */
-        transition: opacity 0.3s ease-in-out !important;
+        transition: opacity 0.05s ease-in-out !important; /* ULTRA-FAST TRANSITION */
     }
     #tildra-page-scroll-marker.visible {
         opacity: 1;
@@ -500,8 +500,8 @@ function extractContent() {
         }
     } catch (e) {
         console.error("Tildra (content script): Error during Readability parsing:", e);
-        let fallbackContent = document.body ? document.body.innerText : '';
-        const mainElement = document.querySelector('main');
+         let fallbackContent = document.body ? document.body.innerText : '';
+         const mainElement = document.querySelector('main');
         if (mainElement && mainElement.innerText) fallbackContent = mainElement.innerText;
         return { error: `Readability parsing failed: ${e.message}`, content: fallbackContent }; 
     }
@@ -521,32 +521,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return;
     }
     
-    const input = msg.content || '';
+  const input = msg.content || '';
     // Note: overlayBg and overlayText from settings will be applied in displaySummaryInSidebar
 
-    const extractFullText = input.startsWith('http')
+  const extractFullText = input.startsWith('http')
       ? fetch(input).then(res => res.text()).then(html => new Readability(new DOMParser().parseFromString(html, 'text/html')).parse()?.textContent || '').catch(() => '')
-      : Promise.resolve(input);
+    : Promise.resolve(input);
 
     if (tildraSidebarContent) tildraSidebarContent.innerHTML = '<div id="tildra-sidebar-status">Summarizing...</div>';
     toggleSidebar(true); 
 
-    extractFullText
-      .then(textContent => {
+  extractFullText
+    .then(textContent => {
         if (!textContent) throw new Error('No content extracted for summarizeContext');
-        return getClerkSessionToken().then(token => ({ textContent, token }));
-      })
-      .then(({ textContent, token }) => {
+      return getClerkSessionToken().then(token => ({ textContent, token }));
+    })
+    .then(({ textContent, token }) => {
         return new Promise((resolveAPI, rejectAPI) => {
           try {
             if (!chrome.runtime || !chrome.runtime.sendMessage) {
               console.warn('[Tildra Content - summarizeContext] Bailing: chrome.runtime.sendMessage is not available.');
               return rejectAPI(new Error('Extension context for chrome.runtime.sendMessage not available.'));
             }
-            chrome.runtime.sendMessage(
+        chrome.runtime.sendMessage(
               { action: 'summarizeAPI', textContent, token, url: msg.url || window.location.href, title: msg.title || document.title },
-              (resp) => {
-                if (chrome.runtime.lastError) {
+          (resp) => {
+            if (chrome.runtime.lastError) {
                   console.error('[Tildra Content - summarizeContext] sendMessage lastError:', chrome.runtime.lastError.message);
                   // Do not reject if context is invalidated, as the script might be shutting down.
                   if (!chrome.runtime.lastError.message?.includes('Extension context invalidated')) {
@@ -566,13 +566,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             console.error('[Tildra Content - summarizeContext] Error sending summarizeAPI message:', e);
             rejectAPI(e);
           }
-        });
-      })
-      .then(summaryData => {
+      });
+    })
+    .then(summaryData => {
         displaySummaryInSidebar(summaryData, settings);
-        sendResponse({ success: true });
-      })
-      .catch(err => {
+      sendResponse({ success: true });
+    })
+    .catch(err => {
         console.error('Tildra (content - summarizeContext): summarization error', err);
         if (tildraSidebarContent) tildraSidebarContent.innerHTML = `<div id="tildra-sidebar-status">Error: ${err.message}</div>`;
         sendResponse({ success: false, error: err.message });
@@ -596,41 +596,41 @@ function ensureFloatingButtonExists(currentSettings) {
         return;
     }
 
-    const textLength = document.body.innerText.trim().length;
-    if (textLength < 200) {
+  const textLength = document.body.innerText.trim().length;
+  if (textLength < 200) {
       console.log('[Tildra Content] Content too short, skipping TLDR button injection.');
-      return;
-    }
+    return;
+  }
 
     console.log('[Tildra Content] Creating floating button.');
     tildraFloatingButton = document.createElement('button');
     tildraFloatingButton.id = 'tildra-inline-btn';
     tildraFloatingButton.innerHTML = `
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M3 4.5h14l-7 14-7-14z" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-        <path d="M17 4.5h4l-7 14-2-4" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-      </svg>
-    `;
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 4.5h14l-7 14-7-14z" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M17 4.5h4l-7 14-2-4" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+  `;
     tildraFloatingButton.title = "Toggle Tildra Summary Sidebar";
-    
+  
     Object.assign(tildraFloatingButton.style, {
-      position: 'fixed',
+    position: 'fixed',
       bottom: '25px',
       right: '25px',
       zIndex: '2147483645', // Below sidebar but above most page content
       background: 'var(--accent-solid, #7c3aed)', 
-      color: '#fff',
-      border: 'none',
-      borderRadius: '50%',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '50%',
       width: '52px', 
       height: '52px',
-      cursor: 'pointer',
+    cursor: 'pointer',
       boxShadow: '0 4px 14px rgba(0,0,0,0.3)', 
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      transition: 'transform 0.2s, background-color 0.2s',
-    });
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'transform 0.2s, background-color 0.2s',
+  });
     document.body.appendChild(tildraFloatingButton);
     
     tildraFloatingButton.addEventListener('mouseover', () => { tildraFloatingButton.style.background = 'var(--accent-gradient-hover, #8345f5)'; tildraFloatingButton.style.transform = 'scale(1.05)'; });
@@ -654,39 +654,39 @@ function ensureFloatingButtonExists(currentSettings) {
                  if (tildraSidebarContent) tildraSidebarContent.innerHTML = '<div id="tildra-sidebar-status">Extracting content...</div>';
                 
                 console.log('[Tildra Content] Inline button clicked, sidebar opened, extracting content.');
-                const { error, content: articleText } = extractContent();
-                if (error || !articleText) {
+    const { error, content: articleText } = extractContent();
+    if (error || !articleText) {
                   console.error('[Tildra Content] extractContent error for button click:', error);
                   if(tildraSidebarContent) tildraSidebarContent.innerHTML = `<div id="tildra-sidebar-status">Error: ${error || 'No content to summarize'}</div>`;
-                  return;
-                }
+      return;
+    }
                 if(tildraSidebarContent) tildraSidebarContent.innerHTML = '<div id="tildra-sidebar-status">Summarizing... (please wait)</div>';
 
                 const originalButtonIcon = tildraFloatingButton.innerHTML;
                 tildraFloatingButton.innerHTML = `
-                  <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="#ffffff">
-                    <style>.spinner_V8m1{transform-origin:center;animation:spinner_zKoa 2s linear infinite}.spinner_zKoa{animation-delay:-.1s}@keyframes spinner_zKoa{100%{transform:rotate(360deg)}}</style>
-                    <path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/>
-                    <path d="M12,4a8,8,0,0,1,7.89,6.7A1.53,1.53,0,0,0,21.38,12h0a1.5,1.5,0,0,0,1.48-1.75A11,11,0,0,0,12,1Z" class="spinner_V8m1"/>
-                  </svg>
-                `;
+      <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="#ffffff">
+        <style>.spinner_V8m1{transform-origin:center;animation:spinner_zKoa 2s linear infinite}.spinner_zKoa{animation-delay:-.1s}@keyframes spinner_zKoa{100%{transform:rotate(360deg)}}</style>
+        <path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/>
+        <path d="M12,4a8,8,0,0,1,7.89,6.7A1.53,1.53,0,0,0,21.38,12h0a1.5,1.5,0,0,0,1.48-1.75A11,11,0,0,0,12,1Z" class="spinner_V8m1"/>
+      </svg>
+    `;
                 tildraFloatingButton.disabled = true;
 
-                getClerkSessionToken()
-                  .then(token => {
+    getClerkSessionToken()
+      .then(token => {
                     console.log('[Tildra Content] Sending summarizeAPI message from button click.');
                     try {
                         if (!chrome.runtime || !chrome.runtime.sendMessage) {
                             console.warn('[Tildra Content - Button Click] Bailing: chrome.runtime.sendMessage is not available.');
                             throw new Error('Extension context for chrome.runtime.sendMessage not available for button click.');
                         }
-                        chrome.runtime.sendMessage(
+        chrome.runtime.sendMessage(
                           { action: 'summarizeAPI', textContent: articleText, token, url: window.location.href, title: document.title },
-                          (resp) => {
+          (resp) => {
                             tildraFloatingButton.innerHTML = originalButtonIcon;
                             tildraFloatingButton.disabled = false;
-    
-                            if (chrome.runtime.lastError) {
+
+            if (chrome.runtime.lastError) {
                               console.error('[Tildra Content - Button Click] sendMessage lastError:', chrome.runtime.lastError.message);
                               if (!chrome.runtime.lastError.message?.includes('Extension context invalidated')) {
                                  if(tildraSidebarContent) tildraSidebarContent.innerHTML = `<div id="tildra-sidebar-status">API Error: ${chrome.runtime.lastError.message}</div>`;
@@ -760,7 +760,7 @@ function showPageScrollMarker(caller) {
 
     pageScrollMarkerTimeout = setTimeout(() => {
         marker.classList.remove('visible');
-    }, 700); // Marker visible for 700ms
+    }, 50); // Marker visible for 50ms - ULTRA-SHORT DURATION
 }
 
 function updateScrollIndicator() {
@@ -782,7 +782,7 @@ function updateScrollIndicator() {
     if (pageScrollHeight <= pageClientHeight) { // No scrollbar on page
         scrollThumb.style.top = '0px';
         scrollThumb.style.height = scrollTrack.clientHeight + 'px'; // Full height
-        return;
+              return;
     }
 
     const scrollPercentage = pageScrollTop / (pageScrollHeight - pageClientHeight);
@@ -865,7 +865,7 @@ function highlightSummaryBasedOnPageScroll() {
                 }
             }
         }
-    } else {
+              } else {
         // console.log("[Tildra Content] highlightSummary: No suitable block found to determine highlight.");
     }
 }
@@ -920,61 +920,66 @@ function handleSidebarScroll() {
             const targetBlock = mainPageTextBlocks.find(b => b.id === targetBlockId);
 
             if (targetBlock && targetBlock.element) {
-                console.log(`[Tildra Content] handleSidebarScroll: Scrolling to page block ID: ${targetBlockId}, Text start: "${targetBlock.text.substring(0,50)}..."`);
-                isProgrammaticScroll = true;
-                console.log('[Tildra Content] handleSidebarScroll: Setting isProgrammaticScroll = true');
+                console.log(`[Tildra Content] handleSidebarScroll: Top sentence maps to page block ID: ${targetBlockId}, Text start: "${targetBlock.text.substring(0,50)}..." (Main page scroll is now disabled for this action)`);
+                // isProgrammaticScroll = true; // NO LONGER SETTING THIS
+                // console.log('[Tildra Content] handleSidebarScroll: Setting isProgrammaticScroll = true');
                 
-                targetBlock.element.scrollIntoView({ behavior: 'auto', block: 'start' });
-                showPageScrollMarker('handleSidebarScroll_BlockScroll'); // Log caller
+                // targetBlock.element.scrollIntoView({ behavior: 'auto', block: 'start' }); // SCROLLING DISABLED
+                // showPageScrollMarker('handleSidebarScroll_BlockScroll'); // MARKER DISABLED
 
-                setTimeout(() => {
-                    if (!document.body || !document.documentElement) {
-                        console.warn('[Tildra Content] handleSidebarScroll setTimeout: Document context seems invalid, skipping updateScrollIndicator.');
-                        isProgrammaticScroll = false; // Still reset the flag
-                        return;
-                    }
-                    isProgrammaticScroll = false;
-                    console.log('[Tildra Content] handleSidebarScroll: Reset isProgrammaticScroll = false after delay');
-                    updateScrollIndicator(); 
-                }, 250); 
+                // setTimeout(() => { // TIMEOUT NO LONGER NEEDED FOR THIS PATH
+                //     if (!document.body || !document.documentElement) {
+                //         console.warn('[Tildra Content] handleSidebarScroll setTimeout: Document context seems invalid, skipping updateScrollIndicator.');
+                //         // isProgrammaticScroll = false; // Still reset the flag
+                //         return;
+                //     }
+                //     isProgrammaticScroll = false;
+                //     console.log('[Tildra Content] handleSidebarScroll: Reset isProgrammaticScroll = false after delay');
+                //     updateScrollIndicator(); 
+                // }, 250); 
             } else {
-                 console.log(`[Tildra Content] handleSidebarScroll: Target block for ID ${targetBlockId} not found or element missing. Falling back.`);
-                 fallbackToPercentageScroll(topSentenceIndex); 
+                 console.log(`[Tildra Content] handleSidebarScroll: Target block for ID ${targetBlockId} not found or element missing. (Main page scroll disabled)`);
+                 // fallbackToPercentageScroll(topSentenceIndex); // FALLBACK SCROLLING DISABLED
             }
         } else {
-            console.log(`[Tildra Content] handleSidebarScroll: No page block mapped for summary index ${topSentenceIndex}. Falling back.`);
-            fallbackToPercentageScroll(topSentenceIndex); // Fallback if no mapping found
+            console.log(`[Tildra Content] handleSidebarScroll: No page block mapped for summary index ${topSentenceIndex}. (Main page scroll disabled)`);
+            // fallbackToPercentageScroll(topSentenceIndex); // FALLBACK SCROLLING DISABLED
         }
     }
 }
 
 function fallbackToPercentageScroll(topSentenceIndex) {
-    const pageScrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
-    const pageClientHeight = document.documentElement.clientHeight || document.body.clientHeight;
+    // THIS ENTIRE FUNCTION'S PURPOSE WAS TO SCROLL THE MAIN PAGE.
+    // SINCE THAT BEHAVIOR IS NOW DISABLED WHEN CALLED FROM handleSidebarScroll,
+    // THIS FUNCTION IS EFFECTIVELY NO LONGER TRIGGERED IN A WAY THAT SCROLLS THE PAGE FROM SIDEBAR SCROLL.
+    // WE LEAVE THE FUNCTION DEFINITION IN CASE IT'S USED ELSEWHERE OR FOR FUTURE FEATURES,
+    // BUT ITS CORE SCROLLING LOGIC WON'T BE REACHED FROM handleSidebarScroll.
+
+    console.log(`[Tildra Content] fallbackToPercentageScroll called for topSentenceIndex: ${topSentenceIndex}. (Main page scroll is disabled for this path)`);
+
+    // const pageScrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+    // const pageClientHeight = document.documentElement.clientHeight || document.body.clientHeight;
     
-    if (pageScrollHeight > pageClientHeight) {
-        const targetPageScroll = (topSentenceIndex / summarySentences.length) * (pageScrollHeight - pageClientHeight);
-        console.log(`[Tildra Content] handleSidebarScroll (fallback): Calculated targetPageScroll: ${targetPageScroll}`);
+    // if (pageScrollHeight > pageClientHeight) {
+    //     const targetPageScroll = (topSentenceIndex / summarySentences.length) * (pageScrollHeight - pageClientHeight);
+    //     console.log(`[Tildra Content] fallbackToPercentageScroll: Calculated targetPageScroll: ${targetPageScroll}`);
         
-        isProgrammaticScroll = true;
-        console.log('[Tildra Content] handleSidebarScroll: Setting isProgrammaticScroll = true');
+    //     isProgrammaticScroll = true; 
+    //     console.log('[Tildra Content] fallbackToPercentageScroll: Setting isProgrammaticScroll = true');
 
-        window.scrollTo({
-            top: targetPageScroll,
-            behavior: 'auto' 
-        });
+    //     window.scrollTo({
+    //         top: targetPageScroll,
+    //         behavior: 'auto' 
+    //     });
         
-        showPageScrollMarker('handleSidebarScroll_FallbackScroll'); // Log caller
+    //     showPageScrollMarker('handleSidebarScroll_FallbackScroll');
 
-        // Reset the flag after a short delay, allowing the programmatic scroll event to be processed (and ignored)
-        setTimeout(() => {
-            isProgrammaticScroll = false;
-            console.log('[Tildra Content] handleSidebarScroll: Reset isProgrammaticScroll = false after delay');
-            // Manually call updateScrollIndicator here to ensure the highlight and indicator are correct *after* the programmatic scroll and flag reset.
-            // This avoids relying on a user scroll event to fix the state.
-            updateScrollIndicator();
-        }, 200); // Increased delay slightly
-    }
+    //     setTimeout(() => {
+    //         isProgrammaticScroll = false;
+    //         console.log('[Tildra Content] fallbackToPercentageScroll: Reset isProgrammaticScroll = false after delay');
+    //         updateScrollIndicator();
+    //     }, 200); 
+    // }
 }
 
 const debouncedSidebarScrollHandler = debounce(handleSidebarScroll, 100); 
@@ -1009,7 +1014,7 @@ function handleSummarySentenceClick(event) {
                 summarySentences.forEach(span => span.classList.remove('summary-sentence-highlighted'));
                 summarySpan.classList.add('summary-sentence-highlighted');
 
-                showPageScrollMarker('handleSummarySentenceClick');
+                showPageScrollMarker('handleSummarySentenceClick'); // RESTORED CALL
 
                 setTimeout(() => {
                     isProgrammaticScroll = false;
