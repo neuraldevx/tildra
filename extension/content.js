@@ -4,6 +4,127 @@
 let tildraSidebar = null;
 let tildraSidebarContent = null;
 let tildraFloatingButton = null;
+let summarySentences = [];
+let isProgrammaticScroll = false;
+let pageScrollMarkerTimeout = null;
+let mainPageTextBlocks = [];
+let summaryToPageBlockMap = {};
+let currentlyHighlightedPageBlock = null;
+
+// Simple list of common English stop words
+const STOP_WORDS = new Set([
+    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'can',
+    'could', 'may', 'might', 'must', 'am', 'i', 'you', 'he', 'she', 'it', 'we',
+    'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'its', 'our',
+    'their', 'mine', 'yours', 'hers', 'ours', 'theirs', 'to', 'of', 'in', 'on',
+    'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
+    'during', 'before', 'after', 'above', 'below', 'from', 'up', 'down', 'out',
+    'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here', 'there',
+    'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more',
+    'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same',
+    'so', 'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now'
+]);
+
+function getKeywords(text) {
+    if (!text) return new Set();
+    const words = text.toLowerCase()
+                      .replace(/[^\w\s]/gi, '') 
+                      .split(/\s+/);            
+    const keywords = new Set(words.filter(word => word.length > 2 && !STOP_WORDS.has(word)));
+    // console.log(`[Tildra Keywords] Text: "${text.substring(0,30)}..." Keywords:`, Array.from(keywords).join(', '));
+    return keywords;
+}
+
+function extractTextBlocksFromMainContent() {
+    mainPageTextBlocks = [];
+    let articleContent = document.querySelector('article');
+    if (!articleContent) {
+        articleContent = document.querySelector('main') || 
+                         document.querySelector('[role="main"]') || 
+                         document.body;
+    }
+    console.log('[Tildra Content] extractTextBlocks: Using articleContent element:', articleContent);
+
+    const selectors = 'p, h1, h2, h3, h4, h5, h6, li, td, pre';
+    const elements = articleContent.querySelectorAll(selectors);
+    console.log(`[Tildra Content] extractTextBlocks: Found ${elements.length} raw elements with selectors.`);
+
+    elements.forEach((el, index) => {
+        const text = el.textContent?.trim();
+        if (text && text.length > 30) { // Reduced length filter slightly for more potential blocks
+            const keywords = getKeywords(text);
+            mainPageTextBlocks.push({ 
+                id: `tildra-block-${index}`,
+                element: el, 
+                text: text,
+                keywords: keywords
+            });
+            el.setAttribute('data-tildra-block-id', `tildra-block-${index}`);
+        } else if (text) {
+            // console.log(`[Tildra Content] extractTextBlocks: Skipping short text block (length ${text.length}): "${text.substring(0, 50)}..."`);
+        }
+    });
+    console.log(`[Tildra Content] Extracted ${mainPageTextBlocks.length} text blocks from main content.`);
+    if (mainPageTextBlocks.length > 0) {
+        console.log("[Tildra Content] Sample page blocks (first 3):");
+        mainPageTextBlocks.slice(0, 3).forEach(b => {
+            console.log(`  ID: ${b.id}, Text: "${b.text.substring(0,70)}...", Keywords: ${Array.from(b.keywords).join(', ')}`);
+        });
+    }
+}
+
+function buildSummaryToPageBlockMap() {
+    summaryToPageBlockMap = {};
+    console.log('[Tildra Content] buildSummaryToPageBlockMap: Starting. Summary sentences count:', summarySentences.length, 'Page blocks count:', mainPageTextBlocks.length);
+    if (summarySentences.length === 0 || mainPageTextBlocks.length === 0) {
+        console.warn('[Tildra Content] buildSummaryToPageBlockMap: No summary sentences or page blocks to map.');
+        return;
+    }
+
+    summarySentences.forEach(summarySpan => {
+        const summaryIndex = summarySpan.dataset.summarySentenceIndex;
+        const summaryText = summarySpan.textContent;
+        const summaryKeywords = getKeywords(summaryText);
+        console.log(`[Tildra Content] buildMap: Summary Idx ${summaryIndex}, Text: "${summaryText.substring(0,50)}...", Keywords: ${Array.from(summaryKeywords).join(', ')}`);
+
+        if (summaryKeywords.size === 0) {
+            console.log(`[Tildra Content] buildMap: No keywords for summary index ${summaryIndex}, skipping.`);
+            return;
+        }
+
+        let bestMatch = { score: -1, blockIds: [] }; // Initialize score to -1 to ensure any match is better
+
+        mainPageTextBlocks.forEach(pageBlock => {
+            if (!pageBlock.keywords || pageBlock.keywords.size === 0) return; // Skip page blocks with no keywords
+            
+            const commonKeywords = new Set([...summaryKeywords].filter(kw => pageBlock.keywords.has(kw)));
+            let score = commonKeywords.size;
+            // Basic density bonus: (common keywords / summary keywords length) + (common keywords / page block keywords length)
+            // This can help differentiate blocks that have the same number of common keywords but are more specific.
+            if (score > 0) {
+                score += (commonKeywords.size / summaryKeywords.size) + (commonKeywords.size / pageBlock.keywords.size);
+            }
+
+            // console.log(`  [Tildra Content] buildMap: Comparing with Page Block ID ${pageBlock.id} (KW count: ${pageBlock.keywords.size}). Common: ${Array.from(commonKeywords).join(', ')}, Score: ${score.toFixed(2)}`);
+
+            if (score > bestMatch.score) {
+                bestMatch.score = score;
+                bestMatch.blockIds = [pageBlock.id]; 
+            } else if (score > 0 && score === bestMatch.score) { // Only add to blockIds if score is same AND positive
+                bestMatch.blockIds.push(pageBlock.id);
+            }
+        });
+
+        if (bestMatch.score > 0) { // Only map if there's a positive score
+            summaryToPageBlockMap[summaryIndex] = bestMatch.blockIds;
+            console.log(`[Tildra Content] buildMap: Mapped summary index ${summaryIndex} to page block(s) ${bestMatch.blockIds.join(', ')} with score ${bestMatch.score.toFixed(2)}`);
+        } else {
+            console.log(`[Tildra Content] buildMap: No positive match found for summary index ${summaryIndex}.`);
+        }
+    });
+    console.log('[Tildra Content] Finished building summary to page block map:', JSON.parse(JSON.stringify(summaryToPageBlockMap)));
+}
 
 // --- Add at top of file: inject Tildra CSS styles ---
 (function injectTildraStyles() {
@@ -111,6 +232,31 @@ let tildraFloatingButton = null;
         margin: 0 -2px;
     }
 
+    /* Viewport Scroll Marker */
+    #tildra-page-scroll-marker {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background-color: rgba(124, 58, 237, 0.1) !important; /* Faint accent color */
+        z-index: 2147483640 !important; /* High, but below Tildra UI */
+        opacity: 0;
+        pointer-events: none; /* Allow clicks to pass through */
+        transition: opacity 0.3s ease-in-out !important;
+    }
+    #tildra-page-scroll-marker.visible {
+        opacity: 1;
+    }
+
+    /* Highlight for main page text block */
+    .tildra-main-page-block-highlighted {
+        background-color: rgba(124, 58, 237, 0.15) !important; /* Slightly more visible than marker */
+        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.3) !important;
+        border-radius: 3px;
+        transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
     /* Styles for the old modal overlay (will be phased out or repurposed) */
     .tildra-modal-overlay { position: fixed !important; top: 20% !important; left: 50% !important; transform: translateX(-50%) scale(0.9); background: var(--overlay-bg, rgba(20,20,30,0.9)) !important; color: var(--overlay-text, #fff) !important; padding: 1.5rem !important; border-radius: 12px !important; max-width: 450px !important; width: 90% !important; box-shadow: 0 8px 25px rgba(0,0,0,0.6) !important; opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; z-index: 2147483647 !important; font-family: 'Inter', sans-serif !important; }
     .tildra-modal-overlay.show { opacity: 1 !important; transform: translateX(-50%) scale(1) !important; }
@@ -125,13 +271,29 @@ let tildraFloatingButton = null;
     #tildra-inline-btn {
         /* Styles defined in ensureFloatingButtonExists if created */
     }
+
+    .summary-sentence-clickable {
+        cursor: pointer;
+    }
+    .summary-sentence-clickable:hover {
+        text-decoration: underline;
+    }
   `;
   document.head.appendChild(style);
 })();
 
 // Function to create the sidebar if it doesn't exist
 function ensureSidebarExists() {
-    if (document.getElementById('tildra-sidebar')) return;
+    if (document.getElementById('tildra-sidebar')) {
+        // If sidebar already exists, ensure our global var for content area is set
+        if (!tildraSidebarContent) tildraSidebarContent = document.getElementById('tildra-sidebar-content');
+        // And attach scroll listener if not already attached by init (e.g. if sidebar was recreated)
+        if (tildraSidebarContent && !tildraSidebarContent.hasAttribute('data-scroll-listener-attached')) {
+            tildraSidebarContent.addEventListener('scroll', debouncedSidebarScrollHandler);
+            tildraSidebarContent.setAttribute('data-scroll-listener-attached', 'true');
+        }
+        return;
+    }
 
     tildraSidebar = document.createElement('div');
     tildraSidebar.id = 'tildra-sidebar';
@@ -154,6 +316,8 @@ function ensureSidebarExists() {
     tildraSidebarContent = document.createElement('div');
     tildraSidebarContent.id = 'tildra-sidebar-content';
     tildraSidebarContent.innerHTML = '<div id="tildra-sidebar-status">Summarize any page...</div>'; // Initial status
+    tildraSidebarContent.addEventListener('scroll', debouncedSidebarScrollHandler);
+    tildraSidebarContent.setAttribute('data-scroll-listener-attached', 'true');
     
     // Scroll Indicator Track & Thumb
     const scrollTrack = document.createElement('div');
@@ -184,6 +348,14 @@ function displaySummaryInSidebar(summaryData, settings) {
     if (!tildraSidebar || !tildraSidebarContent) {
         ensureSidebarExists();
     }
+    // It is possible that ensureSidebarExists was called but tildraSidebarContent wasn't found
+    // or the listener wasn't attached, especially if the sidebar was quickly removed and re-added.
+    // So, ensure the listener is attached here as well if needed.
+    if (tildraSidebarContent && !tildraSidebarContent.hasAttribute('data-scroll-listener-attached')) {
+        tildraSidebarContent.addEventListener('scroll', debouncedSidebarScrollHandler);
+        tildraSidebarContent.setAttribute('data-scroll-listener-attached', 'true');
+    }
+
     if (!tildraSidebarContent) {
         console.error('[Tildra Content] Sidebar content area not found, cannot display summary.');
         return;
@@ -209,6 +381,8 @@ function displaySummaryInSidebar(summaryData, settings) {
         const span = document.createElement('span');
         span.textContent = sentence + ' '; // Add space for readability
         span.dataset.summarySentenceIndex = summarySentences.length;
+        span.classList.add('summary-sentence-clickable');
+        span.addEventListener('click', handleSummarySentenceClick);
         tldrP.appendChild(span);
         summarySentences.push(span);
     });
@@ -223,11 +397,17 @@ function displaySummaryInSidebar(summaryData, settings) {
         const span = document.createElement('span');
         span.textContent = point;
         span.dataset.summarySentenceIndex = summarySentences.length;
+        span.classList.add('summary-sentence-clickable');
+        span.addEventListener('click', handleSummarySentenceClick);
         li.appendChild(span);
         keyPointsUl.appendChild(li);
         summarySentences.push(span);
     });
     tildraSidebarContent.appendChild(keyPointsUl);
+    
+    // After summary sentences are created and pushed to summarySentences array:
+    extractTextBlocksFromMainContent(); // Ensure this call is active and present
+    buildSummaryToPageBlockMap(); // Build the map
 
     if (settings && tildraSidebar) {
         if (settings.overlayBg) tildraSidebar.style.setProperty('background', settings.overlayBg, 'important');
@@ -560,9 +740,35 @@ function manageTildraVisibility(settings) {
 }
 
 // Scroll Sync Logic
-let summarySentences = [];
+function showPageScrollMarker(caller) {
+    console.log(`[Tildra Content] showPageScrollMarker called by: ${caller}`);
+    // console.trace(); // Uncomment for full stack trace if needed
+
+    let marker = document.getElementById('tildra-page-scroll-marker');
+    if (!marker) {
+        marker = document.createElement('div');
+        marker.id = 'tildra-page-scroll-marker';
+        document.body.appendChild(marker);
+    }
+
+    // Clear any existing timeout to handle rapid calls
+    if (pageScrollMarkerTimeout) {
+        clearTimeout(pageScrollMarkerTimeout);
+    }
+
+    marker.classList.add('visible');
+
+    pageScrollMarkerTimeout = setTimeout(() => {
+        marker.classList.remove('visible');
+    }, 700); // Marker visible for 700ms
+}
 
 function updateScrollIndicator() {
+    if (isProgrammaticScroll) {
+        console.log('[Tildra Content] updateScrollIndicator: Ignoring programmatic scroll event.');
+        return;
+    }
+
     if (!tildraSidebar || !tildraSidebar.classList.contains('visible')) return;
 
     const scrollThumb = document.getElementById('tildra-scroll-indicator-thumb');
@@ -586,22 +792,81 @@ function updateScrollIndicator() {
     scrollThumb.style.height = `${thumbHeight}px`;
     scrollThumb.style.top = `${scrollPercentage * (trackHeight - thumbHeight)}px`;
 
-    // Basic Highlighting (Stage 3 part 1)
-    highlightSummaryBasedOnPageScroll(scrollPercentage);
+    highlightSummaryBasedOnPageScroll();
 }
 
-function highlightSummaryBasedOnPageScroll(scrollPercentage) {
-    if (summarySentences.length === 0) return;
+function highlightSummaryBasedOnPageScroll() {
+    if (summarySentences.length === 0 || mainPageTextBlocks.length === 0) return;
 
-    // Remove existing highlights
+    // Remove highlight from previously highlighted main page block
+    if (currentlyHighlightedPageBlock && currentlyHighlightedPageBlock.element) {
+        currentlyHighlightedPageBlock.element.classList.remove('tildra-main-page-block-highlighted');
+    }
+    // currentlyHighlightedPageBlock will be updated if a new block is highlighted
+
     summarySentences.forEach(span => span.classList.remove('summary-sentence-highlighted'));
 
-    // Determine which sentence to highlight
-    // This is a very basic heuristic: find the sentence whose segment overlaps with the current scroll percentage.
-    const targetIndex = Math.floor(scrollPercentage * summarySentences.length);
-    
-    if (targetIndex >= 0 && targetIndex < summarySentences.length) {
-        summarySentences[targetIndex].classList.add('summary-sentence-highlighted');
+    let bestCandidate = { blockId: null, textStart: '', score: -1 };
+    const viewportCenterY = window.innerHeight / 2;
+
+    mainPageTextBlocks.forEach(block => {
+        if (!block || !block.element || typeof block.element.getBoundingClientRect !== 'function') return;
+        const rect = block.element.getBoundingClientRect();
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+
+        const visibleHeight = Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0));
+        const visibilityPercentageInViewport = visibleHeight / viewportHeight; // How much of the viewport it occupies
+        const elementVisiblePercentage = rect.height > 0 ? visibleHeight / rect.height : 0; // How much of the element itself is visible
+
+        // Basic score: combination of visibility and proximity to center
+        let currentScore = 0;
+        if (elementVisiblePercentage > 0.1) { // Must be at least 10% visible
+            currentScore = elementVisiblePercentage * 0.7; // Base score on how much of element is visible
+            const elementCenterY = rect.top + rect.height / 2;
+            const distanceToCenter = Math.abs(viewportCenterY - elementCenterY);
+            const proximityBonus = Math.max(0, 1 - (distanceToCenter / viewportCenterY)) * 0.3; // Bonus for being close to center
+            currentScore += proximityBonus;
+        }
+        
+        // Prefer blocks that are actually mapped to a summary sentence
+        let isMapped = false;
+        for (const summaryIdx in summaryToPageBlockMap) {
+            if (summaryToPageBlockMap[summaryIdx].includes(block.id)) {
+                isMapped = true;
+                break;
+            }
+        }
+        if (isMapped) {
+            currentScore += 0.2; // Add a bonus if the block is in our map
+        }
+
+        if (currentScore > bestCandidate.score) {
+            bestCandidate.score = currentScore;
+            bestCandidate.blockId = block.id;
+            bestCandidate.textStart = block.text.substring(0, 50) + '...';
+        }
+    });
+
+    console.log(`[Tildra Content] highlightSummary: Best candidate block ID: ${bestCandidate.blockId}, Text: "${bestCandidate.textStart}", Score: ${bestCandidate.score.toFixed(2)}`);
+
+    if (bestCandidate.blockId) {
+        const newMainPageHighlightBlock = mainPageTextBlocks.find(b => b.id === bestCandidate.blockId);
+        if (newMainPageHighlightBlock && newMainPageHighlightBlock.element) {
+            newMainPageHighlightBlock.element.classList.add('tildra-main-page-block-highlighted');
+            currentlyHighlightedPageBlock = newMainPageHighlightBlock;
+        }
+
+        for (const summaryIdx in summaryToPageBlockMap) {
+            if (summaryToPageBlockMap[summaryIdx].includes(bestCandidate.blockId)) {
+                const summarySpan = summarySentences.find(s => s.dataset.summarySentenceIndex === summaryIdx);
+                if (summarySpan) {
+                    summarySpan.classList.add('summary-sentence-highlighted');
+                    console.log(`[Tildra Content] highlightSummary: Highlighting summary index ${summaryIdx} (maps to block ${bestCandidate.blockId})`);
+                }
+            }
+        }
+    } else {
+        // console.log("[Tildra Content] highlightSummary: No suitable block found to determine highlight.");
     }
 }
 
@@ -618,12 +883,164 @@ function debounce(func, wait) {
     };
 }
 
-const debouncedScrollHandler = debounce(updateScrollIndicator, 50); // Update at most every 50ms
+const debouncedScrollHandler = debounce(updateScrollIndicator, 100); // Adjusted debounce timing
+
+function handleSidebarScroll() {
+    if (!tildraSidebar || !tildraSidebar.classList.contains('visible') || summarySentences.length === 0) return;
+    if (!tildraSidebarContent) return;
+
+    const sidebarScrollTop = tildraSidebarContent.scrollTop;
+    const sidebarScrollHeight = tildraSidebarContent.scrollHeight;
+    const sidebarClientHeight = tildraSidebarContent.clientHeight;
+
+    console.log(`[Tildra Content] handleSidebarScroll: Sidebar scrolled. Top: ${sidebarScrollTop}`);
+
+    if (sidebarScrollHeight <= sidebarClientHeight) return; 
+
+    let topSentenceIndex = -1;
+    let minOffsetTop = Infinity;
+
+    for (let i = 0; i < summarySentences.length; i++) {
+        const sentenceSpan = summarySentences[i];
+        const offset = sentenceSpan.offsetTop - sidebarScrollTop;
+        if (offset >= -10 && offset < minOffsetTop) { 
+            minOffsetTop = offset;
+            topSentenceIndex = i;
+        } else if (offset < -10 && i === summarySentences.length -1 && topSentenceIndex === -1) {
+            topSentenceIndex = i;
+        }
+    }
+    
+    console.log(`[Tildra Content] handleSidebarScroll: Determined topSentenceIndex: ${topSentenceIndex}`);
+
+    if (topSentenceIndex !== -1) {
+        const mappedBlockIds = summaryToPageBlockMap[String(topSentenceIndex)];
+        if (mappedBlockIds && mappedBlockIds.length > 0) {
+            const targetBlockId = mappedBlockIds[0]; // Use the first mapped block
+            const targetBlock = mainPageTextBlocks.find(b => b.id === targetBlockId);
+
+            if (targetBlock && targetBlock.element) {
+                console.log(`[Tildra Content] handleSidebarScroll: Scrolling to page block ID: ${targetBlockId}, Text start: "${targetBlock.text.substring(0,50)}..."`);
+                isProgrammaticScroll = true;
+                console.log('[Tildra Content] handleSidebarScroll: Setting isProgrammaticScroll = true');
+                
+                targetBlock.element.scrollIntoView({ behavior: 'auto', block: 'start' });
+                showPageScrollMarker('handleSidebarScroll_BlockScroll'); // Log caller
+
+                setTimeout(() => {
+                    if (!document.body || !document.documentElement) {
+                        console.warn('[Tildra Content] handleSidebarScroll setTimeout: Document context seems invalid, skipping updateScrollIndicator.');
+                        isProgrammaticScroll = false; // Still reset the flag
+                        return;
+                    }
+                    isProgrammaticScroll = false;
+                    console.log('[Tildra Content] handleSidebarScroll: Reset isProgrammaticScroll = false after delay');
+                    updateScrollIndicator(); 
+                }, 250); 
+            } else {
+                 console.log(`[Tildra Content] handleSidebarScroll: Target block for ID ${targetBlockId} not found or element missing. Falling back.`);
+                 fallbackToPercentageScroll(topSentenceIndex); 
+            }
+        } else {
+            console.log(`[Tildra Content] handleSidebarScroll: No page block mapped for summary index ${topSentenceIndex}. Falling back.`);
+            fallbackToPercentageScroll(topSentenceIndex); // Fallback if no mapping found
+        }
+    }
+}
+
+function fallbackToPercentageScroll(topSentenceIndex) {
+    const pageScrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+    const pageClientHeight = document.documentElement.clientHeight || document.body.clientHeight;
+    
+    if (pageScrollHeight > pageClientHeight) {
+        const targetPageScroll = (topSentenceIndex / summarySentences.length) * (pageScrollHeight - pageClientHeight);
+        console.log(`[Tildra Content] handleSidebarScroll (fallback): Calculated targetPageScroll: ${targetPageScroll}`);
+        
+        isProgrammaticScroll = true;
+        console.log('[Tildra Content] handleSidebarScroll: Setting isProgrammaticScroll = true');
+
+        window.scrollTo({
+            top: targetPageScroll,
+            behavior: 'auto' 
+        });
+        
+        showPageScrollMarker('handleSidebarScroll_FallbackScroll'); // Log caller
+
+        // Reset the flag after a short delay, allowing the programmatic scroll event to be processed (and ignored)
+        setTimeout(() => {
+            isProgrammaticScroll = false;
+            console.log('[Tildra Content] handleSidebarScroll: Reset isProgrammaticScroll = false after delay');
+            // Manually call updateScrollIndicator here to ensure the highlight and indicator are correct *after* the programmatic scroll and flag reset.
+            // This avoids relying on a user scroll event to fix the state.
+            updateScrollIndicator();
+        }, 200); // Increased delay slightly
+    }
+}
+
+const debouncedSidebarScrollHandler = debounce(handleSidebarScroll, 100); 
+
+function handleSummarySentenceClick(event) {
+    const summarySpan = event.currentTarget;
+    const summaryIndex = summarySpan.dataset.summarySentenceIndex;
+
+    console.log(`[Tildra Content] Summary sentence clicked: Index ${summaryIndex}`);
+
+    if (summaryIndex && summaryToPageBlockMap[summaryIndex]) {
+        const targetBlockIds = summaryToPageBlockMap[summaryIndex];
+        if (targetBlockIds && targetBlockIds.length > 0) {
+            // For now, just scroll to the first mapped block.
+            // Could be enhanced to scroll to the "best" or offer choices if multiple.
+            const targetBlockId = targetBlockIds[0];
+            const targetBlock = mainPageTextBlocks.find(b => b.id === targetBlockId);
+
+            if (targetBlock && targetBlock.element) {
+                console.log(`[Tildra Content] Scrolling to page block ID: ${targetBlockId} from summary click.`);
+                isProgrammaticScroll = true; // Prevent immediate highlight feedback loop from this scroll
+                targetBlock.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Highlight the target block on the main page
+                if (currentlyHighlightedPageBlock && currentlyHighlightedPageBlock.element) {
+                    currentlyHighlightedPageBlock.element.classList.remove('tildra-main-page-block-highlighted');
+                }
+                targetBlock.element.classList.add('tildra-main-page-block-highlighted');
+                currentlyHighlightedPageBlock = targetBlock;
+
+                // Also re-highlight this specific summary sentence in the sidebar (and remove others)
+                summarySentences.forEach(span => span.classList.remove('summary-sentence-highlighted'));
+                summarySpan.classList.add('summary-sentence-highlighted');
+
+                showPageScrollMarker('handleSummarySentenceClick');
+
+                setTimeout(() => {
+                    isProgrammaticScroll = false;
+                    // updateScrollIndicator(); // Optionally update indicator if needed after click-scroll
+                }, 250); // Allow scroll to finish
+            } else {
+                console.warn(`[Tildra Content] Target block element not found for ID: ${targetBlockId}`);
+            }
+        } else {
+            console.warn(`[Tildra Content] No block IDs mapped for summary index: ${summaryIndex}`);
+        }
+    } else {
+        console.warn(`[Tildra Content] No map entry for summary index: ${summaryIndex}`);
+    }
+}
 
 (function initializeTildraContentScript() {
   console.log("[Tildra Content] Initializing Tildra content script...");
-  ensureSidebarExists(); // Create sidebar shell on init regardless of settings, just keep it hidden
+  ensureSidebarExists(); 
   window.addEventListener('scroll', debouncedScrollHandler);
+  if (tildraSidebarContent) { 
+    tildraSidebarContent.addEventListener('scroll', debouncedSidebarScrollHandler);
+    tildraSidebarContent.setAttribute('data-scroll-listener-attached', 'true');
+  } else {
+    setTimeout(() => {
+        if (tildraSidebarContent) {
+            tildraSidebarContent.addEventListener('scroll', debouncedSidebarScrollHandler);
+            tildraSidebarContent.setAttribute('data-scroll-listener-attached', 'true');
+        }
+    }, 100);
+  }
 
   chrome.storage.local.get(['tildraSettings'], (result) => {
     const initialSettings = result.tildraSettings || { disableOverlay: false }; 
