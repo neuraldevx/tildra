@@ -21,6 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const accentColorPicker = document.getElementById('accent-color-picker');
   const disableOverlayToggle = document.getElementById('disable-overlay-toggle');
   const exportHistoryButton = document.getElementById('export-history-button');
+  const popupBgPicker = document.getElementById('popup-bg-picker');
+  const popupTextPicker = document.getElementById('popup-text-picker');
+  const overlayBgPicker = document.getElementById('overlay-bg-picker');
+  const overlayTextPicker = document.getElementById('overlay-text-picker');
 
   // --- Existing/Modified element references ---
   const loadingSpinner = document.getElementById('loading'); // Keep for potential future use, though hidden by CSS
@@ -535,24 +539,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Settings: Theme, Accent Color, Overlay ---
   function saveSettings(settings) {
-    chrome.storage.local.set({ tildraSettings: settings });
+    console.log('[Tildra Popup] Saving settings:', settings);
+    chrome.storage.local.set({ tildraSettings: settings }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('[Tildra Popup] Error saving settings:', chrome.runtime.lastError.message);
+      }
+    });
   }
   function loadSettings() {
     chrome.storage.local.get(['tildraSettings'], (result) => {
       const settings = result.tildraSettings || {};
-      // Theme
+      console.log('[Tildra Popup] Loaded settings:', settings);
       if (themeSelect && settings.theme) themeSelect.value = settings.theme;
       if (accentColorPicker && settings.accentColor) accentColorPicker.value = settings.accentColor;
       if (disableOverlayToggle) disableOverlayToggle.checked = !!settings.disableOverlay;
-      applyTheme(settings.theme, settings.accentColor);
+      if (popupBgPicker && settings.popupBg) popupBgPicker.value = settings.popupBg;
+      if (popupTextPicker && settings.popupText) popupTextPicker.value = settings.popupText;
+      if (overlayBgPicker && settings.overlayBg) overlayBgPicker.value = settings.overlayBg;
+      if (overlayTextPicker && settings.overlayText) overlayTextPicker.value = settings.overlayText;
+      applyTheme(settings.theme, settings.accentColor, settings.popupBg, settings.popupText, settings.overlayBg, settings.overlayText);
     });
   }
-  function applyTheme(theme, accentColor) {
+  function applyTheme(theme, accentColor, popupBg, popupText, overlayBg, overlayText) {
+    console.log('[Tildra Popup] Applying theme:', { theme, accentColor, popupBg, popupText, overlayBg, overlayText });
     const root = document.documentElement;
     if (accentColor) {
       root.style.setProperty('--accent-primary', accentColor);
       root.style.setProperty('--accent-solid', accentColor);
     }
+    if (popupBg) root.style.setProperty('--popup-bg', popupBg);
+    if (popupText) root.style.setProperty('--popup-text', popupText);
+    if (overlayBg) root.style.setProperty('--overlay-bg', overlayBg);
+    if (overlayText) root.style.setProperty('--overlay-text', overlayText);
     if (theme === 'dark') {
       root.classList.add('dark');
       root.classList.remove('light');
@@ -570,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const settings = result.tildraSettings || {};
         settings.theme = themeSelect.value;
         saveSettings(settings);
-        applyTheme(settings.theme, settings.accentColor);
+        applyTheme(settings.theme, settings.accentColor, settings.popupBg, settings.popupText, settings.overlayBg, settings.overlayText);
       });
     });
   }
@@ -580,7 +598,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const settings = result.tildraSettings || {};
         settings.accentColor = accentColorPicker.value;
         saveSettings(settings);
-        applyTheme(settings.theme, settings.accentColor);
+        applyTheme(settings.theme, settings.accentColor, settings.popupBg, settings.popupText, settings.overlayBg, settings.overlayText);
       });
     });
   }
@@ -589,7 +607,48 @@ document.addEventListener('DOMContentLoaded', () => {
       chrome.storage.local.get(['tildraSettings'], (result) => {
         const settings = result.tildraSettings || {};
         settings.disableOverlay = disableOverlayToggle.checked;
+        console.log('[Tildra Popup] disableOverlayToggle changed to:', settings.disableOverlay);
         saveSettings(settings);
+      });
+    });
+  }
+  if (popupBgPicker) {
+    popupBgPicker.addEventListener('input', () => {
+      chrome.storage.local.get(['tildraSettings'], (result) => {
+        const settings = result.tildraSettings || {};
+        settings.popupBg = popupBgPicker.value;
+        saveSettings(settings);
+        applyTheme(settings.theme, settings.accentColor, settings.popupBg, settings.popupText, settings.overlayBg, settings.overlayText);
+      });
+    });
+  }
+  if (popupTextPicker) {
+    popupTextPicker.addEventListener('input', () => {
+      chrome.storage.local.get(['tildraSettings'], (result) => {
+        const settings = result.tildraSettings || {};
+        settings.popupText = popupTextPicker.value;
+        saveSettings(settings);
+        applyTheme(settings.theme, settings.accentColor, settings.popupBg, settings.popupText, settings.overlayBg, settings.overlayText);
+      });
+    });
+  }
+  if (overlayBgPicker) {
+    overlayBgPicker.addEventListener('input', () => {
+      chrome.storage.local.get(['tildraSettings'], (result) => {
+        const settings = result.tildraSettings || {};
+        settings.overlayBg = overlayBgPicker.value;
+        saveSettings(settings);
+        applyTheme(settings.theme, settings.accentColor, settings.popupBg, settings.popupText, settings.overlayBg, settings.overlayText);
+      });
+    });
+  }
+  if (overlayTextPicker) {
+    overlayTextPicker.addEventListener('input', () => {
+      chrome.storage.local.get(['tildraSettings'], (result) => {
+        const settings = result.tildraSettings || {};
+        settings.overlayText = overlayTextPicker.value;
+        saveSettings(settings);
+        applyTheme(settings.theme, settings.accentColor, settings.popupBg, settings.popupText, settings.overlayBg, settings.overlayText);
       });
     });
   }
