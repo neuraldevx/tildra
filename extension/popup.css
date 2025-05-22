@@ -665,4 +665,106 @@ details[open] > .accordion-header::before {
 .tildra-overlay {
   background: var(--overlay-bg) !important;
   color: var(--overlay-text) !important;
-} 
+}
+
+/* --- Upgrade Modal Styles --- */
+.modal {
+  position: fixed; /* Changed from absolute to fixed to overlay entire viewport */
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent overlay */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000; /* Ensure it's on top */
+  padding: var(--spacing-lg);
+}
+
+.modal-content {
+  background-color: var(--bg-card-dark);
+  padding: var(--spacing-xl);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--border-dark);
+  text-align: center;
+  width: 100%;
+  max-width: 320px; /* Max width for the modal content */
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  position: relative; /* For close button positioning */
+}
+
+.modal-close-button {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  background: none;
+  border: none;
+  color: var(--text-secondary-dark);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+}
+
+.modal-close-button:hover {
+  color: var(--text-primary-dark);
+}
+
+.modal-icon {
+  margin-bottom: var(--spacing-lg);
+  color: var(--accent-primary);
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary-dark);
+  margin-bottom: var(--spacing-sm);
+}
+
+.modal-message {
+  font-size: 14px;
+  color: var(--text-secondary-dark);
+  margin-bottom: var(--spacing-lg);
+}
+
+.modal-benefits {
+  font-size: 13px;
+  color: var(--text-secondary-dark);
+  text-align: left;
+  margin-bottom: var(--spacing-xl);
+  padding-left: var(--spacing-md);
+}
+
+.modal-benefits ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.modal-benefits li {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.modal-benefits li svg {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.modal-actions .button-primary {
+  margin: 0; /* Remove default margin from button-primary */
+}
+
+.modal-actions .button-secondary {
+  background-color: rgba(255, 255, 255, 0.05); /* Lighter for modal context */
+}
+/* --- End Upgrade Modal Styles --- */ 

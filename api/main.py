@@ -888,7 +888,7 @@ async def get_user_history(user_id: AuthenticatedUserId):
         history_items = await prisma.summaryhistory.find_many(
             where={"userId": user_id},
             order={"createdAt": "desc"},
-            take=50 # Limit results
+            take=100 # Limit results
         )
         logger.info(f"Found {len(history_items)} history items for user {user_id}")
         # Directly return the list - Pydantic with orm_mode handles conversion

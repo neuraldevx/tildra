@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const popupTextPicker = document.getElementById('popup-text-picker');
   const overlayBgPicker = document.getElementById('overlay-bg-picker');
   const overlayTextPicker = document.getElementById('overlay-text-picker');
+  const enableHighlightingToggle = document.getElementById('enable-highlighting-toggle');
 
   // --- Existing/Modified element references ---
   const loadingSpinner = document.getElementById('loading'); // Keep for potential future use, though hidden by CSS
@@ -557,6 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (popupTextPicker && settings.popupText) popupTextPicker.value = settings.popupText;
       if (overlayBgPicker && settings.overlayBg) overlayBgPicker.value = settings.overlayBg;
       if (overlayTextPicker && settings.overlayText) overlayTextPicker.value = settings.overlayText;
+      if (enableHighlightingToggle) enableHighlightingToggle.checked = settings.enableHighlighting !== false;
       applyTheme(settings.theme, settings.accentColor, settings.popupBg, settings.popupText, settings.overlayBg, settings.overlayText);
     });
   }
@@ -649,6 +651,16 @@ document.addEventListener('DOMContentLoaded', () => {
         settings.overlayText = overlayTextPicker.value;
         saveSettings(settings);
         applyTheme(settings.theme, settings.accentColor, settings.popupBg, settings.popupText, settings.overlayBg, settings.overlayText);
+      });
+    });
+  }
+  if (enableHighlightingToggle) {
+    enableHighlightingToggle.addEventListener('change', () => {
+      chrome.storage.local.get(['tildraSettings'], (result) => {
+        const settings = result.tildraSettings || {};
+        settings.enableHighlighting = enableHighlightingToggle.checked;
+        console.log('[Tildra Popup] enableHighlightingToggle changed to:', settings.enableHighlighting);
+        saveSettings(settings);
       });
     });
   }

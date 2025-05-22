@@ -136,18 +136,42 @@ export function PricingCard({
       <ul className="space-y-3 mb-8 flex-grow text-sm">
         {features.map((feature, index) => (
           <li key={index} className="flex items-center gap-2">
-            {feature.included ? (
-              <Check className="h-4 w-4 text-primary flex-shrink-0" />
+            {title === "Premium" ? (
+              <>
+                {feature.included && feature.upgraded ? (
+                  <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                ) : feature.included ? (
+                  <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                ) : (
+                  <Minus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                )}
+                {feature.included && feature.upgraded ? (
+                  <span className="flex items-center">
+                    <span className="text-muted-foreground line-through">
+                      {feature.name}
+                    </span>
+                    <span className="mx-1 text-primary font-semibold">→</span>
+                    <span className="text-primary font-semibold">
+                      {feature.upgraded}
+                    </span>
+                  </span>
+                ) : (
+                  <span className={cn(!feature.included && "text-muted-foreground line-through")}>
+                    {feature.name}
+                  </span>
+                )}
+              </>
             ) : (
-              <Minus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            )}
-            <span className={cn(!feature.included && "text-muted-foreground line-through")}>
-              {feature.name}
-            </span>
-            {feature.included && feature.upgraded && billingCycle === "monthly" && (
-              <span className="text-xs text-primary/80 ml-auto pl-2">
-                (Upgrade: {feature.upgraded})
-              </span>
+              <>
+                {feature.included ? (
+                  <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                ) : (
+                  <Minus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                )}
+                <span className={cn(!feature.included && "text-muted-foreground line-through")}>
+                  {feature.name}
+                </span>
+              </>
             )}
           </li>
         ))}

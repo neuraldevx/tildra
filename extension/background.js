@@ -51,7 +51,7 @@ const COOKIE_NAME = '__session';
 // --- END ENSURE ---
 
 // Constants for history storage
-const MAX_HISTORY_ITEMS = 20;
+const MAX_HISTORY_ITEMS = 100;
 
 // Store a summary in history
 function addToSummaryHistory(summaryData, pageInfo = {}) {

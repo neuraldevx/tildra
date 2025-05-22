@@ -73,6 +73,25 @@
                 </details>
             </section>
 
+            <!-- Upgrade Modal -->
+            <div id="upgrade-modal" class="modal" style="display: none;">
+              <div class="modal-content">
+                <button id="close-modal-button" class="modal-close-button" aria-label="Close modal">&times;</button>
+                <div class="modal-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                </div>
+                <h2 id="modal-title" class="modal-title">Upgrade to Premium</h2>
+                <p id="modal-message" class="modal-message">You've hit your limit! Unlock more with Premium.</p>
+                <div id="modal-benefits" class="modal-benefits">
+                  {/* Benefits will be populated by JS */}
+                </div>
+                <div class="modal-actions">
+                  <button id="modal-upgrade-button" class="button-primary">Upgrade Now</button>
+                  <button id="modal-later-button" class="button-secondary">Maybe Later</button>
+                </div>
+              </div>
+            </div>
+
             <!-- History Panel -->
             <section id="panel-history" class="panel" role="tabpanel" aria-labelledby="history-tab" hidden>
                 <details class="accordion" open>
@@ -121,6 +140,13 @@
                 <div class="settings-row">
                   <label for="disable-overlay-toggle">Disable Webpage Overlay</label>
                   <input type="checkbox" id="disable-overlay-toggle" aria-label="Disable summary overlay on webpages" />
+                </div>
+              </div>
+              <div class="settings-section">
+                <h3 class="settings-header">Interaction</h3>
+                <div class="settings-row">
+                  <label for="enable-highlighting-toggle">Enable Scroll Sync Highlighting</label>
+                  <input type="checkbox" id="enable-highlighting-toggle" aria-label="Enable scroll sync highlighting on webpages" />
                 </div>
               </div>
               <div class="settings-section">

@@ -1,10 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { db } from "@/lib/prisma"; // Trying alternative path
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
   // Get auth data outside try block
-  const { userId } = auth(); 
+  const { userId } = await auth(); 
 
   if (!userId) {
     return new NextResponse("Unauthorized", { status: 401 });
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
 
   try {
     // Fetch history for the logged-in user
-    const history = await db.summaryHistory.findMany({
+    const history = await prisma.summaryHistory.findMany({
       where: {
         userId: userId, 
       },

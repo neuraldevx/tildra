@@ -127,13 +127,14 @@ export function PricingSection() {
   ]
 
   const premiumFeatures = [
-    { name: "5 Summaries per Day", included: true, upgraded: "Unlimited Summaries" },
+    { name: "5 Summaries per Day", included: true, upgraded: "1000 Summaries per Month" },
     { name: "Standard AI Model", included: true, upgraded: "Advanced AI Model" },
     { name: "Browser Extension Access", included: true },
     { name: "Community Support", included: true, upgraded: "Priority Email Support" },
     { name: "Different Summary Styles", included: true },
     { name: "Export Options", included: true },
     { name: "API Access", included: true },
+    { name: "Access to New Features", included: true },
   ]
 
   // Determine CTA text/link/state for Premium card based on status

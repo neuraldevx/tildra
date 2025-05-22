@@ -10,6 +10,7 @@ let pageScrollMarkerTimeout = null;
 let mainPageTextBlocks = [];
 let summaryToPageBlockMap = {};
 let currentlyHighlightedPageBlock = null;
+let currentSettings = { enableHighlighting: true }; // Placeholder for actual settings retrieval
 
 // Simple list of common English stop words
 const STOP_WORDS = new Set([
@@ -730,12 +731,28 @@ function ensureFloatingButtonExists(currentSettings) {
 }
 
 function manageTildraVisibility(settings) {
-  console.log('[Tildra Content] manageTildraVisibility called. Current disableOverlay state:', settings.disableOverlay);
-  if (settings.disableOverlay) {
+  console.log('[Tildra Content] manageTildraVisibility called. Settings: ', settings);
+  // Ensure currentSettings always has a defined enableHighlighting property
+  currentSettings = {
+    ...settings, // Spread existing settings
+    enableHighlighting: settings.enableHighlighting !== false // Default to true if undefined or not explicitly false
+  };
+  console.log('[Tildra Content] manageTildraVisibility: Updated currentSettings:', currentSettings);
+
+  if (currentSettings.disableOverlay) {
     removeTildraElements();
   } else {
-    ensureSidebarExists(); // Ensure sidebar shell is ready if not disabled
-    ensureFloatingButtonExists(settings); // Then ensure button (which might create sidebar if needed)
+    ensureSidebarExists(); 
+    ensureFloatingButtonExists(settings); 
+  }
+
+  // If highlighting has just been disabled, clear existing highlights
+  if (currentSettings.enableHighlighting === false) {
+    if (currentlyHighlightedPageBlock && currentlyHighlightedPageBlock.element) {
+        currentlyHighlightedPageBlock.element.classList.remove('tildra-main-page-block-highlighted');
+    }
+    summarySentences.forEach(span => span.classList.remove('summary-sentence-highlighted'));
+    console.log('[Tildra Content] manageTildraVisibility: Highlighting disabled, cleared existing highlights.');
   }
 }
 
@@ -796,6 +813,16 @@ function updateScrollIndicator() {
 }
 
 function highlightSummaryBasedOnPageScroll() {
+    if (currentSettings && currentSettings.enableHighlighting === false) {
+        // If highlighting is disabled, remove any existing highlights and do nothing further.
+        if (currentlyHighlightedPageBlock && currentlyHighlightedPageBlock.element) {
+            currentlyHighlightedPageBlock.element.classList.remove('tildra-main-page-block-highlighted');
+        }
+        summarySentences.forEach(span => span.classList.remove('summary-sentence-highlighted'));
+        console.log('[Tildra Content] Highlighting disabled. Cleared existing highlights.');
+        return;
+    }
+
     if (summarySentences.length === 0 || mainPageTextBlocks.length === 0) return;
 
     // Remove highlight from previously highlighted main page block
@@ -852,20 +879,26 @@ function highlightSummaryBasedOnPageScroll() {
     if (bestCandidate.blockId) {
         const newMainPageHighlightBlock = mainPageTextBlocks.find(b => b.id === bestCandidate.blockId);
         if (newMainPageHighlightBlock && newMainPageHighlightBlock.element) {
-            newMainPageHighlightBlock.element.classList.add('tildra-main-page-block-highlighted');
-            currentlyHighlightedPageBlock = newMainPageHighlightBlock;
+            // Apply highlight only if enabled (double check, though primary check is at function start)
+            if (!currentSettings || currentSettings.enableHighlighting !== false) {
+                newMainPageHighlightBlock.element.classList.add('tildra-main-page-block-highlighted');
+                currentlyHighlightedPageBlock = newMainPageHighlightBlock;
+            }
         }
 
         for (const summaryIdx in summaryToPageBlockMap) {
             if (summaryToPageBlockMap[summaryIdx].includes(bestCandidate.blockId)) {
                 const summarySpan = summarySentences.find(s => s.dataset.summarySentenceIndex === summaryIdx);
                 if (summarySpan) {
-                    summarySpan.classList.add('summary-sentence-highlighted');
+                    // Apply highlight only if enabled
+                    if (!currentSettings || currentSettings.enableHighlighting !== false) {
+                        summarySpan.classList.add('summary-sentence-highlighted');
+                    }
                     console.log(`[Tildra Content] highlightSummary: Highlighting summary index ${summaryIdx} (maps to block ${bestCandidate.blockId})`);
                 }
             }
         }
-              } else {
+    } else {
         // console.log("[Tildra Content] highlightSummary: No suitable block found to determine highlight.");
     }
 }
@@ -1000,21 +1033,25 @@ function handleSummarySentenceClick(event) {
 
             if (targetBlock && targetBlock.element) {
                 console.log(`[Tildra Content] Scrolling to page block ID: ${targetBlockId} from summary click.`);
-                isProgrammaticScroll = true; // Prevent immediate highlight feedback loop from this scroll
+                isProgrammaticScroll = true; 
                 targetBlock.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 
-                // Highlight the target block on the main page
-                if (currentlyHighlightedPageBlock && currentlyHighlightedPageBlock.element) {
-                    currentlyHighlightedPageBlock.element.classList.remove('tildra-main-page-block-highlighted');
+                // Apply highlights only if enabled
+                if (!currentSettings || currentSettings.enableHighlighting !== false) {
+                    if (currentlyHighlightedPageBlock && currentlyHighlightedPageBlock.element) {
+                        currentlyHighlightedPageBlock.element.classList.remove('tildra-main-page-block-highlighted');
+                    }
+                    targetBlock.element.classList.add('tildra-main-page-block-highlighted');
+                    currentlyHighlightedPageBlock = targetBlock;
+
+                    summarySentences.forEach(span => span.classList.remove('summary-sentence-highlighted'));
+                    summarySpan.classList.add('summary-sentence-highlighted');
+                    console.log('[Tildra Content] Highlights applied on summary click.');
+                } else {
+                    console.log('[Tildra Content] Highlighting disabled for summary click. Scroll only.');
                 }
-                targetBlock.element.classList.add('tildra-main-page-block-highlighted');
-                currentlyHighlightedPageBlock = targetBlock;
 
-                // Also re-highlight this specific summary sentence in the sidebar (and remove others)
-                summarySentences.forEach(span => span.classList.remove('summary-sentence-highlighted'));
-                summarySpan.classList.add('summary-sentence-highlighted');
-
-                showPageScrollMarker('handleSummarySentenceClick'); // RESTORED CALL
+                showPageScrollMarker('handleSummarySentenceClick');
 
                 setTimeout(() => {
                     isProgrammaticScroll = false;
@@ -1048,24 +1085,47 @@ function handleSummarySentenceClick(event) {
   }
 
   chrome.storage.local.get(['tildraSettings'], (result) => {
-    const initialSettings = result.tildraSettings || { disableOverlay: false }; 
-    console.log('[Tildra Content] Initial settings loaded on script start:', initialSettings);
-    manageTildraVisibility(initialSettings);
+    const loadedSettings = result.tildraSettings || {};
+    // Explicitly initialize currentSettings with a default for enableHighlighting
+    currentSettings = {
+        disableOverlay: loadedSettings.disableOverlay === true, // Default to false
+        enableHighlighting: loadedSettings.enableHighlighting !== false, // Default to true
+        // Copy other settings as they are
+        overlayBg: loadedSettings.overlayBg,
+        overlayText: loadedSettings.overlayText,
+        theme: loadedSettings.theme,
+        accentColor: loadedSettings.accentColor,
+        popupBg: loadedSettings.popupBg,
+        popupText: loadedSettings.popupText
+    };
+    console.log('[Tildra Content] Initial settings processed into currentSettings:', currentSettings);
+    manageTildraVisibility(currentSettings); // Pass the processed currentSettings
   });
 
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local' && changes.tildraSettings) {
-      const newSettings = changes.tildraSettings.newValue || { disableOverlay: false };
-      console.log('[Tildra Content] Settings changed. New settings:', newSettings);
-      manageTildraVisibility(newSettings);
+      const newStorageSettings = changes.tildraSettings.newValue || {};
+      // Process new settings similarly to ensure enableHighlighting defaults correctly
+      const processedNewSettings = {
+        disableOverlay: newStorageSettings.disableOverlay === true,
+        enableHighlighting: newStorageSettings.enableHighlighting !== false,
+        overlayBg: newStorageSettings.overlayBg,
+        overlayText: newStorageSettings.overlayText,
+        theme: newStorageSettings.theme,
+        accentColor: newStorageSettings.accentColor,
+        popupBg: newStorageSettings.popupBg,
+        popupText: newStorageSettings.popupText
+      };
+      console.log('[Tildra Content] Settings changed in storage. Processed new settings:', processedNewSettings);
+      manageTildraVisibility(processedNewSettings);
 
-      if (!newSettings.disableOverlay && tildraSidebar) {
+      if (!processedNewSettings.disableOverlay && tildraSidebar) {
         const summaryOverlay = tildraSidebar; // Using tildraSidebar directly
-        if (newSettings.overlayBg) summaryOverlay.style.setProperty('background', newSettings.overlayBg, 'important');
-        if (newSettings.overlayText) {
-            summaryOverlay.style.setProperty('color', newSettings.overlayText, 'important');
+        if (processedNewSettings.overlayBg) summaryOverlay.style.setProperty('background', processedNewSettings.overlayBg, 'important');
+        if (processedNewSettings.overlayText) {
+            summaryOverlay.style.setProperty('color', processedNewSettings.overlayText, 'important');
             const closeBtn = summaryOverlay.querySelector('#tildra-sidebar-close-btn');
-            if (closeBtn) closeBtn.style.setProperty('color', newSettings.overlayText, 'important');
+            if (closeBtn) closeBtn.style.setProperty('color', processedNewSettings.overlayText, 'important');
         }
       }
     }
