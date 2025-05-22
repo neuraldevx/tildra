@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import { useAuth } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +10,7 @@ import { Loader2, Link, FileText, Copy, Check, Sparkles } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
 export function Summarizer() {
+  const { getToken } = useAuth()
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<null | { tldr: string; keyPoints: string[] }>(null)
@@ -21,19 +23,58 @@ export function Summarizer() {
     if (!input.trim()) return
 
     setIsLoading(true)
+    setResult(null)
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Determine if input is URL or text
+      const isUrl = input.trim().startsWith('http://') || input.trim().startsWith('https://');
+      
+      // Use the Next.js API route which proxies to the backend
+      const endpoint = '/api/summarize';
+      
+      // Prepare request payload
+      const payload = {
+        article_text: input.trim(),
+        url: isUrl ? input.trim() : null,
+        title: isUrl ? null : "Manual Text Input"
+      };
+
+      // Get authentication token
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Authentication required. Please sign in.');
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `API Error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
       setResult({
-        tldr: "AI is transforming industries by enhancing efficiency and decision-making, but raises ethical concerns about employment and privacy impacts.",
-        keyPoints: [
-          "AI has made significant strides in recent years, transforming various industries including healthcare and finance.",
-          "AI-powered solutions are enhancing efficiency, accuracy, and decision-making processes across sectors.",
-          "The rapid advancement of AI raises ethical concerns and questions about its impact on employment and privacy.",
-        ],
-      })
-      setIsLoading(false)
-    }, 2000)
+        tldr: data.tldr,
+        keyPoints: data.key_points || []
+      });
+
+    } catch (error) {
+      console.error('Summarization error:', error);
+      setResult({
+        tldr: "Sorry, there was an error processing your request. Please try again.",
+        keyPoints: ["Check your internet connection", "Verify the content is valid", "Contact support if the issue persists"]
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const copyToClipboard = () => {
