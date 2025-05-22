@@ -18,41 +18,31 @@ RUN apt-get update && \
     # Clean up apt cache
     rm -rf /var/lib/apt/lists/*
 
-# --- Install Prisma CLI globally ---
-RUN npm install -g prisma@5.17.0 --force
-
-# Create a non-root user and group
+# Create a non-root user and group EARLY
 RUN groupadd --gid 1000 appuser && \
     useradd --uid 1000 --gid 1000 -m appuser
 
-# Set working directory in the container
+# Set working directory and change ownership
 WORKDIR /app
+RUN chown appuser:appuser /app
 
-# --- Install Python dependencies ---
-# Copy requirements first to leverage Docker cache
-COPY api/requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# --- Copy Prisma Schema BEFORE generate ---
-# Ensure the schema is available for generation
-COPY prisma/schema.prisma ./prisma/
-
-# --- Generate Prisma Client --- 
-# Ensure Node's global bin is in PATH and specify schema location
-ENV PATH=/usr/local/bin:${PATH}
-RUN prisma generate --schema=./prisma/schema.prisma
-
-# --- Copy application code ---
-# Copy the rest of the application code from the 'api' directory
-COPY api/ ./
-
-# Change ownership to the non-root user
-# Run chown AFTER all files are copied
-RUN chown -R appuser:appuser /app
-
-# Switch to the non-root user
+# Switch to the non-root user BEFORE installing packages
 USER appuser
+
+# --- Install Python dependencies as appuser ---
+# Copy requirements first to leverage Docker cache
+COPY --chown=appuser:appuser api/requirements.txt ./
+RUN pip install --user --no-cache-dir --upgrade pip && \
+    pip install --user --no-cache-dir -r requirements.txt
+
+# --- Copy Prisma Schema and application code ---
+COPY --chown=appuser:appuser prisma/schema.prisma ./prisma/
+COPY --chown=appuser:appuser api/ ./
+
+# --- Generate Prisma Client as appuser ---
+# Use Python Prisma CLI, and ensure user packages are in PATH
+ENV PATH="/home/appuser/.local/bin:$PATH"
+RUN python3 -m prisma generate --schema=./prisma/schema.prisma
 
 # Expose the port the app runs on (matches fly.toml internal_port)
 EXPOSE 8080

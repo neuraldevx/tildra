@@ -63,8 +63,8 @@ COPY ./api/main.py .
 # Expose the port the app runs on
 EXPOSE 8000
 
-# --- CMD - Use the simplified one --- 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --- CMD with Prisma regeneration to fix permissions ---
+CMD ["sh", "-c", "echo 'Regenerating Prisma client with correct permissions...' && python3 -m prisma generate --schema=./prisma/schema.prisma && echo 'Starting server...' && uvicorn main:app --host 0.0.0.0 --port 8000"]
 
 # --- Old CMD with Diagnostics (Keep for reference if needed) ---
 # CMD ["sh", "-c", "\

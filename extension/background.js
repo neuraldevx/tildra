@@ -6,6 +6,10 @@ let EFFECTIVE_COOKIE_DOMAIN_URL = 'https://www.tildra.xyz'; // Default to Produc
 let IS_DEV_MODE = false;
 
 chrome.management.getSelf(function(info) {
+  // TEMPORARY: Force production mode for testing
+  // Uncomment the if/else block below when you want to switch back to auto-detection
+  
+  /*
   if (info.installType === 'development') {
     EFFECTIVE_API_URL_BASE = 'http://127.0.0.1:8000';
     EFFECTIVE_COOKIE_DOMAIN_URL = 'http://localhost:3000';
@@ -14,6 +18,13 @@ chrome.management.getSelf(function(info) {
   } else {
     console.log('[Tildra Background] Running in PRODUCTION mode.');
   }
+  */
+  
+  // FORCED PRODUCTION MODE FOR TESTING
+  console.log('[Tildra Background] FORCED PRODUCTION mode for testing.');
+  console.log(`[Tildra Background] API URL: ${EFFECTIVE_API_URL_BASE}`);
+  console.log(`[Tildra Background] Cookie Domain: ${EFFECTIVE_COOKIE_DOMAIN_URL}`);
+  
   // Re-initialize any constants that depend on these, if necessary, or use these vars directly.
 });
 // --- Environment Configuration --- END
