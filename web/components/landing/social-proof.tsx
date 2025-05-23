@@ -3,7 +3,7 @@
 import { motion } from "framer-motion"
 import { useInView } from "framer-motion"
 import { useRef } from "react"
-import { Star, Quote, Users, Clock, TrendingUp } from "lucide-react"
+import { Star, Quote, Users, Clock, TrendingUp, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const testimonials = [
@@ -41,7 +41,7 @@ const testimonials = [
 
 const stats = [
   {
-    value: "50,000+",
+    value: "thousands+",
     label: "Active Users",
     icon: Users,
     description: "Professionals trust Tildra daily"
@@ -65,47 +65,53 @@ export function SocialProof() {
   const isInView = useInView(ref, { once: true, amount: 0.2 })
 
   return (
-    <section ref={ref} className="py-20 bg-muted/30">
+    <section ref={ref} className="py-16 bg-muted/30">
       <div className="container mx-auto px-4">
         {/* Header */}
         <motion.div
-          className="text-center mb-16"
+          className="text-center mb-12"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Trusted by professionals worldwide
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <Sparkles className="h-6 w-6 text-primary" />
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground">
+              Trusted by professionals worldwide
+            </h2>
+            <Sparkles className="h-6 w-6 text-primary" />
+          </div>
+          <p className="text-muted-foreground max-w-2xl mx-auto">
             Join thousands of knowledge workers who have transformed their reading workflow with Tildra
           </p>
         </motion.div>
 
-        {/* Stats */}
-        <motion.div
-          className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16"
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           {stats.map((stat, index) => (
             <motion.div
-              key={stat.label}
-              className="text-center"
+              key={index}
+              className="bg-background rounded-xl p-6 shadow-sm border text-center hover:shadow-md transition-all duration-300"
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-              transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
+              transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
+              whileHover={{ y: -3 }}
             >
-              <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
+              <div className="flex items-center justify-center mb-3">
                 <stat.icon className="h-8 w-8 text-primary" />
               </div>
-              <div className="text-3xl md:text-4xl font-bold mb-2">{stat.value}</div>
-              <div className="text-lg font-semibold mb-1">{stat.label}</div>
-              <div className="text-sm text-muted-foreground">{stat.description}</div>
+              <div className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+                {stat.value}
+              </div>
+              <div className="text-sm font-medium text-foreground mb-1">
+                {stat.label}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {stat.description}
+              </div>
             </motion.div>
           ))}
-        </motion.div>
+        </div>
 
         {/* Testimonials */}
         <motion.div

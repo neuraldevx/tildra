@@ -32,11 +32,6 @@ export function WhyChooseSection() {
       competitors: true,
     },
     {
-      feature: "No account required for basic use",
-      tildra: true,
-      competitors: false,
-    },
-    {
       feature: "Works with any article or web content",
       tildra: true,
       competitors: false,

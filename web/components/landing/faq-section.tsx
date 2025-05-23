@@ -20,7 +20,7 @@ export function FaqSection() {
     {
       question: "How does Tildra work?",
       answer:
-        "Tildra uses advanced AI to analyze articles and extract the most important information. Simply paste a URL or text, and our AI will generate a concise TL;DR and key points, saving you time without sacrificing understanding.",
+        "Tildra is a Chrome extension that uses advanced AI to analyze articles directly on any webpage. Simply click the Tildra icon while reading any article, and our AI will instantly generate a concise summary with key points, saving you time without sacrificing understanding.",
     },
     {
       question: "Is there a limit to how many articles I can summarize?",
@@ -30,7 +30,7 @@ export function FaqSection() {
     {
       question: "What types of content can Tildra summarize?",
       answer:
-        "Tildra can summarize news articles, blog posts, research papers, and most text-based content. It works best with well-structured articles that have clear paragraphs and sections.",
+        "Tildra can summarize news articles, blog posts, research papers, and most text-based content on any website. It works best with well-structured articles that have clear paragraphs and sections.",
     },
     {
       question: "Does Tildra work in languages other than English?",

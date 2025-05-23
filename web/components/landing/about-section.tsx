@@ -29,8 +29,8 @@ const values = [
 ]
 
 const stats = [
-  { value: "2021", label: "Founded" },
-  { value: "50,000+", label: "Users" },
+  { value: "2025", label: "Founded" },
+  { value: "thousands+", label: "Users" },
   { value: "2M+", label: "Articles Processed" },
   { value: "98%", label: "Accuracy Rate" }
 ]
@@ -40,19 +40,23 @@ export function AboutSection() {
   const isInView = useInView(ref, { once: true, amount: 0.2 })
 
   return (
-    <section ref={ref} className="py-20 bg-background">
+    <section id="about" ref={ref} className="py-16 bg-background">
       <div className="container mx-auto px-4">
         {/* Header */}
         <motion.div
-          className="text-center mb-16"
+          className="text-center mb-12"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            About Tildra
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span className="text-2xl">📖</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground">
+              About Tildra
+            </h2>
+            <span className="text-2xl">🎯</span>
+          </div>
+          <p className="text-base text-muted-foreground max-w-3xl mx-auto">
             We're on a mission to help professionals and students process information more efficiently, 
             saving time while ensuring they never miss critical insights.
           </p>
@@ -60,16 +64,17 @@ export function AboutSection() {
 
         {/* Story Section */}
         <motion.div
-          className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-20"
+          className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-16"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           <div>
-            <h3 className="text-2xl font-bold text-foreground mb-6">
+            <h3 className="text-2xl font-bold text-foreground mb-4 flex items-center gap-2">
+              <span className="text-xl">⚡</span>
               The Problem We're Solving
             </h3>
-            <div className="space-y-4 text-muted-foreground">
+            <div className="space-y-3 text-muted-foreground">
               <p>
                 In today's information-rich world, professionals spend countless hours reading through 
                 lengthy articles, research papers, and reports. Studies show that knowledge workers 
@@ -81,7 +86,7 @@ export function AboutSection() {
                 strategic thinking, decision-making, and the work that truly matters.
               </p>
               <p>
-                Since our founding in 2021, we've helped over 50,000 professionals reclaim their time 
+                Since our founding in 2025, we've helped thousands of professionals reclaim their time 
                 and stay better informed than ever before.
               </p>
             </div>

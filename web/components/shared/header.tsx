@@ -115,9 +115,6 @@ export function Header() {
               </span>
             )}
           </SignedIn>
-          <Link href="/summarizer">
-            <Button variant="secondary" size="sm">Try Now</Button>
-          </Link>
           <ThemeToggle />
         </div>
       </div>

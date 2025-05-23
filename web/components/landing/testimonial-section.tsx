@@ -43,7 +43,7 @@ const testimonials = [
 
 const metrics = [
   { value: "4.9/5", label: "Average Rating" },
-  { value: "50,000+", label: "Happy Users" },
+  { value: "thousands+", label: "Happy Users" },
   { value: "99.2%", label: "Satisfaction Rate" }
 ]
 
@@ -52,24 +52,28 @@ export function TestimonialSection() {
   const isInView = useInView(ref, { once: true, amount: 0.2 })
 
   return (
-    <section ref={ref} className="py-20 bg-muted/30">
+    <section id="testimonials" ref={ref} className="py-16 bg-muted/30">
       <div className="container mx-auto px-4">
         {/* Header */}
         <motion.div
-          className="text-center mb-16"
+          className="text-center mb-12"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            What Our Users Say
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span className="text-2xl">💬</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground">
+              What Our Users Say
+            </h2>
+            <span className="text-2xl">⭐</span>
+          </div>
+          <p className="text-base text-muted-foreground max-w-2xl mx-auto">
             Discover how professionals across industries are transforming their reading workflow with Tildra
           </p>
           
           {/* Metrics */}
-          <div className="flex flex-wrap justify-center gap-8 mt-8">
+          <div className="flex flex-wrap justify-center gap-8 mt-6">
             {metrics.map((metric, index) => (
               <motion.div
                 key={metric.label}

@@ -37,7 +37,7 @@ export function FinalCTA() {
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             <Sparkles className="h-4 w-4 text-white" />
-            <span className="text-white font-medium">Join 50,000+ satisfied users</span>
+            <span className="text-white font-medium">Join thousands+ satisfied users</span>
           </motion.div>
 
           <motion.h2
@@ -68,7 +68,7 @@ export function FinalCTA() {
             <Button
               asChild
               size="lg"
-              className="bg-white text-primary hover:bg-white/90 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 px-8 py-6 text-lg font-semibold"
+              className="bg-white text-black dark:text-black hover:bg-white/90 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 px-8 py-6 text-lg font-semibold"
             >
               <Link href="/dashboard">
                 Try Tildra Free
@@ -76,15 +76,15 @@ export function FinalCTA() {
               </Link>
             </Button>
 
-                          <a 
-                href="https://chrome.google.com/webstore/detail/tildra/jjcdkjjdonfmpenonghicgejhlojldmh"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 backdrop-blur-sm px-8 py-6 text-lg font-semibold transform hover:scale-105 transition-all duration-300 rounded-md border"
-              >
-                <Chrome className="h-5 w-5" />
-                Get Chrome Extension
-              </a>
+            <a 
+              href="https://chrome.google.com/webstore/detail/tildra/jjcdkjjdonfmpenonghicgejhlojldmh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 backdrop-blur-sm px-6 py-3 text-base font-semibold transform hover:scale-105 transition-all duration-300 rounded-md border"
+            >
+              <Chrome className="h-4 w-4" />
+              Get Chrome Extension
+            </a>
           </motion.div>
 
           <motion.p

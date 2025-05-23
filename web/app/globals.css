@@ -77,6 +77,7 @@
   }
   html {
     @apply scroll-smooth;
+    scroll-padding-top: 5rem; /* Account for fixed header height */
   }
   body {
     @apply bg-background text-foreground min-h-screen flex flex-col;

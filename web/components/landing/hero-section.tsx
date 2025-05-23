@@ -239,7 +239,7 @@ export function HeroSection() {
             >
               <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl leading-[1.1] text-foreground max-w-5xl">
                 Summarize Any Article<br />
-                <span className="bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 dark:from-blue-400 dark:via-purple-400 dark:to-blue-400 bg-clip-text text-transparent animate-pulse">
                   in Seconds with AI
                 </span>
               </h1>
@@ -257,10 +257,11 @@ export function HeroSection() {
                   size="lg"
                   className={cn(
                     "bg-primary text-primary-foreground hover:bg-primary/90",
-                    "shadow-lg hover:shadow-xl",
+                    "shadow-2xl hover:shadow-3xl border-2 border-primary/20",
                     "transition-all duration-300",
                     "transform hover:scale-105",
                     "px-8 py-6 text-lg font-semibold",
+                    "backdrop-blur-sm bg-primary/95 hover:bg-primary",
                   )}
                 >
                   <Link href="/dashboard">
@@ -274,8 +275,9 @@ export function HeroSection() {
                   size="lg"
                   variant="outline"
                   className={cn(
-                    "text-foreground/80 dark:text-foreground/70",
-                    "hover:bg-muted/50",
+                    "text-foreground border-2 border-foreground/30 bg-background/80 backdrop-blur-sm",
+                    "hover:bg-foreground hover:text-background",
+                    "shadow-xl hover:shadow-2xl",
                     "transition-all duration-300",
                     "transform hover:scale-105",
                     "px-8 py-6 text-lg font-semibold",
@@ -296,17 +298,42 @@ export function HeroSection() {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-12 pt-8 w-full max-w-4xl">
-                {statsData.map((stat, index) => (
-                <motion.div
-                    key={index} 
-                    className="flex flex-col items-center space-y-2"
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-12 max-w-4xl mx-auto">
+                {[
+                  { 
+                    icon: "📊", 
+                    value: "2M+", 
+                    label: "Articles Summarized",
+                    color: "text-blue-500"
+                  },
+                  { 
+                    icon: "🎯", 
+                    value: "98%", 
+                    label: "Accuracy Rate",
+                    color: "text-green-500"
+                  },
+                  { 
+                    icon: "⚡", 
+                    value: "30s", 
+                    label: "Average Summary Time",
+                    color: "text-purple-500"
+                  }
+                ].map((stat, index) => (
+                  <motion.div
+                    key={stat.label}
+                    className="text-center bg-white/10 dark:bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/20"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.8 + index * 0.1, duration: 0.5 }}
+                    transition={{ duration: 0.6, delay: 0.6 + index * 0.1 }}
+                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
                   >
-                    <span className="text-3xl md:text-4xl lg:text-5xl font-bold text-primary">{stat.value}</span>
-                    <span className="text-sm md:text-base text-muted-foreground">{stat.label}</span>
+                    <div className="text-3xl mb-2">{stat.icon}</div>
+                    <div className={cn("text-3xl font-bold mb-1", stat.color)}>
+                      {stat.value}
+                    </div>
+                    <div className="text-sm text-foreground/70">
+                      {stat.label}
+                    </div>
                   </motion.div>
                 ))}
               </div>
