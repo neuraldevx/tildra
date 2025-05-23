@@ -41,7 +41,7 @@ const testimonials = [
 
 const stats = [
   {
-    value: "thousands+",
+    value: "Thousands",
     label: "Active Users",
     icon: Users,
     description: "Professionals trust Tildra daily"
@@ -74,15 +74,11 @@ export function SocialProof() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Sparkles className="h-6 w-6 text-primary" />
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground">
-              Trusted by professionals worldwide
-            </h2>
-            <Sparkles className="h-6 w-6 text-primary" />
-          </div>
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
+            Trusted by professionals worldwide
+          </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Join thousands of knowledge workers who have transformed their reading workflow with Tildra
+            Join thousands of knowledge workers who have enhanced their reading workflow with Tildra
           </p>
         </motion.div>
 
@@ -91,7 +87,7 @@ export function SocialProof() {
           {stats.map((stat, index) => (
             <motion.div
               key={index}
-              className="bg-background rounded-xl p-6 shadow-sm border text-center hover:shadow-md transition-all duration-300"
+              className="bg-background/95 dark:bg-background rounded-xl p-6 shadow-md border border-gray-200 dark:border-border text-center hover:shadow-lg transition-all duration-300"
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
               transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
@@ -100,13 +96,13 @@ export function SocialProof() {
               <div className="flex items-center justify-center mb-3">
                 <stat.icon className="h-8 w-8 text-primary" />
               </div>
-              <div className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+              <div className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground mb-2">
                 {stat.value}
               </div>
-              <div className="text-sm font-medium text-foreground mb-1">
+              <div className="text-sm font-medium text-gray-700 dark:text-foreground mb-1">
                 {stat.label}
               </div>
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-gray-600 dark:text-muted-foreground">
                 {stat.description}
               </div>
             </motion.div>

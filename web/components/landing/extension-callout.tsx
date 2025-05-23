@@ -61,7 +61,7 @@ export function ExtensionCallout() {
                   ))}
                 </div>
                 <span className="text-sm font-medium">
-                  Joined by thousands+ users
+                  Joined by thousands of users
                 </span>
               </div>
             </div>

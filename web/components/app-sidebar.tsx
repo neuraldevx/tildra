@@ -1,29 +1,28 @@
 "use client"
 
-import {
-  FileText,
-  DollarSign,
-  Settings,
-  Home,
-  Info,
-  Sparkles,
-  User,
-  LogOut,
-  PanelLeftClose,
+import React from 'react'
+import { Button } from '@/components/ui/button'
+import { 
+  Home, 
+  Settings, 
+  PanelLeftClose, 
   PanelLeftOpen,
+  Sparkles,
+  Star,
+  FileText,
+  Info,
+  User,
+  DollarSign,
+  LogOut,
   Rocket
-} from "lucide-react"
+} from 'lucide-react'
+import { Logo } from '@/components/ui/logo'
+import { useSidebar } from '@/components/sidebar-context'
+import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton, useAuth, useUser, SignOutButton } from '@clerk/nextjs'
+import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from "next/navigation"
-import Link from "next/link"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Logo } from "@/components/ui/logo"
-import { useAuth, useUser, UserButton, SignOutButton, SignInButton } from "@clerk/nextjs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { SignedIn, SignedOut } from "@clerk/nextjs"
-import { useSidebar } from "@/components/sidebar-context"
-import React, { useState, useEffect } from "react"
 
 // Define your actual navigation items
 const mainItems = [

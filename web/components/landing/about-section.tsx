@@ -30,7 +30,7 @@ const values = [
 
 const stats = [
   { value: "2025", label: "Founded" },
-  { value: "thousands+", label: "Users" },
+  { value: "Thousands", label: "Users" },
   { value: "2M+", label: "Articles Processed" },
   { value: "98%", label: "Accuracy Rate" }
 ]
@@ -49,15 +49,11 @@ export function AboutSection() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <span className="text-2xl">📖</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-              About Tildra
-            </h2>
-            <span className="text-2xl">🎯</span>
-          </div>
+          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+            About Tildra
+          </h2>
           <p className="text-base text-muted-foreground max-w-3xl mx-auto">
-            We're on a mission to help professionals and students process information more efficiently, 
+            We&apos;re on a mission to help professionals and students process information more efficiently, 
             saving time while ensuring they never miss critical insights.
           </p>
         </motion.div>
@@ -70,13 +66,12 @@ export function AboutSection() {
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           <div>
-            <h3 className="text-2xl font-bold text-foreground mb-4 flex items-center gap-2">
-              <span className="text-xl">⚡</span>
+            <h3 className="text-2xl font-bold text-foreground mb-4">
               The Problem We're Solving
             </h3>
             <div className="space-y-3 text-muted-foreground">
               <p>
-                In today's information-rich world, professionals spend countless hours reading through 
+                In today&apos;s information-rich world, professionals spend countless hours reading through 
                 lengthy articles, research papers, and reports. Studies show that knowledge workers 
                 spend up to 2.5 hours daily just processing information.
               </p>
@@ -86,7 +81,7 @@ export function AboutSection() {
                 strategic thinking, decision-making, and the work that truly matters.
               </p>
               <p>
-                Since our founding in 2025, we've helped thousands of professionals reclaim their time 
+                Since our founding in 2025, we&apos;ve helped thousands of professionals reclaim their time 
                 and stay better informed than ever before.
               </p>
             </div>

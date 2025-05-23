@@ -8,8 +8,8 @@ export default function NotFound() {
       <h1 className="text-7xl font-bold">404</h1>
       <div className="h-1 w-16 bg-primary my-6"></div>
       <h2 className="text-2xl font-medium mb-4">This page could not be found.</h2>
-      <p className="text-muted-foreground max-w-md mb-8">
-        The page you're looking for doesn't exist or has been moved.
+      <p className="text-muted-foreground text-lg mb-8">
+        Oops! The page you&apos;re looking for can&apos;t be found.
       </p>
       <Button asChild>
         <Link href="/" className="flex items-center gap-2">

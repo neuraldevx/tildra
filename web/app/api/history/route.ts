@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   // Get auth data outside try block
   const { userId } = await auth(); 
 

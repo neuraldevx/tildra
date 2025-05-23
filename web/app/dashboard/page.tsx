@@ -6,7 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trash2, Sparkles, Calendar, Link as LinkIcon, ExternalLink } from 'lucide-react'; // Combined Lucide imports
+import { Separator } from "@/components/ui/separator"
+import { 
+  Settings,
+  Zap,
+  Clock,
+  FileText,
+  TrendingUp,
+  Users,
+  Star
+} from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -297,7 +306,7 @@ export default function DashboardPage() {
               {is_pro ? (
                 <div className="flex items-center text-green-600 space-x-2">
                   <div className="p-1.5 bg-green-50 dark:bg-green-950/30 rounded-full">
-                    <Sparkles className="h-5 w-5 text-yellow-500" />
+                    <Zap className="h-5 w-5 text-yellow-500" />
                   </div>
                   <span className="text-sm font-medium">Unlimited Access</span>
                 </div>
@@ -335,7 +344,7 @@ export default function DashboardPage() {
                   <TooltipTrigger asChild>
                     <Button variant="destructive" size="sm" onClick={handleClearAllSummaries} 
                       className="ml-auto bg-destructive/90 hover:bg-destructive">
-                      <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Clear All
+                      <Settings className="h-3.5 w-3.5 mr-1.5" /> Clear All
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Delete all summaries</TooltipContent>
@@ -347,7 +356,7 @@ export default function DashboardPage() {
             {history.length === 0 ? (
               <div className="text-center text-muted-foreground p-12 bg-muted/5">
                 <div className="mx-auto w-16 h-16 rounded-full bg-muted/20 flex items-center justify-center mb-3">
-                  <Sparkles className="h-8 w-8 opacity-50" />
+                  <Star className="h-8 w-8 opacity-50" />
                 </div>
                 <p className="text-base">No summaries yet</p>
                 <p className="text-sm opacity-70 mt-1">Try summarizing a page with the extension!</p>
@@ -371,7 +380,7 @@ export default function DashboardPage() {
                         >
                           <div className="flex items-start space-x-3">
                             <div className="p-1.5 rounded-md bg-primary/5 text-primary/80 mt-0.5">
-                              <LinkIcon className="h-4 w-4" />
+                              <FileText className="h-4 w-4" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-sm truncate" title={item.title || 'Untitled Summary'}>
@@ -387,7 +396,7 @@ export default function DashboardPage() {
                         </TableCell>
                         <TableCell className="text-right text-xs text-muted-foreground hidden sm:table-cell py-3">
                           <div className="flex items-center justify-end space-x-1.5">
-                            <Calendar className="h-3 w-3 opacity-70" />
+                            <Clock className="h-3 w-3 opacity-70" />
                             <span>{formatDate(item.createdAt)}</span>
                           </div>
                         </TableCell>
@@ -402,7 +411,7 @@ export default function DashboardPage() {
                                     className="h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                     onClick={(e) => { e.stopPropagation(); handleDeleteSummary(item.id); }}
                                   >
-                                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <Settings className="h-3.5 w-3.5 text-muted-foreground" />
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>Delete summary</TooltipContent>
@@ -419,7 +428,7 @@ export default function DashboardPage() {
                                       className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted/30 ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                       onClick={(e) => e.stopPropagation()}
                                     >
-                                      <ExternalLink className="h-3.5 w-3.5" />
+                                      <FileText className="h-3.5 w-3.5" />
                                     </a>
                                   </TooltipTrigger>
                                   <TooltipContent>Open original page</TooltipContent>

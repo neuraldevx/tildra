@@ -8,7 +8,7 @@ const backendApiBaseUrl = process.env.INTERNAL_API_URL
   || process.env.NEXT_PUBLIC_API_BASE_URL 
   || 'http://127.0.0.1:8000';
 
-export async function POST(req: NextRequest) {
+export async function POST(_req: Request) {
   try {
     const { userId, getToken } = await auth();
     const token = await getToken();

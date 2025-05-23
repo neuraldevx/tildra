@@ -4,7 +4,6 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, BookOpen, TrendingUp, Zap, ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef } from "react";
@@ -73,16 +72,12 @@ export function Features() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-2xl">⚡</span>
-            <Badge variant="outline" className="text-sm">Why Choose Tildra</Badge>
-            <span className="text-2xl">🚀</span>
-          </div>
+          <Badge variant="outline" className="text-sm">Why Choose Tildra</Badge>
           <h2 className="text-3xl lg:text-4xl font-bold tracking-tight max-w-3xl">
             Transform how you consume information
           </h2>
           <p className="text-base text-muted-foreground max-w-2xl">
-            Join thousands of professionals who've transformed their reading workflow with AI-powered summaries.
+            Join thousands of users who&apos;ve revolutionized their reading workflow with AI-powered summaries.
           </p>
         </motion.div>
 
@@ -105,12 +100,9 @@ export function Features() {
           transition={{ duration: 0.6, delay: 0.4 }}
         >
           <div className="space-y-3 text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start gap-2">
-              <span className="text-2xl">🎯</span>
-              <h3 className="text-2xl font-bold">Ready to reclaim your time?</h3>
-            </div>
+            <h3 className="text-2xl font-bold">Ready to reclaim your time?</h3>
             <p className="text-muted-foreground max-w-md">
-              Join thousands of professionals who've transformed their information workflow with Tildra.
+              Join thousands of users who&apos;ve streamlined their information workflow with Tildra.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">

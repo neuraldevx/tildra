@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from "next/link"
 import { Sparkles, Settings, Loader2 } from "lucide-react"
-import { useAuth } from "@clerk/nextjs"
+import { useAuth, useUser } from "@clerk/nextjs"
 
 import { Logo } from "@/components/ui/logo"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
@@ -14,7 +14,8 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({ isProUser }: DashboardHeaderProps) {
-  const { getToken } = useAuth();
+  const { isLoaded, isSignedIn, user } = useUser()
+  const { userId } = useAuth()
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
 
   const handleManageSubscription = async () => {

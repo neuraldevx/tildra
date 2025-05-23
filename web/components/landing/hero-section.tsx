@@ -219,7 +219,10 @@ export function HeroSection() {
 
   return (
     <section className="w-full py-16 md:py-24 lg:py-32 relative z-10">
-      <div className="container mx-auto px-4">
+      {/* Enhanced background for light mode */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50 dark:from-transparent dark:via-transparent dark:to-transparent" />
+      
+      <div className="container mx-auto px-4 relative z-10">
         <div className="relative mx-auto max-w-6xl">
           <div className="flex flex-col items-center text-center space-y-8">
             {/* Heading */}
@@ -250,18 +253,18 @@ export function HeroSection() {
                 saving you time while ensuring you never miss important information.
               </p>
 
-              {/* CTAs */}
+              {/* Enhanced CTAs */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
                 <Button
                   asChild
                   size="lg"
                   className={cn(
-                    "bg-primary text-primary-foreground hover:bg-primary/90",
-                    "shadow-2xl hover:shadow-3xl border-2 border-primary/20",
+                    "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700",
+                    "shadow-2xl hover:shadow-3xl border-0",
                     "transition-all duration-300",
-                    "transform hover:scale-105",
+                    "transform hover:scale-105 hover:-translate-y-1",
                     "px-8 py-6 text-lg font-semibold",
-                    "backdrop-blur-sm bg-primary/95 hover:bg-primary",
+                    "backdrop-blur-sm",
                   )}
                 >
                   <Link href="/dashboard">
@@ -275,11 +278,12 @@ export function HeroSection() {
                   size="lg"
                   variant="outline"
                   className={cn(
-                    "text-foreground border-2 border-foreground/30 bg-background/80 backdrop-blur-sm",
-                    "hover:bg-foreground hover:text-background",
+                    "text-gray-700 dark:text-foreground border-2 border-gray-300 dark:border-foreground/30",
+                    "bg-white/90 dark:bg-background/80 backdrop-blur-sm",
+                    "hover:bg-gray-50 dark:hover:bg-foreground hover:text-gray-900 dark:hover:text-background",
                     "shadow-xl hover:shadow-2xl",
                     "transition-all duration-300",
-                    "transform hover:scale-105",
+                    "transform hover:scale-105 hover:-translate-y-1",
                     "px-8 py-6 text-lg font-semibold",
                   )}
                   onClick={() => {
@@ -297,41 +301,48 @@ export function HeroSection() {
                 </Button>
               </div>
 
-              {/* Stats */}
+              {/* Enhanced Stats */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-12 max-w-4xl mx-auto">
                 {[
                   { 
-                    icon: "📊", 
                     value: "2M+", 
                     label: "Articles Summarized",
-                    color: "text-blue-500"
+                    color: "text-blue-600 dark:text-blue-400",
+                    bgColor: "from-blue-50 to-blue-100 dark:from-blue-500/10 dark:to-blue-600/10",
+                    borderColor: "border-blue-200 dark:border-blue-500/30"
                   },
                   { 
-                    icon: "🎯", 
                     value: "98%", 
                     label: "Accuracy Rate",
-                    color: "text-green-500"
+                    color: "text-green-600 dark:text-green-400",
+                    bgColor: "from-green-50 to-green-100 dark:from-green-500/10 dark:to-green-600/10",
+                    borderColor: "border-green-200 dark:border-green-500/30"
                   },
                   { 
-                    icon: "⚡", 
                     value: "30s", 
                     label: "Average Summary Time",
-                    color: "text-purple-500"
+                    color: "text-purple-600 dark:text-purple-400",
+                    bgColor: "from-purple-50 to-purple-100 dark:from-purple-500/10 dark:to-purple-600/10",
+                    borderColor: "border-purple-200 dark:border-purple-500/30"
                   }
                 ].map((stat, index) => (
                   <motion.div
                     key={stat.label}
-                    className="text-center bg-white/10 dark:bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/20"
+                    className={cn(
+                      "text-center backdrop-blur-sm rounded-xl p-6 shadow-lg hover:shadow-xl",
+                      "bg-gradient-to-br", stat.bgColor,
+                      "border-2", stat.borderColor,
+                      "transition-all duration-300"
+                    )}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.6 + index * 0.1 }}
-                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                    whileHover={{ y: -8, scale: 1.02, transition: { duration: 0.2 } }}
                   >
-                    <div className="text-3xl mb-2">{stat.icon}</div>
                     <div className={cn("text-3xl font-bold mb-1", stat.color)}>
                       {stat.value}
                     </div>
-                    <div className="text-sm text-foreground/70">
+                    <div className="text-sm font-medium text-gray-700 dark:text-foreground/70">
                       {stat.label}
                     </div>
                   </motion.div>

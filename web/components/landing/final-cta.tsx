@@ -37,7 +37,7 @@ export function FinalCTA() {
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             <Sparkles className="h-4 w-4 text-white" />
-            <span className="text-white font-medium">Join thousands+ satisfied users</span>
+            <span className="text-white font-medium">Join thousands of satisfied users</span>
           </motion.div>
 
           <motion.h2
@@ -55,7 +55,7 @@ export function FinalCTA() {
             animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            Join thousands of professionals who've transformed their reading workflow. 
+            Join thousands of professionals who&apos;ve revolutionized their reading workflow. 
             Start summarizing articles in seconds, not hours.
           </motion.p>
 

@@ -43,7 +43,7 @@ const testimonials = [
 
 const metrics = [
   { value: "4.9/5", label: "Average Rating" },
-  { value: "thousands+", label: "Happy Users" },
+  { value: "Thousands", label: "Happy Users" },
   { value: "99.2%", label: "Satisfaction Rate" }
 ]
 
@@ -61,13 +61,9 @@ export function TestimonialSection() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <span className="text-2xl">💬</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-              What Our Users Say
-            </h2>
-            <span className="text-2xl">⭐</span>
-          </div>
+          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+            What Our Users Say
+          </h2>
           <p className="text-base text-muted-foreground max-w-2xl mx-auto">
             Discover how professionals across industries are transforming their reading workflow with Tildra
           </p>
