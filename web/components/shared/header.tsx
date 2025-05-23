@@ -15,7 +15,7 @@ export function Header() {
 
   return (
     <header className="bg-background border-b border-border/40 sticky top-0 z-30">
-      <div className="h-16 flex items-center justify-between p-4">
+      <div className="h-16 flex items-center justify-between p-4 relative">
         {/* Mobile menu trigger - only visible on mobile */}
         <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
           <SheetTrigger asChild>
@@ -79,8 +79,11 @@ export function Header() {
           </SheetContent>
         </Sheet>
 
-        {/* Center Navigation */}
-        <nav className="hidden md:flex items-center justify-center space-x-6 text-sm font-medium flex-1">
+        {/* Spacer for mobile button - hidden on desktop */}
+        <div className="md:hidden"></div>
+
+        {/* Center Navigation - absolutely centered */}
+        <nav className="hidden md:flex items-center justify-center space-x-6 text-sm font-medium absolute left-1/2 transform -translate-x-1/2">
           <Link href="/#features" className="text-foreground/60 hover:text-foreground/80 transition-colors">
             Features
           </Link>

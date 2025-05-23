@@ -154,7 +154,7 @@ export function AppSidebar() {
         <Button
           variant="outline"
           size="icon"
-          className="fixed top-4 left-4 z-50 h-10 w-10 bg-background hover:bg-muted/80 border border-border/40 shadow-lg hover:shadow-xl transition-all duration-300"
+          className="fixed top-4 left-4 z-50 h-8 w-8 bg-background hover:bg-muted/80 border border-border/40 shadow-lg hover:shadow-xl transition-all duration-300"
           onClick={toggleSidebar}
         >
           <PanelLeftOpen className="h-4 w-4" />
