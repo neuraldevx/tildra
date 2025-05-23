@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarProvider } from "@/components/sidebar-context"
 import { ChromeTokenHelper } from "@/components/chrome-token-helper"
 import { MainContent } from "@/components/main-content"
+import { Header } from "@/components/shared/header"
 
 const lexend = Lexend({ subsets: ["latin"] })
 
@@ -28,11 +29,14 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
             <ChromeTokenHelper />
             <SidebarProvider>
-              <div className="flex w-full min-h-screen">
-                <AppSidebar />
-                <MainContent>
-                  {children}
-                </MainContent>
+              <div className="flex flex-col w-full min-h-screen">
+                <Header />
+                <div className="flex flex-1">
+                  <AppSidebar />
+                  <MainContent>
+                    {children}
+                  </MainContent>
+                </div>
               </div>
             </SidebarProvider>
           </ThemeProvider>
