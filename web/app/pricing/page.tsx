@@ -1,4 +1,4 @@
-import { PricingSection } from "@/components/pricing/pricing-section";
+import { PricingPreview } from "@/components/landing/pricing-preview";
 import { Header } from "@/components/shared/header";
 
 export const metadata = {
@@ -12,7 +12,7 @@ export default function PricingPage() {
       <div className="absolute inset-0 bg-wave-pattern opacity-10 pointer-events-none"></div>
       <Header />
       <main className="container mx-auto px-4 py-8 relative z-10">
-        <PricingSection />
+        <PricingPreview />
       </main>
     </div>
   );

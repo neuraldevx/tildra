@@ -1,6 +1,5 @@
 "use client"
 
-import { Logo } from "@/components/ui/logo"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import Link from "next/link"
 import { Menu } from "lucide-react"
@@ -16,11 +15,11 @@ export function Header() {
 
   return (
     <header className="bg-background border-b border-border/40 sticky top-0 z-30">
-      <div className="container mx-auto h-16 flex items-center px-4">
+      <div className="h-16 flex items-center justify-between p-4">
         {/* Mobile menu trigger - only visible on mobile */}
         <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden mr-2">
+            <Button variant="ghost" size="icon" className="md:hidden">
               <Menu className="h-5 w-5" />
               <span className="sr-only">Toggle mobile menu</span>
             </Button>
@@ -28,7 +27,7 @@ export function Header() {
           <SheetContent side="left" className="w-[240px] p-0">
             <div className="flex flex-col h-full">
               <div className="h-16 flex items-center px-5 border-b">
-                <Logo size="md" animated={true} />
+                <span className="text-lg font-semibold">Navigation</span>
               </div>
               <nav className="flex-1 p-4 space-y-2">
                 <Link
@@ -80,13 +79,8 @@ export function Header() {
           </SheetContent>
         </Sheet>
 
-        {/* Logo placement in main header */}
-        <div className="flex items-center mr-8">
-          <Logo size="md" animated={true} showText={true} href="/" />
-        </div>
-
-        {/* Center Navigation - Re-adding flex-1 and justify-center */}
-        <nav className="hidden md:flex items-center space-x-6 text-sm font-medium flex-1 justify-center">
+        {/* Center Navigation */}
+        <nav className="hidden md:flex items-center justify-center space-x-6 text-sm font-medium flex-1">
           <Link href="/#features" className="text-foreground/60 hover:text-foreground/80 transition-colors">
             Features
           </Link>
@@ -104,7 +98,7 @@ export function Header() {
         </nav>
 
         {/* Right side: Auth & Theme */}
-        <div className="flex items-center justify-end space-x-4">
+        <div className="flex items-center space-x-4">
           <SignedOut>
             <SignInButton mode="modal">
               <Button variant="ghost" size="sm">Sign in</Button>

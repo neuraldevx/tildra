@@ -399,6 +399,18 @@ const SidebarMenuButton = React.forwardRef<
 })
 SidebarMenuButton.displayName = "SidebarMenuButton"
 
+const SidebarFooter = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<"div">
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("mt-auto", className)}
+    {...props}
+  />
+))
+SidebarFooter.displayName = "SidebarFooter"
+
 export {
   SidebarProvider,
   Sidebar,
@@ -409,6 +421,7 @@ export {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
+  SidebarFooter,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,

@@ -26,11 +26,14 @@
     --radius: 0.5rem;
     /* Original Sidebar Vars (Example - adjust if known) */
     --sidebar: 240 5% 96%; 
-    --sidebar-foreground: 240 6% 10%; 
-    --sidebar-accent: 240 5% 90%; 
-    --sidebar-accent-foreground: 240 6% 10%; 
-    --sidebar-primary: 222.2 47.4% 11.2%; 
-    --sidebar-primary-foreground: 210 40% 98%; 
+    --sidebar-foreground: 240 5.3% 26.1%; 
+    --sidebar-accent: 240 4.8% 95.9%; 
+    --sidebar-accent-foreground: 240 5.9% 10%; 
+    --sidebar-primary: 240 5.9% 10%; 
+    --sidebar-primary-foreground: 0 0% 98%; 
+    --sidebar-background: 0 0% 98%; 
+    --sidebar-border: 220 13% 91%; 
+    --sidebar-ring: 217.2 91.2% 59.8%; 
   }
 
   .dark {
@@ -56,12 +59,15 @@
     --ring: 0 0% 83%; 
     /* Sidebar Colors - Dark Theme */
     --sidebar: 0 0% 0%; /* Black */
-    --sidebar-foreground: 0 0% 95%; /* Near White */
-    --sidebar-accent: 0 0% 15%; /* Dark Gray for hover */
-    --sidebar-accent-foreground: 0 0% 98%; /* White */
-    --sidebar-primary: 0 0% 95%; /* Near White for active */
-    --sidebar-primary-foreground: 0 0% 9%; /* Near Black */
+    --sidebar-foreground: 240 4.8% 95.9%; /* Near White */
+    --sidebar-accent: 240 3.7% 15.9%; /* Dark Gray for hover */
+    --sidebar-accent-foreground: 240 4.8% 95.9%; /* White */
+    --sidebar-primary: 224.3 76.3% 48%; /* Near White for active */
+    --sidebar-primary-foreground: 0 0% 100%; /* Near Black */
     /* --- End Updated Dark Theme --- */
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -144,3 +150,12 @@ a[class*="SidebarMenuButton"] {
   }
 }
 /* --- END ADDED --- */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

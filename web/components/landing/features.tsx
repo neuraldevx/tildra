@@ -1,101 +1,124 @@
 "use client"
 
-import { Clock, Brain, Sparkles, Laptop } from "lucide-react"
-import { motion } from "framer-motion"
-import { useInView } from "framer-motion"
-import { useRef } from "react"
+import React from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Clock, BookOpen, TrendingUp, Zap, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { useInView } from "framer-motion";
+import { useRef } from "react";
+import Link from "next/link";
+
+interface BenefitCardProps {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  index: number;
+}
+
+function BenefitCard({ icon, title, description, index }: BenefitCardProps) {
+  return (
+    <motion.div 
+      className="flex flex-col gap-4 p-6 rounded-lg border bg-background hover:shadow-md transition-all duration-300 hover:border-primary/20 hover:bg-muted/50"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: index * 0.1 }}
+      whileHover={{ y: -5 }}
+    >
+      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+        {icon}
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-xl font-semibold">{title}</h3>
+        <p className="text-muted-foreground">{description}</p>
+      </div>
+    </motion.div>
+  );
+}
 
 export function Features() {
-  const ref = useRef(null)
-  const isInView = useInView(ref, { once: true, amount: 0.2 })
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, amount: 0.2 });
 
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.2,
-      },
+  const benefits = [
+    {
+      icon: <Clock className="h-6 w-6" />,
+      title: "Save 5+ hours per week",
+      description: "Stop spending hours reading lengthy articles. Get the essence in seconds and reclaim your time."
     },
-  }
-
-  const item = {
-    hidden: { opacity: 0, scale: 0.9 },
-    show: { opacity: 1, scale: 1, transition: { duration: 0.5 } },
-  }
+    {
+      icon: <Zap className="h-6 w-6" />,
+      title: "Never miss key insights",
+      description: "Our AI identifies and extracts the most important points so you never miss critical information."
+    },
+    {
+      icon: <TrendingUp className="h-6 w-6" />,
+      title: "Stay ahead of competition",
+      description: "Process more industry content faster to spot trends and opportunities before others do."
+    },
+    {
+      icon: <BookOpen className="h-6 w-6" />,
+      title: "Read 10x more content",
+      description: "AI-powered summaries let you consume exponentially more information with better retention."
+    }
+  ];
 
   return (
-    <section id="features" className="container mx-auto px-4 py-20" ref={ref}>
-      <motion.div
-        className="text-center mb-16"
-        initial={{ opacity: 0, y: 20 }}
-        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-        transition={{ duration: 0.6 }}
-      >
-        <h2 className="text-3xl md:text-4xl font-bold mb-4">Key Features</h2>
-        <p className="text-foreground/70 max-w-2xl mx-auto">
-          Tildra is packed with powerful features to help you digest information faster
-        </p>
-      </motion.div>
-
-      <motion.div
-        className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto"
-        variants={container}
-        initial="hidden"
-        animate={isInView ? "show" : "hidden"}
-      >
-        <motion.div
-          className="bg-card p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow hover-lift"
-          variants={item}
+    <section className="w-full py-20 lg:py-32" ref={ref} id="features">
+      <div className="container mx-auto">
+        <motion.div 
+          className="flex flex-col items-center text-center mb-16 space-y-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
         >
-          <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-            <Clock className="text-primary" size={24} />
-          </div>
-          <h3 className="text-xl font-semibold mb-2">Saves Time</h3>
-          <p className="text-foreground/70">
-            Get the essence of lengthy articles in seconds instead of minutes or hours
-          </p>
+          <Badge variant="outline" className="mb-2">Why Choose Tildra</Badge>
+          <h2 className="text-3xl lg:text-5xl font-bold tracking-tight max-w-3xl">
+            Transform how you consume information
+          </h2>
+                      <p className="text-lg text-muted-foreground max-w-2xl">
+              Join thousands of professionals who've transformed their reading workflow with AI-powered summaries.
+            </p>
         </motion.div>
 
-        <motion.div
-          className="bg-card p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow hover-lift"
-          variants={item}
-        >
-          <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-            <Brain className="text-primary" size={24} />
-          </div>
-          <h3 className="text-xl font-semibold mb-2">AI-Powered</h3>
-          <p className="text-foreground/70">
-            Leverages AI to intelligently extract the most important information
-          </p>
-        </motion.div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+          {benefits.map((benefit, index) => (
+            <BenefitCard
+              key={index}
+              icon={benefit.icon}
+              title={benefit.title}
+              description={benefit.description}
+              index={index}
+            />
+          ))}
+        </div>
 
-        <motion.div
-          className="bg-card p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow hover-lift"
-          variants={item}
+        <motion.div 
+          className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 rounded-xl p-8 flex flex-col md:flex-row items-center justify-between gap-8 border border-primary/20"
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
         >
-          <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-            <Sparkles className="text-primary" size={24} />
+          <div className="space-y-4 text-center md:text-left">
+            <h3 className="text-2xl font-bold">Ready to reclaim your time?</h3>
+            <p className="text-muted-foreground max-w-md">
+              Join thousands of professionals who've transformed their information workflow with Tildra.
+            </p>
           </div>
-          <h3 className="text-xl font-semibold mb-2">Key Insights</h3>
-          <p className="text-foreground/70">
-            Extracts the most important points so you never miss critical information
-          </p>
-        </motion.div>
-
-        <motion.div
-          className="bg-card p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow hover-lift"
-          variants={item}
-        >
-          <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-            <Laptop className="text-primary" size={24} />
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Button asChild size="lg" className="font-medium">
+              <Link href="/dashboard">Start Free Trial</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="group">
+              <Link href="/pricing">
+                See Pricing
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            </Button>
           </div>
-          <h3 className="text-xl font-semibold mb-2">Easy to Use</h3>
-          <p className="text-foreground/70">
-            Simple interface that works seamlessly on any device, browser or as an extension
-          </p>
         </motion.div>
-      </motion.div>
+      </div>
     </section>
-  )
+  );
 }

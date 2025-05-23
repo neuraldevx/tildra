@@ -7,24 +7,27 @@ import { WhyChooseSection } from "@/components/landing/why-choose-section"
 import { FaqSection } from "@/components/landing/faq-section"
 // import { CtaSection } from "@/components/landing/cta-section"; // Commented out
 import { ExtensionCallout } from "@/components/landing/extension-callout"
+
+import { SocialProof } from "@/components/landing/social-proof"
+import { FinalCTA } from "@/components/landing/final-cta"
 import { Footer } from "@/components/landing/footer"
-import { Header } from "@/components/shared/header"
 
 export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-background to-muted/50 relative overflow-hidden">
       <div className="absolute inset-0 bg-wave-pattern opacity-30 pointer-events-none"></div>
-      <Header />
       <main className="flex-1 overflow-y-auto">
         <HeroSection />
         {/* <HowItWorks /> */ /* Commented out */}
         <Features />
+        <SocialProof />
+        <ExtensionCallout />
         <AboutSection />
         <WhyChooseSection />
         <TestimonialSection />
         <FaqSection />
         {/* <CtaSection /> */ /* Commented out */}
-        <ExtensionCallout />
+        <FinalCTA />
         <Footer />
       </main>
     </div>

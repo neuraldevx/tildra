@@ -76,12 +76,14 @@ module.exports = {
   				'900': '#002e24'
   			},
   			sidebar: {
-  				DEFAULT: 'hsl(var(--sidebar))',
+  				DEFAULT: 'hsl(var(--sidebar-background))',
   				foreground: 'hsl(var(--sidebar-foreground))',
   				primary: 'hsl(var(--sidebar-primary))',
   				'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
   				accent: 'hsl(var(--sidebar-accent))',
   				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
+  				border: 'hsl(var(--sidebar-border))',
+  				ring: 'hsl(var(--sidebar-ring))'
   			}
   		},
   		borderRadius: {
@@ -195,7 +197,7 @@ module.exports = {
   			'0': 0,
   			'20': ' viewBox=',
   			'100': 20,
-  			'wave-pattern': 'url(\\\\\\\\\\\\\\\\"data:image/svg+xml,%3Csvg width=',
+  			'wave-pattern': 'url(\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"data:image/svg+xml,%3Csvg width=',
   			' xmlns=': 'http'
   		}
   	}
