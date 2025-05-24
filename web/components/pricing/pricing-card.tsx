@@ -46,7 +46,8 @@ export function PricingCard({
   const router = useRouter();
   const { getToken } = useAuth();
 
-  const handleUpgradeClick = async () => {
+  const handleUpgradeClick = async (e?: React.MouseEvent) => {
+    e?.preventDefault();
     console.log("[Upgrade] handleUpgradeClick CALLED");
     if (!isPrimary || ctaDisabled) {
       console.log("[Upgrade] handleUpgradeClick: either not primary or ctaDisabled is true. ctaDisabled:", ctaDisabled, "isPrimary:", isPrimary);
@@ -182,6 +183,7 @@ export function PricingCard({
         className="w-full mt-auto" 
         disabled={ctaDisabled || isLoading}
         onClick={isPrimary && !ctaDisabled ? handleUpgradeClick : undefined}
+        type="button"
       >
         {isLoading && isPrimary ? (
             <span>Processing...</span>
