@@ -47,7 +47,11 @@ export function PricingCard({
   const { getToken } = useAuth();
 
   const handleUpgradeClick = async () => {
-    if (!isPrimary || ctaDisabled) return;
+    console.log("[Upgrade] handleUpgradeClick CALLED");
+    if (!isPrimary || ctaDisabled) {
+      console.log("[Upgrade] handleUpgradeClick: either not primary or ctaDisabled is true. ctaDisabled:", ctaDisabled, "isPrimary:", isPrimary);
+      return;
+    }
 
     setIsLoading(true);
     const priceLookupKey = billingCycle;
