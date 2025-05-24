@@ -85,19 +85,16 @@ export default function DashboardPage() {
         if (!token) throw new Error('Authentication token not available.');
 
         const headers = { Authorization: `Bearer ${token}` };
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-        
-        if (!apiBaseUrl) throw new Error('API base URL is not configured. Make sure NEXT_PUBLIC_API_BASE_URL is set.');
+        // const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || ''; // Use relative path if not set
 
         const [historyRes, accountRes] = await Promise.all([
-          fetch(`${apiBaseUrl}/history`, { headers }), 
-          fetch(`${apiBaseUrl}/user/account-details`, { headers })
+          fetch(`/api/history`, { headers }),
+          fetch(`/api/user/account-details`, { headers })
         ]);
 
         if (!historyRes.ok) throw new Error(`Failed to fetch history: ${historyRes.statusText} (${historyRes.status})`);
         const historyData = await historyRes.json();
-        // Assuming historyData is an array of HistoryItem or an object with a history key
-        setHistory(Array.isArray(historyData) ? historyData : historyData.history || []);
+        setHistory(historyData);
 
         if (!accountRes.ok) throw new Error(`Failed to fetch account details: ${accountRes.statusText} (${accountRes.status})`);
         const accountData = await accountRes.json();
@@ -111,7 +108,7 @@ export default function DashboardPage() {
       setIsLoading(false);
     };
 
-    if (isUserLoaded) { 
+    if (isUserLoaded) { // Only fetch data once Clerk user state is loaded
         fetchData();
     }
   }, [getToken, isSignedIn, isUserLoaded]);
@@ -126,16 +123,15 @@ export default function DashboardPage() {
     try {
       const token = await getToken();
       if (!token) throw new Error('Authentication token not available.');
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-      if (!apiBaseUrl) throw new Error('API base URL is not configured.');
+      // const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
-      const response = await fetch(`${apiBaseUrl}/history/${summaryId}`, {
+      const res = await fetch(`/api/history/${summaryId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Failed to delete summary.' }));
-        throw new Error(errorData.detail || `Failed to delete summary: ${response.statusText}`);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ detail: 'Failed to delete summary.' }));
+        throw new Error(errorData.detail || `Failed to delete summary: ${res.statusText}`);
       }
       setHistory(prevHistory => prevHistory.filter(item => item.id !== summaryId));
     } catch (err) {
@@ -150,16 +146,15 @@ export default function DashboardPage() {
     try {
       const token = await getToken();
       if (!token) throw new Error('Authentication token not available.');
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-      if (!apiBaseUrl) throw new Error('API base URL is not configured.');
+      // const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
-      const response = await fetch(`${apiBaseUrl}/history`, { // Note: This will delete all history for the user
+      const res = await fetch(`/api/history`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Failed to clear summaries.' }));
-        throw new Error(errorData.detail || `Failed to clear summaries: ${response.statusText}`);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ detail: 'Failed to clear summaries.' }));
+        throw new Error(errorData.detail || `Failed to clear summaries: ${res.statusText}`);
       }
       setHistory([]);
     } catch (err) {
