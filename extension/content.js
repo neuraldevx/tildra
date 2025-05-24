@@ -1132,4 +1132,93 @@ function handleSummarySentenceClick(event) {
   });
 })();
 
+// --- ADDED: Dashboard Communication for History ---
+// Listen for history requests from the dashboard
+window.addEventListener('tildra-request-history', async (event) => {
+  console.log('[Tildra Content] Received history request from dashboard');
+  try {
+    // Send message to background script to get history
+    chrome.runtime.sendMessage({ action: 'getHistory' }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('[Tildra Content] Error getting history:', chrome.runtime.lastError);
+        // Send empty response
+        const responseEvent = new CustomEvent('tildra-history-response', {
+          detail: { history: [] }
+        });
+        window.dispatchEvent(responseEvent);
+      } else if (response && response.success) {
+        console.log('[Tildra Content] Sending history to dashboard:', response.history.length, 'items');
+        // Send history back to dashboard
+        const responseEvent = new CustomEvent('tildra-history-response', {
+          detail: { history: response.history }
+        });
+        window.dispatchEvent(responseEvent);
+      } else {
+        console.log('[Tildra Content] No history available');
+        // Send empty response
+        const responseEvent = new CustomEvent('tildra-history-response', {
+          detail: { history: [] }
+        });
+        window.dispatchEvent(responseEvent);
+      }
+    });
+  } catch (error) {
+    console.error('[Tildra Content] Error handling history request:', error);
+    // Send empty response on error
+    const responseEvent = new CustomEvent('tildra-history-response', {
+      detail: { history: [] }
+    });
+    window.dispatchEvent(responseEvent);
+  }
+});
+
+// Listen for delete requests from the dashboard
+window.addEventListener('tildra-delete-summary', async (event) => {
+  console.log('[Tildra Content] Received delete request from dashboard');
+  const summaryId = event.detail?.summaryId;
+  if (!summaryId) {
+    console.error('[Tildra Content] No summary ID provided for deletion');
+    return;
+  }
+  
+  try {
+    // Send message to background script to delete summary
+    chrome.runtime.sendMessage({ action: 'deleteSummary', summaryId: summaryId }, (response) => {
+      const responseEvent = new CustomEvent('tildra-delete-response', {
+        detail: { 
+          success: response?.success || false, 
+          summaryId: summaryId 
+        }
+      });
+      window.dispatchEvent(responseEvent);
+    });
+  } catch (error) {
+    console.error('[Tildra Content] Error handling delete request:', error);
+    const responseEvent = new CustomEvent('tildra-delete-response', {
+      detail: { success: false, summaryId: summaryId }
+    });
+    window.dispatchEvent(responseEvent);
+  }
+});
+
+// Listen for clear all requests from the dashboard
+window.addEventListener('tildra-clear-all-history', async (event) => {
+  console.log('[Tildra Content] Received clear all request from dashboard');
+  try {
+    chrome.runtime.sendMessage({ action: 'clearAllHistory' }, (response) => {
+      const responseEvent = new CustomEvent('tildra-clear-all-response', {
+        detail: { success: response?.success || false }
+      });
+      window.dispatchEvent(responseEvent);
+    });
+  } catch (error) {
+    console.error('[Tildra Content] Error handling clear all request:', error);
+    const responseEvent = new CustomEvent('tildra-clear-all-response', {
+      detail: { success: false }
+    });
+    window.dispatchEvent(responseEvent);
+  }
+});
+// --- END ADDED ---
+
 console.log("Tildra Content Script Finished Execution (bottom of script)");

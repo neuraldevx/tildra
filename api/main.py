@@ -771,27 +771,9 @@ async def summarize_article(
             logger.error(f"Failed to parse summary response from DeepSeek AI: {parse_error}\nRaw Response Content: {message_content if 'message_content' in locals() else 'N/A'}\nFull Response: {deepseek_response_data if 'deepseek_response_data' in locals() else response.text}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to parse summary response from AI.")
 
-        # --- ADDED: Save Summary to History --- 
-        try:
-            # --- MODIFIED: Use URL/Title from request_data --- 
-            url_from_request = request_data.url # Get URL from request
-            title_from_request = request_data.title # Get Title from request
-            # --- END MODIFIED ---
-            
-            await prisma.summaryhistory.create(
-                data={
-                    "userId": user_clerk_id, # Link to the authenticated user
-                    "url": url_from_request, 
-                    "title": title_from_request,
-                    "tldr": summary_data.tldr,
-                    "keyPoints": summary_data.key_points
-                }
-            )
-            logger.info(f"Successfully saved summary to history for user {user_clerk_id}")
-        except Exception as save_error:
-            # Log the error but don't fail the main summarize request
-            logger.error(f"Failed to save summary to history for user {user_clerk_id}: {save_error}", exc_info=True)
-        # --- END ADDED --- 
+        # NOTE: Summaries are now stored locally in the Chrome extension's storage
+        # The dashboard will read from extension storage instead of database
+        logger.info(f"Summary generated successfully for user {user_clerk_id} - stored locally in extension")
 
         # Track usage only for free users AFTER successful summarization
         if user.plan == "free":

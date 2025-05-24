@@ -326,6 +326,66 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false; // Synchronous response
   }
 
+  // --- ADDED: History retrieval request ---
+  if (msg.action === 'getHistory') {
+    chrome.storage.local.get(['summaryHistory'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('[Tildra Background] Error getting history:', chrome.runtime.lastError);
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        const history = result.summaryHistory || [];
+        console.log('[Tildra Background] Retrieved history:', history.length, 'items');
+        sendResponse({ success: true, history: history });
+      }
+    });
+    return true; // Indicate async response
+  }
+
+  // --- ADDED: Delete single summary request ---
+  if (msg.action === 'deleteSummary') {
+    const summaryId = msg.summaryId;
+    if (!summaryId) {
+      sendResponse({ success: false, error: 'No summary ID provided' });
+      return false;
+    }
+    
+    chrome.storage.local.get(['summaryHistory'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('[Tildra Background] Error getting history for deletion:', chrome.runtime.lastError);
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        const history = result.summaryHistory || [];
+        const updatedHistory = history.filter(item => item.id !== summaryId);
+        
+        chrome.storage.local.set({ summaryHistory: updatedHistory }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('[Tildra Background] Error saving updated history:', chrome.runtime.lastError);
+            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            console.log('[Tildra Background] Successfully deleted summary:', summaryId);
+            sendResponse({ success: true });
+          }
+        });
+      }
+    });
+    return true; // Indicate async response
+  }
+
+  // --- ADDED: Clear all history request ---
+  if (msg.action === 'clearAllHistory') {
+    chrome.storage.local.set({ summaryHistory: [] }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('[Tildra Background] Error clearing history:', chrome.runtime.lastError);
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        console.log('[Tildra Background] Successfully cleared all history');
+        sendResponse({ success: true });
+      }
+    });
+    return true; // Indicate async response
+  }
+  // --- END ADDED ---
+
   return false; // unknown message
 }); 
 

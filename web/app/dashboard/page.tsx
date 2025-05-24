@@ -42,11 +42,16 @@ import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 
 interface HistoryItem {
   id: string;
-  url: string | null;
-  title: string | null;
+  userId?: string;
+  url?: string;
+  title?: string;
   tldr: string;
-  keyPoints: string[];
+  keyPoints?: string[];
   createdAt: string;
+  // Extension format compatibility
+  timestamp?: string;
+  summary?: string;
+  key_points?: string[];
 }
 
 interface UserAccountDetails {
@@ -61,6 +66,148 @@ const chartConfig = {
   used: { label: "Used", color: "hsl(var(--chart-1))" },
   limit: { label: "Limit", color: "hsl(var(--muted))" }, // Muted for background bar
 } satisfies ChartConfig;
+
+// Helper function to communicate with Chrome extension
+const getExtensionHistory = (): Promise<HistoryItem[]> => {
+  return new Promise((resolve) => {
+    // Try to get history via postMessage to the page (if extension injects a script)
+    if (typeof window !== 'undefined') {
+      // Create a custom event to request history from extension
+      const historyRequestEvent = new CustomEvent('tildra-request-history', {
+        detail: { action: 'getHistory' }
+      });
+      
+      // Listen for the response
+      const historyResponseHandler = (event: CustomEvent) => {
+        if (event.type === 'tildra-history-response') {
+          window.removeEventListener('tildra-history-response', historyResponseHandler as EventListener);
+          const history = event.detail?.history || [];
+          const convertedHistory = history.map((item: any) => ({
+            id: item.id,
+            title: item.title,
+            url: item.url,
+            tldr: item.summary || item.tldr,
+            keyPoints: item.keyPoints || item.key_points || [],
+            createdAt: item.timestamp || item.createdAt,
+          }));
+          resolve(convertedHistory);
+        }
+      };
+      
+      window.addEventListener('tildra-history-response', historyResponseHandler as EventListener);
+      
+      // Dispatch the request
+      window.dispatchEvent(historyRequestEvent);
+      
+      // Timeout after 2 seconds if no response
+      setTimeout(() => {
+        window.removeEventListener('tildra-history-response', historyResponseHandler as EventListener);
+        resolve([]);
+      }, 2000);
+    } else {
+      resolve([]);
+    }
+  });
+};
+
+// Alternative: Try to access Chrome storage directly (may not work due to permissions)
+const getExtensionStorageDirectly = (): Promise<HistoryItem[]> => {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && window.chrome && window.chrome.storage) {
+      try {
+        window.chrome.storage.local.get(['summaryHistory'], (result) => {
+          if (chrome.runtime.lastError) {
+            console.log('Cannot access extension storage directly');
+            resolve([]);
+          } else {
+            const history = result.summaryHistory || [];
+            // Convert extension format to dashboard format
+            const convertedHistory = history.map((item: any) => ({
+              id: item.id,
+              title: item.title,
+              url: item.url,
+              tldr: item.summary || item.tldr,
+              keyPoints: item.keyPoints || item.key_points || [],
+              createdAt: item.timestamp || item.createdAt,
+            }));
+            resolve(convertedHistory);
+          }
+        });
+      } catch (error) {
+        console.log('Error accessing extension storage:', error);
+        resolve([]);
+      }
+    } else {
+      resolve([]);
+    }
+  });
+};
+
+// Helper function to delete from extension storage
+const deleteFromExtensionStorage = (summaryId: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined') {
+      // Create delete request event
+      const deleteRequestEvent = new CustomEvent('tildra-delete-summary', {
+        detail: { summaryId: summaryId }
+      });
+      
+      // Listen for the response
+      const deleteResponseHandler = (event: CustomEvent) => {
+        if (event.type === 'tildra-delete-response' && event.detail?.summaryId === summaryId) {
+          window.removeEventListener('tildra-delete-response', deleteResponseHandler as EventListener);
+          resolve(event.detail?.success || false);
+        }
+      };
+      
+      window.addEventListener('tildra-delete-response', deleteResponseHandler as EventListener);
+      
+      // Dispatch the request
+      window.dispatchEvent(deleteRequestEvent);
+      
+      // Timeout after 3 seconds if no response
+      setTimeout(() => {
+        window.removeEventListener('tildra-delete-response', deleteResponseHandler as EventListener);
+        resolve(false);
+      }, 3000);
+    } else {
+      resolve(false);
+    }
+  });
+};
+
+// Helper function to clear all from extension storage
+const clearAllFromExtensionStorage = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined') {
+      // Create clear all request event
+      const clearAllRequestEvent = new CustomEvent('tildra-clear-all-history', {
+        detail: { action: 'clearAll' }
+      });
+      
+      // Listen for the response
+      const clearAllResponseHandler = (event: CustomEvent) => {
+        if (event.type === 'tildra-clear-all-response') {
+          window.removeEventListener('tildra-clear-all-response', clearAllResponseHandler as EventListener);
+          resolve(event.detail?.success || false);
+        }
+      };
+      
+      window.addEventListener('tildra-clear-all-response', clearAllResponseHandler as EventListener);
+      
+      // Dispatch the request
+      window.dispatchEvent(clearAllRequestEvent);
+      
+      // Timeout after 3 seconds if no response
+      setTimeout(() => {
+        window.removeEventListener('tildra-clear-all-response', clearAllResponseHandler as EventListener);
+        resolve(false);
+      }, 3000);
+    } else {
+      resolve(false);
+    }
+  });
+};
 
 export default function DashboardPage() {
   const { getToken } = useAuth();
@@ -85,17 +232,24 @@ export default function DashboardPage() {
         if (!token) throw new Error('Authentication token not available.');
 
         const headers = { Authorization: `Bearer ${token}` };
-        // const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || ''; // Use relative path if not set
 
-        const [historyRes, accountRes] = await Promise.all([
-          fetch(`/api/history`, { headers }),
-          fetch(`/api/user/account-details`, { headers })
-        ]);
+        // Try to get history from Chrome extension first
+        let historyData: HistoryItem[] = [];
+        try {
+          historyData = await getExtensionStorageDirectly();
+          if (historyData.length === 0) {
+            // Fallback: try messaging the extension
+            historyData = await getExtensionHistory();
+          }
+        } catch (extError) {
+          console.log('Extension storage not available:', extError);
+          historyData = [];
+        }
 
-        if (!historyRes.ok) throw new Error(`Failed to fetch history: ${historyRes.statusText} (${historyRes.status})`);
-        const historyData = await historyRes.json();
         setHistory(historyData);
 
+        // Still fetch account details from the backend
+        const accountRes = await fetch(`/api/user/account-details`, { headers });
         if (!accountRes.ok) throw new Error(`Failed to fetch account details: ${accountRes.statusText} (${accountRes.status})`);
         const accountData = await accountRes.json();
         setAccountDetails(accountData);
@@ -121,19 +275,12 @@ export default function DashboardPage() {
   const handleDeleteSummary = async (summaryId: string) => {
     if (!confirm('Are you sure you want to delete this summary?')) return;
     try {
-      const token = await getToken();
-      if (!token) throw new Error('Authentication token not available.');
-      // const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
-
-      const res = await fetch(`/api/history/${summaryId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ detail: 'Failed to delete summary.' }));
-        throw new Error(errorData.detail || `Failed to delete summary: ${res.statusText}`);
+      const success = await deleteFromExtensionStorage(summaryId);
+      if (success) {
+        setHistory(prevHistory => prevHistory.filter(item => item.id !== summaryId));
+      } else {
+        throw new Error('Failed to delete from extension storage');
       }
-      setHistory(prevHistory => prevHistory.filter(item => item.id !== summaryId));
     } catch (err) {
       if (err instanceof Error) setError(err.message);
       else setError('An unknown error occurred while deleting.');
@@ -144,19 +291,12 @@ export default function DashboardPage() {
   const handleClearAllSummaries = async () => {
     if (!confirm('Are you sure you want to delete ALL your summaries? This action cannot be undone.')) return;
     try {
-      const token = await getToken();
-      if (!token) throw new Error('Authentication token not available.');
-      // const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
-
-      const res = await fetch(`/api/history`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ detail: 'Failed to clear summaries.' }));
-        throw new Error(errorData.detail || `Failed to clear summaries: ${res.statusText}`);
+      const success = await clearAllFromExtensionStorage();
+      if (success) {
+        setHistory([]);
+      } else {
+        throw new Error('Failed to clear extension storage');
       }
-      setHistory([]);
     } catch (err) {
       if (err instanceof Error) setError(err.message);
       else setError('An unknown error occurred while clearing history.');
@@ -474,7 +614,7 @@ export default function DashboardPage() {
                     <div className="bg-muted/30 rounded-md border p-3 max-h-[calc(40vh-2rem)]">
                       <ScrollArea className="h-full pr-2">
                         <ul className="list-disc pl-5 space-y-2 text-muted-foreground text-sm">
-                          {selectedSummary.keyPoints.map((point, index) => (
+                          {selectedSummary.keyPoints?.map((point, index) => (
                             <li key={index} className="break-words">{point}</li>
                           ))}
                         </ul>
