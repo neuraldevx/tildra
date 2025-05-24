@@ -28,9 +28,6 @@ interface PricingCardProps {
   ctaDisabled?: boolean
 }
 
-// Use the API base URL from environment, default to localhost
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000';
-
 export function PricingCard({
   title,
   price,
@@ -56,20 +53,18 @@ export function PricingCard({
     const priceLookupKey = billingCycle;
 
     try {
-      const token = await getToken();
-      if (!token) {
+      const userToken = await getToken();
+      if (!userToken) {
         router.push('/sign-in');
         setIsLoading(false);
         return;
       }
 
-      const apiBaseUrl = API_BASE_URL;
-      console.log(`[Upgrade] Fetching: POST ${apiBaseUrl}/create-checkout-session`);
-      const response = await fetch(`${apiBaseUrl}/create-checkout-session`, {
+      console.log(`[Upgrade] Fetching: POST /api/create-checkout-session`);
+      const response = await fetch(`/api/create-checkout-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ price_lookup_key: priceLookupKey }),
       });
@@ -77,28 +72,28 @@ export function PricingCard({
       console.log(`[Upgrade] Response Status: ${response.status}`);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Failed to create checkout session.' }));
-        console.error('[Upgrade] Response not OK:', errorData);
-        throw new Error(errorData.detail || `HTTP error ${response.status}`);
+        const errorData = await response.json().catch(() => ({ error: 'Failed to create checkout session due to network or parsing issue.' }));
+        console.error('[Upgrade] Response not OK from proxy:', errorData);
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
       }
 
       let responseData;
       try {
           responseData = await response.json();
-          console.log('[Upgrade] Parsed Response Data:', responseData);
+          console.log('[Upgrade] Parsed Response Data from proxy:', responseData);
       } catch (parseError) {
-          console.error('[Upgrade] Failed to parse JSON response:', parseError);
+          console.error('[Upgrade] Failed to parse JSON response from proxy:', parseError);
           throw new Error('Failed to understand server response.');
       }
 
       const checkoutUrl = responseData?.url;
-      console.log('[Upgrade] Extracted Checkout URL:', checkoutUrl);
+      console.log('[Upgrade] Extracted Checkout URL from proxy:', checkoutUrl);
 
       if (checkoutUrl) {
         console.log('[Upgrade] Redirecting to:', checkoutUrl);
         window.location.href = checkoutUrl;
       } else {
-        console.error('[Upgrade] Checkout URL not found in response data.');
+        console.error('[Upgrade] Checkout URL not found in response data from proxy.');
         throw new Error('Checkout URL not received from server.');
       }
 

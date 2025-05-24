@@ -2,7 +2,6 @@ import { HeroSection } from "@/components/landing/hero-section"
 // import { HowItWorks } from "@/components/landing/how-it-works"; // Commented out
 import { Features } from "@/components/landing/features"
 import { AboutSection } from "@/components/landing/about-section"
-import { TestimonialSection } from "@/components/landing/testimonial-section"
 import { WhyChooseSection } from "@/components/landing/why-choose-section"
 import { FaqSection } from "@/components/landing/faq-section"
 // import { CtaSection } from "@/components/landing/cta-section"; // Commented out
@@ -24,7 +23,6 @@ export default function LandingPage() {
         <ExtensionCallout />
         <AboutSection />
         <WhyChooseSection />
-        <TestimonialSection />
         <FaqSection />
         {/* <CtaSection /> */ /* Commented out */}
         <FinalCTA />

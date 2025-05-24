@@ -40,16 +40,16 @@ export function AboutSection() {
   const isInView = useInView(ref, { once: true, amount: 0.2 })
 
   return (
-    <section id="about" ref={ref} className="py-16 bg-background">
+    <section id="about" ref={ref} className="py-20 bg-background">
       <div className="container mx-auto px-4">
         {/* Header */}
         <motion.div
-          className="text-center mb-12"
+          className="text-center mb-16"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-6">
             About Tildra
           </h2>
           <p className="text-base text-muted-foreground max-w-3xl mx-auto">
@@ -60,16 +60,16 @@ export function AboutSection() {
 
         {/* Story Section */}
         <motion.div
-          className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-16"
+          className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-20"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           <div>
-            <h3 className="text-2xl font-bold text-foreground mb-4">
+            <h3 className="text-2xl font-bold text-foreground mb-6">
               The Problem We're Solving
             </h3>
-            <div className="space-y-3 text-muted-foreground">
+            <div className="space-y-4 text-muted-foreground">
               <p>
                 In today&apos;s information-rich world, professionals spend countless hours reading through 
                 lengthy articles, research papers, and reports. Studies show that knowledge workers 
@@ -89,7 +89,7 @@ export function AboutSection() {
           
           <div className="relative">
             <div className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-2xl p-8">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-8">
                 {stats.map((stat, index) => (
                   <motion.div
                     key={stat.label}
@@ -98,7 +98,7 @@ export function AboutSection() {
                     animate={isInView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9 }}
                     transition={{ duration: 0.5, delay: 0.4 + index * 0.1 }}
                   >
-                    <div className="text-2xl md:text-3xl font-bold text-foreground mb-1">
+                    <div className="text-2xl md:text-3xl font-bold text-foreground mb-2">
                       {stat.value}
                     </div>
                     <div className="text-sm text-muted-foreground">
@@ -113,7 +113,7 @@ export function AboutSection() {
 
         {/* Values Grid */}
         <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6, delay: 0.4 }}
@@ -126,10 +126,10 @@ export function AboutSection() {
               animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
               transition={{ duration: 0.5, delay: 0.5 + index * 0.1 }}
             >
-              <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto mb-6 bg-primary/10 rounded-full flex items-center justify-center">
                 <value.icon className="h-8 w-8 text-primary" />
               </div>
-              <h4 className="text-lg font-semibold text-foreground mb-2">{value.title}</h4>
+              <h4 className="text-lg font-semibold text-foreground mb-3">{value.title}</h4>
               <p className="text-muted-foreground text-sm leading-relaxed">
                 {value.description}
               </p>
@@ -139,15 +139,15 @@ export function AboutSection() {
 
         {/* Bottom CTA */}
         <motion.div
-          className="text-center mt-16 bg-muted/50 rounded-2xl p-8"
+          className="text-center bg-muted/50 rounded-2xl p-10"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6, delay: 0.6 }}
         >
-          <h3 className="text-2xl font-bold text-foreground mb-4">
+          <h3 className="text-2xl font-bold text-foreground mb-6">
             Join Our Growing Community
           </h3>
-          <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
+          <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
             Whether you're a student, researcher, professional, or casual reader, 
             Tildra helps you stay informed and make the most of your reading time.
           </p>

@@ -17,29 +17,10 @@ export function Logo({ size = "md", animated = false, href = "/", showText = tru
     lg: { logo: "w-12 h-12", text: "text-2xl" },
   }
 
-  // Add CSS for the gradient animation and logo effects
+  // Add CSS for logo effects (without gradient text)
   const logoStyles = `
-    @keyframes gradientShift {
-      0% { background-position: 0% 50% }
-      50% { background-position: 100% 50% }
-      100% { background-position: 0% 50% }
-    }
-    
-    .gradient-logo-text {
-      background: linear-gradient(90deg, #7873f5, #ec4899, #8b5cf6);
-      background-size: 200% auto;
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      transition: all 0.3s ease;
-    }
-    
-    .animated-gradient {
-      animation: gradientShift 4s ease infinite;
-    }
-    
-    .logo-container:hover .gradient-logo-text {
-      filter: brightness(1.2);
+    .logo-container:hover .logo-text {
+      filter: brightness(1.1);
     }
     
     .logo-image {
@@ -77,9 +58,9 @@ export function Logo({ size = "md", animated = false, href = "/", showText = tru
         />
       </div>
       
-      {/* Only show text when needed */}
+      {/* Only show text when needed - simple black/white colors */}
       {showText && (
-        <span className={`font-medium ${sizes[size].text} logo-text gradient-logo-text self-center ${animated ? 'animated-gradient' : ''} group-data-[collapsible=icon]:hidden`}>
+        <span className={`font-medium ${sizes[size].text} logo-text text-foreground self-center group-data-[collapsible=icon]:hidden transition-all duration-300`}>
           Tildra
         </span>
       )}
