@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 
+// Debug logging
+console.log('[DEBUG] Environment variables:');
+console.log('INTERNAL_API_URL:', process.env.INTERNAL_API_URL);
+console.log('NEXT_PUBLIC_API_BASE_URL:', process.env.NEXT_PUBLIC_API_BASE_URL);
+
 const backendApiBaseUrl = process.env.INTERNAL_API_URL 
   || process.env.NEXT_PUBLIC_API_BASE_URL 
   || 'https://snipsummary.fly.dev';
+
+console.log('[DEBUG] Final backendApiBaseUrl:', backendApiBaseUrl);
 
 export async function GET() {
   try {
