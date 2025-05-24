@@ -66,18 +66,31 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
       console.log(`[Upgrade] Response Status: ${response.status}`);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to create checkout session due to network or parsing issue.' }));
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          console.error('[Upgrade] Failed to parse error response:', parseError);
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+        }
         console.error('[Upgrade] Response not OK from proxy:', errorData);
         throw new Error(errorData.error || `HTTP error ${response.status}`);
       }
 
       let responseData;
       try {
-          responseData = await response.json();
-          console.log('[Upgrade] Parsed Response Data from proxy:', responseData);
+        const responseText = await response.text();
+        console.log('[Upgrade] Raw response text:', responseText);
+        
+        if (!responseText) {
+          throw new Error('Empty response from server');
+        }
+        
+        responseData = JSON.parse(responseText);
+        console.log('[Upgrade] Parsed Response Data from proxy:', responseData);
       } catch (parseError) {
-          console.error('[Upgrade] Failed to parse JSON response from proxy:', parseError);
-          throw new Error('Failed to understand server response.');
+        console.error('[Upgrade] Failed to parse JSON response from proxy:', parseError);
+        throw new Error('Failed to understand server response.');
       }
 
       const checkoutUrl = responseData?.url;

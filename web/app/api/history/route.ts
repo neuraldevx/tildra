@@ -1,31 +1,62 @@
-import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 
-export async function GET(_request: Request) {
-  // Get auth data outside try block
-  const { userId } = await auth(); 
+const backendApiBaseUrl = process.env.INTERNAL_API_URL 
+  || process.env.NEXT_PUBLIC_API_BASE_URL 
+  || 'https://snipsummary.fly.dev';
 
-  if (!userId) {
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
-
+export async function GET() {
   try {
-    // Fetch history for the logged-in user
-    const history = await prisma.summaryHistory.findMany({
-      where: {
-        userId: userId, 
+    const { userId, getToken } = await auth();
+    const token = await getToken();
+
+    if (!userId || !token) {
+      console.error('[API Proxy /history] User not authenticated.');
+      return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+
+    const targetUrl = `${backendApiBaseUrl}/api/history`;
+    console.log(`[API Proxy /history] Forwarding request for ${userId} to ${targetUrl}`);
+
+    // Forward the request to the backend API
+    const backendResponse = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
-      orderBy: {
-        createdAt: 'desc', 
-      },
-      take: 50 
+      cache: 'no-store',
     });
 
-    return NextResponse.json(history);
+    // Handle response from the backend
+    if (!backendResponse.ok) {
+      console.error(`[API Proxy /history] Backend error (${backendResponse.status})`);
+      
+      // If the backend endpoint doesn't exist, return an empty history
+      if (backendResponse.status === 404) {
+        return new NextResponse(JSON.stringify({ 
+          history: [],
+          message: 'History endpoint not implemented yet' 
+        }), { status: 200 });
+      }
+      
+      return new NextResponse(JSON.stringify({ error: 'Failed to fetch history' }), {
+        status: backendResponse.status
+      });
+    }
+
+    const responseBody = await backendResponse.json();
+    console.log(`[API Proxy /history] Successfully fetched history for ${userId}`);
+    
+    return new NextResponse(JSON.stringify(responseBody), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
 
   } catch (error) {
-    console.error("[API_HISTORY_GET]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    console.error('[API Proxy /history] Unexpected error:', error);
+    return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 } 

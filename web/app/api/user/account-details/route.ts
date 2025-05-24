@@ -1,37 +1,61 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 
-export async function GET(req: NextRequest) {
-  const auth = req.headers.get('authorization') || '';
-  // Use INTERNAL_API_URL which should point directly to the backend service
-  // (e.g., http://localhost:8000 locally, or internal service URL in prod)
-  // Fallback to localhost:8000 if not set (adjust if your backend runs elsewhere)
-  const internalApiBaseUrl = process.env.INTERNAL_API_URL || 'http://127.0.0.1:8000';
-  const url = `${internalApiBaseUrl}/api/user/account-details`; // MODIFIED to new endpoint
-  
-  console.log(`[API Proxy Account-Details] Forwarding to: ${url}`);
+const backendApiBaseUrl = process.env.INTERNAL_API_URL 
+  || process.env.NEXT_PUBLIC_API_BASE_URL 
+  || 'https://snipsummary.fly.dev';
 
+export async function GET() {
   try {
-    const res = await fetch(url, {
-      headers: { authorization: auth },
-      cache: 'no-store', // Ensure fresh data from backend
+    const { userId, getToken } = await auth();
+    const token = await getToken();
+
+    if (!userId || !token) {
+      console.error('[API Proxy /user/account-details] User not authenticated.');
+      return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+
+    const targetUrl = `${backendApiBaseUrl}/api/user/account-details`;
+    console.log(`[API Proxy /user/account-details] Forwarding request for ${userId} to ${targetUrl}`);
+
+    // Forward the request to the backend API
+    const backendResponse = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
     });
 
-    const data = await res.json();
-    
-    if (!res.ok) {
-      console.error(`[API Proxy Account-Details] Backend error (${res.status}):`, data);
-      return NextResponse.json(data, { status: res.status });
+    // Handle response from the backend
+    if (!backendResponse.ok) {
+      console.error(`[API Proxy /user/account-details] Backend error (${backendResponse.status})`);
+      
+      // If the backend endpoint doesn't exist, return a basic response
+      if (backendResponse.status === 404) {
+        return new NextResponse(JSON.stringify({ 
+          message: 'Account details endpoint not implemented yet' 
+        }), { status: 404 });
+      }
+      
+      return new NextResponse(JSON.stringify({ error: 'Failed to fetch account details' }), {
+        status: backendResponse.status
+      });
     }
+
+    const responseBody = await backendResponse.json();
+    console.log(`[API Proxy /user/account-details] Successfully fetched account details for ${userId}`);
     
-    console.log("[API Proxy Account-Details] Successfully fetched account details:", data);
-    return NextResponse.json(data, { status: res.status });
+    return new NextResponse(JSON.stringify(responseBody), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
 
   } catch (error) {
-    console.error("[API Proxy Account-Details] Error fetching account details:", error);
-    return NextResponse.json(
-      { error: 'Failed to fetch account details from backend' }, 
-      { status: 500 }
-    );
+    console.error('[API Proxy /user/account-details] Unexpected error:', error);
+    return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 } 
