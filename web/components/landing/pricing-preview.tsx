@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from 'next/navigation'
+import { useAuth } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -34,6 +36,69 @@ interface PricingSectionProps {
 }
 
 function PricingSection({ tiers, className }: PricingSectionProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { getToken } = useAuth();
+
+  const handleUpgradeClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    console.log("[Upgrade] handleUpgradeClick CALLED");
+    
+    setIsLoading(true);
+
+    try {
+      const userToken = await getToken();
+      if (!userToken) {
+        router.push('/sign-in');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log(`[Upgrade] Fetching: POST /api/create-checkout-session`);
+      const response = await fetch(`/api/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ price_lookup_key: 'monthly' }),
+      });
+      
+      console.log(`[Upgrade] Response Status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to create checkout session due to network or parsing issue.' }));
+        console.error('[Upgrade] Response not OK from proxy:', errorData);
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+
+      let responseData;
+      try {
+          responseData = await response.json();
+          console.log('[Upgrade] Parsed Response Data from proxy:', responseData);
+      } catch (parseError) {
+          console.error('[Upgrade] Failed to parse JSON response from proxy:', parseError);
+          throw new Error('Failed to understand server response.');
+      }
+
+      const checkoutUrl = responseData?.url;
+      console.log('[Upgrade] Extracted Checkout URL from proxy:', checkoutUrl);
+
+      if (checkoutUrl) {
+        console.log('[Upgrade] Redirecting to:', checkoutUrl);
+        window.location.href = checkoutUrl;
+      } else {
+        console.error('[Upgrade] Checkout URL not found in response data from proxy.');
+        throw new Error('Checkout URL not received from server.');
+      }
+
+    } catch (error) {
+      console.error("[Upgrade] Error in handleUpgradeClick:", error);
+      alert(`Error creating checkout session: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const buttonStyles = {
     default: cn(
       "h-12 bg-white dark:bg-zinc-900",
@@ -170,22 +235,37 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
               </div>
 
               <div className="p-8 pt-0 mt-auto">
-                <Button
-                  asChild
-                  className={cn(
-                    "w-full relative transition-all duration-300",
-                    tier.highlight
-                      ? buttonStyles.highlight
-                      : buttonStyles.default,
-                  )}
-                >
-                  <Link href={tier.href}>
+                {tier.highlight ? (
+                  <Button
+                    type="button"
+                    disabled={isLoading}
+                    onClick={handleUpgradeClick}
+                    className={cn(
+                      "w-full relative transition-all duration-300",
+                      buttonStyles.highlight,
+                    )}
+                  >
                     <span className="relative z-10 flex items-center justify-center gap-2">
-                      {tier.cta}
-                      <ArrowRight className="w-4 h-4" />
+                      {isLoading ? "Processing..." : tier.cta}
+                      {!isLoading && <ArrowRight className="w-4 h-4" />}
                     </span>
-                  </Link>
-                </Button>
+                  </Button>
+                ) : (
+                  <Button
+                    asChild
+                    className={cn(
+                      "w-full relative transition-all duration-300",
+                      buttonStyles.default,
+                    )}
+                  >
+                    <Link href={tier.href}>
+                      <span className="relative z-10 flex items-center justify-center gap-2">
+                        {tier.cta}
+                        <ArrowRight className="w-4 h-4" />
+                      </span>
+                    </Link>
+                  </Button>
+                )}
               </div>
             </div>
           ))}
