@@ -173,6 +173,67 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false;
   }
 
+  // History retrieval request from content script (for dashboard)
+  if (msg.action === 'getHistory') {
+    console.log('[Tildra Background] Received getHistory request from content script.');
+    chrome.storage.local.get(['summaryHistory'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('[Tildra Background] Error getting history from storage:', chrome.runtime.lastError);
+        sendResponse({ success: false, error: chrome.runtime.lastError.message, history: [] });
+      } else {
+        const history = result.summaryHistory || [];
+        console.log('[Tildra Background] Sending history to content script. Count:', history.length);
+        sendResponse({ success: true, history: history });
+      }
+    });
+    return true; // Indicate async response
+  }
+
+  // Delete a single summary from history
+  if (msg.action === 'deleteSummary' && msg.summaryId) {
+    console.log(`[Tildra Background] Received deleteSummary request for ID: ${msg.summaryId}`);
+    chrome.storage.local.get(['summaryHistory'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('[Tildra Background] Error getting history for deletion:', chrome.runtime.lastError);
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      let history = result.summaryHistory || [];
+      const initialLength = history.length;
+      history = history.filter(item => item.id !== msg.summaryId);
+      if (history.length < initialLength) {
+        chrome.storage.local.set({ 'summaryHistory': history }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('[Tildra Background] Error saving history after deletion:', chrome.runtime.lastError);
+            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            console.log(`[Tildra Background] Summary ${msg.summaryId} deleted. New count: ${history.length}`);
+            sendResponse({ success: true });
+          }
+        });
+      } else {
+        console.warn(`[Tildra Background] Summary ID ${msg.summaryId} not found for deletion.`);
+        sendResponse({ success: false, error: 'Summary not found' });
+      }
+    });
+    return true; // Indicate async response
+  }
+
+  // Clear all summaries from history
+  if (msg.action === 'clearAllHistory') {
+    console.log('[Tildra Background] Received clearAllHistory request.');
+    chrome.storage.local.set({ 'summaryHistory': [] }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('[Tildra Background] Error clearing history:', chrome.runtime.lastError);
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        console.log('[Tildra Background] All history cleared.');
+        sendResponse({ success: true });
+      }
+    });
+    return true; // Indicate async response
+  }
+
   // --- Updated Session token request ---
   if (msg.action === 'getSessionToken') {
     console.log('[Tildra Background] Received getSessionToken request');
@@ -325,66 +386,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     return false; // Synchronous response
   }
-
-  // --- ADDED: History retrieval request ---
-  if (msg.action === 'getHistory') {
-    chrome.storage.local.get(['summaryHistory'], (result) => {
-      if (chrome.runtime.lastError) {
-        console.error('[Tildra Background] Error getting history:', chrome.runtime.lastError);
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
-      } else {
-        const history = result.summaryHistory || [];
-        console.log('[Tildra Background] Retrieved history:', history.length, 'items');
-        sendResponse({ success: true, history: history });
-      }
-    });
-    return true; // Indicate async response
-  }
-
-  // --- ADDED: Delete single summary request ---
-  if (msg.action === 'deleteSummary') {
-    const summaryId = msg.summaryId;
-    if (!summaryId) {
-      sendResponse({ success: false, error: 'No summary ID provided' });
-      return false;
-    }
-    
-    chrome.storage.local.get(['summaryHistory'], (result) => {
-      if (chrome.runtime.lastError) {
-        console.error('[Tildra Background] Error getting history for deletion:', chrome.runtime.lastError);
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
-      } else {
-        const history = result.summaryHistory || [];
-        const updatedHistory = history.filter(item => item.id !== summaryId);
-        
-        chrome.storage.local.set({ summaryHistory: updatedHistory }, () => {
-          if (chrome.runtime.lastError) {
-            console.error('[Tildra Background] Error saving updated history:', chrome.runtime.lastError);
-            sendResponse({ success: false, error: chrome.runtime.lastError.message });
-          } else {
-            console.log('[Tildra Background] Successfully deleted summary:', summaryId);
-            sendResponse({ success: true });
-          }
-        });
-      }
-    });
-    return true; // Indicate async response
-  }
-
-  // --- ADDED: Clear all history request ---
-  if (msg.action === 'clearAllHistory') {
-    chrome.storage.local.set({ summaryHistory: [] }, () => {
-      if (chrome.runtime.lastError) {
-        console.error('[Tildra Background] Error clearing history:', chrome.runtime.lastError);
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
-      } else {
-        console.log('[Tildra Background] Successfully cleared all history');
-        sendResponse({ success: true });
-      }
-    });
-    return true; // Indicate async response
-  }
-  // --- END ADDED ---
 
   return false; // unknown message
 }); 

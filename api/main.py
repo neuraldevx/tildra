@@ -649,144 +649,112 @@ async def clerk_webhook(request: Request):
 @app.post("/summarize", response_model=SummarizeResponse)
 async def summarize_article(
     request_data: SummarizeRequest,
-    user_clerk_id: AuthenticatedUserId, # Renamed for clarity (this is Clerk ID)
+    user_clerk_id: AuthenticatedUserId, 
     background_tasks: BackgroundTasks
 ):
-    """Receives article text, generates summary and key points using DeepSeek API."""
     logger.info(f"Received summarize request for Clerk ID: {user_clerk_id}")
 
     if not DEEPSEEK_API_KEY:
-        raise HTTPException(status_code=500, detail="API key for summarization service (DeepSeek) not configured.")
+        logger.error("DeepSeek API key not configured.")
+        raise HTTPException(status_code=500, detail="API key for summarization service not configured.")
 
-    # --- Usage Limit Check ---
-    user = None # Initialize user variable
+    user = None
     try:
         logger.debug(f"Checking database for Clerk ID: {user_clerk_id}")
         user = await prisma.user.find_unique(where={"clerkId": user_clerk_id})
-
-        # Perform checks requiring the user object *after* confirming it exists.
         if user:
-            # Check for daily reset ONLY if the user was found successfully
             now = datetime.now(timezone.utc)
-            # Calculate the start of the current day (midnight) in UTC
             start_of_current_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
             if user.usageResetAt < start_of_current_day:
                 logger.info(f"Usage period expired for Clerk ID: {user_clerk_id}. Resetting daily count.")
-                # Use a specific update call, handle potential errors if user disappears mid-request
-                updated_user_result = await prisma.user.update(
+                user = await prisma.user.update(
                     where={"clerkId": user_clerk_id},
-                    data={
-                        "summariesUsed": 0,
-                        "usageResetAt": now
-                    }
+                    data={"summariesUsed": 0, "usageResetAt": now}
                 )
-                if not updated_user_result:
-                     logger.error(f"Failed to reset usage for Clerk ID: {user_clerk_id}. User disappeared during update?")
+                if not user: 
+                     logger.error(f"Failed to update usage for Clerk ID: {user_clerk_id} after reset.")
                      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update user usage data.")
-                # Update the local 'user' variable with the reset data for the subsequent check
-                user = updated_user_result
-
-    # Separate exception handling specifically for database operations
     except Exception as db_error:
         logger.error(f"Database error during user lookup/reset for Clerk ID {user_clerk_id}: {db_error}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error during usage check.")
 
-    # --- Post-DB Check Validations ---
-    # 1. Check if user was found
     if not user:
-        logger.error(f"API logic error or race condition: User not found after DB check for Clerk ID: {user_clerk_id}")
-        # Return 403 if user object is still None after the DB check block
+        logger.error(f"User not found in DB for Clerk ID: {user_clerk_id}. This should not happen if authenticated.")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User profile not found.")
 
-    # 2. Usage Limit Enforcement (Free plan only)
     if user.plan == "free":
         if user.summariesUsed >= user.summaryLimit:
-            logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
-            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Daily summary limit ({user.summaryLimit}) reached for your '{user.plan}' plan.")
+            logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}.")
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Daily summary limit ({user.summaryLimit}) reached.")
         else:
-            logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}. Plan: {user.plan}, Used: {user.summariesUsed}, Limit: {user.summaryLimit}")
+            logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}.")
     else:
-        logger.info(f"Premium user bypassing usage limits for Clerk ID: {user_clerk_id}.")
+        logger.info(f"Premium user {user_clerk_id} bypassing usage limits.")
 
-    # --- Proceed with Summarization ---
+    # Initialize variables for robust error logging in except blocks
+    response_text_for_logging = "N/A"
+    deepseek_response_data_for_logging = None
+    message_content_for_logging = "N/A"
+
     try:
         prompt_messages = [
             {
                 "role": "system",
-                "content": "You are an expert summarizer. Summarize the provided article text. Respond ONLY with a JSON object containing two keys: 'tldr' (a 1-2 sentence summary) and 'key_points' (a list of 3-5 string bullet points). Example: {\"tldr\": \"Short summary...\", \"key_points\": [\"Point 1...\", \"Point 2...\"]}"
+                "content": "You are an expert summarizer. Summarize the provided article text. Respond ONLY with a JSON object containing two keys: 'tldr' (a 1-2 sentence summary) and 'key_points' (a list of 3-5 string bullet points). Example: {\\"tldr\\": \\"Short summary...\\", \\"key_points\\": [\\"Point 1...\\", \\"Point 2...\\"]}"
             },
             {
                 "role": "user",
-                "content": f"Article Text:\n{request_data.article_text}"
+                "content": f"Article Text:\\n{request_data.article_text}"
             }
         ]
-
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
-        }
-
-        payload = {
-            "model": "deepseek-chat", # Or deepseek-coder if more appropriate, check DeepSeek docs
-            "messages": prompt_messages,
-            "temperature": 0.7, # Adjust creativity
-            "max_tokens": 500,  # Limit response length
-            "stream": False # We want the full response at once
-        }
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {DEEPSEEK_API_KEY}"}
+        payload = {"model": "deepseek-chat", "messages": prompt_messages, "temperature": 0.7, "max_tokens": 500, "stream": False}
 
         logger.info("Sending request to DeepSeek AI for summarization...")
-        async with httpx.AsyncClient(timeout=60.0) as client: # Increased timeout
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload)
+        
+        response_text_for_logging = response.text # Store for potential logging
+        response.raise_for_status() # Raises HTTPStatusError for 4xx/5xx responses
 
-        # Handle potential errors from DeepSeek API
-        if response.status_code != 200:
-            error_content = response.text
-            try:
-                error_json = response.json()
-                error_content = json.dumps(error_json)
-            except json.JSONDecodeError:
-                pass # Keep the raw text if it's not JSON
-            logger.error(f"DeepSeek API error: Status {response.status_code}, Response: {error_content}")
-            raise HTTPException(status_code=response.status_code, detail=f"DeepSeek API Error: {error_content}")
+        deepseek_response_data_for_logging = response.json()
+        message_content_raw = deepseek_response_data_for_logging.get("choices", [{}])[0].get("message", {}).get("content", "")
+        message_content_for_logging = message_content_raw # Store for potential logging
+        
+        start_index = message_content_raw.find('{')
+        end_index = message_content_raw.rfind('}') + 1 
+        json_str = message_content_raw[start_index:end_index] if start_index != -1 and end_index > start_index else message_content_raw
+        
+        summary_data = SummarizeResponse.model_validate_json(json_str)
+        logger.info("Successfully generated and parsed summary from DeepSeek.")
 
-        # Extract and parse the JSON response from DeepSeek's message content
-        try:
-            deepseek_response_data = response.json()
-            message_content = deepseek_response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        # REMOVED: Database saving logic for summary history
 
-            # Find JSON boundaries (similar to Gemini approach, needed if extra text exists)
-            start_index = message_content.find('{')
-            end_index = message_content.rfind('}')
-            if start_index != -1 and end_index != -1:
-                json_str = message_content[start_index:end_index+1]
-            else:
-                json_str = message_content # Assume content IS the JSON if boundaries not found
-
-            # Use Pydantic to validate and parse the extracted JSON string
-            summary_data = SummarizeResponse.model_validate_json(json_str)
-            logger.info("Successfully generated and parsed summary from DeepSeek.")
-
-        except (json.JSONDecodeError, IndexError, KeyError, Exception) as parse_error:
-            logger.error(f"Failed to parse summary response from DeepSeek AI: {parse_error}\nRaw Response Content: {message_content if 'message_content' in locals() else 'N/A'}\nFull Response: {deepseek_response_data if 'deepseek_response_data' in locals() else response.text}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to parse summary response from AI.")
-
-        # NOTE: Summaries are now stored locally in the Chrome extension's storage
-        # The dashboard will read from extension storage instead of database
-        logger.info(f"Summary generated successfully for user {user_clerk_id} - stored locally in extension")
-
-        # Track usage only for free users AFTER successful summarization
         if user.plan == "free":
             background_tasks.add_task(track_summary_usage, user_clerk_id)
+            logger.info(f"Usage tracking initiated for free user {user_clerk_id}")
 
+        logger.info(f"Summary generated for user {user_clerk_id}. Extension will store it locally.")
         return summary_data
 
-    except httpx.RequestError as e:
-        logger.error(f"Error sending request to DeepSeek: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Could not connect to summarization service: {e}")
-    except Exception as e:
-        logger.error(f"Error during summarization (DeepSeek) for user {user_clerk_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to generate summary: {e}")
+    except httpx.HTTPStatusError as http_err:
+        error_detail = "Summarization service error."
+        status_code_to_raise = 503 # Default to 503 for upstream issues
+        if http_err.response is not None:
+            status_code_to_raise = http_err.response.status_code
+            try: error_detail = json.dumps(http_err.response.json()) 
+            except json.JSONDecodeError: error_detail = http_err.response.text
+        logger.error(f"DeepSeek API HTTP error: Status {status_code_to_raise}, Response: {error_detail}", exc_info=True)
+        raise HTTPException(status_code=status_code_to_raise, detail=error_detail)
+    except httpx.RequestError as req_err:
+        logger.error(f"Error sending request to DeepSeek: {req_err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Could not connect to summarization service: {req_err}")
+    except (json.JSONDecodeError, IndexError, KeyError, Exception) as e: 
+        logger.error(f"Error during summarization (parsing or other) for user {user_clerk_id}: {e}", exc_info=True)
+        # Log potentially useful raw data if available from the try block
+        log_extra = f"Raw DeepSeek Response Text: {response_text_for_logging}. Raw Message Content: {message_content_for_logging}."
+        logger.error(log_extra) 
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to generate or parse summary: {e}")
 
 # Health check endpoint
 @app.get("/health")
