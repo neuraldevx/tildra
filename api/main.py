@@ -691,20 +691,23 @@ async def summarize_article(
     else:
         logger.info(f"Premium user {user_clerk_id} bypassing usage limits.")
 
-    # Initialize variables for robust error logging in except blocks
     response_text_for_logging = "N/A"
-    deepseek_response_data_for_logging = None
     message_content_for_logging = "N/A"
 
     try:
         prompt_messages = [
             {
                 "role": "system",
-                "content": "You are an expert summarizer. Summarize the provided article text. Respond ONLY with a JSON object containing two keys: 'tldr' (a 1-2 sentence summary) and 'key_points' (a list of 3-5 string bullet points). Example: {\\"tldr\\": \\"Short summary...\\", \\"key_points\\": [\\"Point 1...\\", \\"Point 2...\\"]}"
+                "content": ("""
+You are an expert summarizer. Summarize the provided article text. 
+Respond ONLY with a JSON object containing two keys: 'tldr' (a 1-2 sentence summary) 
+and 'key_points' (a list of 3-5 string bullet points). 
+Example: {"tldr": "Short summary...", "key_points": ["Point 1...", "Point 2..."]}
+""") # Corrected multi-line string
             },
             {
                 "role": "user",
-                "content": f"Article Text:\\n{request_data.article_text}"
+                "content": f"Article Text:\n{request_data.article_text}"
             }
         ]
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {DEEPSEEK_API_KEY}"}
@@ -714,21 +717,19 @@ async def summarize_article(
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload)
         
-        response_text_for_logging = response.text # Store for potential logging
-        response.raise_for_status() # Raises HTTPStatusError for 4xx/5xx responses
+        response_text_for_logging = response.text
+        response.raise_for_status()
 
-        deepseek_response_data_for_logging = response.json()
-        message_content_raw = deepseek_response_data_for_logging.get("choices", [{}])[0].get("message", {}).get("content", "")
-        message_content_for_logging = message_content_raw # Store for potential logging
+        deepseek_response_data = response.json()
+        message_content_raw = deepseek_response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        message_content_for_logging = message_content_raw
         
         start_index = message_content_raw.find('{')
-        end_index = message_content_raw.rfind('}') + 1 
+        end_index = message_content_raw.rfind('}') + 1
         json_str = message_content_raw[start_index:end_index] if start_index != -1 and end_index > start_index else message_content_raw
         
         summary_data = SummarizeResponse.model_validate_json(json_str)
         logger.info("Successfully generated and parsed summary from DeepSeek.")
-
-        # REMOVED: Database saving logic for summary history
 
         if user.plan == "free":
             background_tasks.add_task(track_summary_usage, user_clerk_id)
@@ -739,21 +740,20 @@ async def summarize_article(
 
     except httpx.HTTPStatusError as http_err:
         error_detail = "Summarization service error."
-        status_code_to_raise = 503 # Default to 503 for upstream issues
+        status_code_to_raise = 503
         if http_err.response is not None:
             status_code_to_raise = http_err.response.status_code
-            try: error_detail = json.dumps(http_err.response.json()) 
-            except json.JSONDecodeError: error_detail = http_err.response.text
+            try: error_detail = json.dumps(http_err.response.json())
+            except json.JSONDecodeError: error_detail = http_err.response.text if http_err.response.text else "Unknown error"
         logger.error(f"DeepSeek API HTTP error: Status {status_code_to_raise}, Response: {error_detail}", exc_info=True)
         raise HTTPException(status_code=status_code_to_raise, detail=error_detail)
     except httpx.RequestError as req_err:
         logger.error(f"Error sending request to DeepSeek: {req_err}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Could not connect to summarization service: {req_err}")
-    except (json.JSONDecodeError, IndexError, KeyError, Exception) as e: 
+    except Exception as e:
         logger.error(f"Error during summarization (parsing or other) for user {user_clerk_id}: {e}", exc_info=True)
-        # Log potentially useful raw data if available from the try block
         log_extra = f"Raw DeepSeek Response Text: {response_text_for_logging}. Raw Message Content: {message_content_for_logging}."
-        logger.error(log_extra) 
+        logger.error(log_extra)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to generate or parse summary: {e}")
 
 # Health check endpoint
