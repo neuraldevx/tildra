@@ -581,37 +581,42 @@ async def clerk_webhook(request: Request):
             first_name = event_data.get("first_name")
             last_name = event_data.get("last_name")
             image_url = event_data.get("image_url")
-            # Email handling: Clerk provides an array of emails
             email_address = None
             email_addresses = event_data.get("email_addresses", [])
             if email_addresses:
-                # Find the primary email or just take the first one
-                primary_email = next((e for e in email_addresses if e.get("verification", {}).get("status") == "verified"), None)
-                if primary_email:
-                     email_address = primary_email.get("email_address")
-                else: # Fallback to the first email if no primary/verified found
-                     email_address = email_addresses[0].get("email_address") 
-                
+                primary_email_obj = next((e for e in email_addresses if e.get("id") == event_data.get("primary_email_address_id")), None)
+                if primary_email_obj:
+                    email_address = primary_email_obj.get("email_address")
+                elif email_addresses: # Fallback to first verified, then first email if no primary found
+                    verified_email_obj = next((e for e in email_addresses if e.get("verification", {}).get("status") == "verified"), None)
+                    if verified_email_obj:
+                        email_address = verified_email_obj.get("email_address")
+                    else:
+                        email_address = email_addresses[0].get("email_address")
+            
             if not clerk_id or not email_address:
-                 logger.error(f"Webhook Error: Missing clerk_id or email in user.created event. Data: {event_data}")
-                 # Return 200 to Clerk so it doesn't retry, but log error
-                 return {"status": "error", "message": "Missing required user data in event."}
+                 logger.error(f"Webhook Error user.created: Missing clerk_id or email. ClerkID: {clerk_id}, Email: {email_address}, EventData: {event_data}")
+                 return {"status": "error", "message": "Missing required user data (clerkId or email) in user.created event."}
 
-            # Check if user already exists (idempotency)
-            existing_user = await prisma.user.find_unique(where={"clerkId": clerk_id})
-            if existing_user:
-                 logger.warning(f"Webhook Info: User with clerkId {clerk_id} already exists. Skipping creation.")
+            existing_user_by_clerk_id = await prisma.user.find_unique(where={"clerkId": clerk_id})
+            if existing_user_by_clerk_id:
+                 logger.warning(f"Webhook Info user.created: User with clerkId {clerk_id} already exists. Skipping creation.")
                  return {"status": "ok", "message": "User already exists."}
 
-            # Create the user in the database
+            # Check if email exists and link if necessary (idempotency for existing email with different clerkId)
+            existing_user_by_email = await prisma.user.find_unique(where={"email": email_address})
+            if existing_user_by_email:
+                logger.warning(f"Webhook Info user.created: Email {email_address} already exists for user {existing_user_by_email.id}. Linking this new Clerk ID {clerk_id}.")
+                await prisma.user.update(where={"email": email_address}, data={"clerkId": clerk_id, "firstName": first_name, "lastName": last_name, "profileImageUrl": image_url})
+                return {"status": "ok", "message": "Existing user by email linked to new Clerk ID."}
+
             new_user = await prisma.user.create(
                 data={
                     "clerkId": clerk_id,
                     "email": email_address,
-                    "firstName": first_name, # Can be null
-                    "lastName": last_name,   # Can be null
-                    "profileImageUrl": image_url, # Can be null
-                    # Set defaults for plan, limits, etc.
+                    "firstName": first_name,
+                    "lastName": last_name,
+                    "profileImageUrl": image_url,
                     "plan": "free",
                     "summaryLimit": 5, 
                     "summariesUsed": 0,
@@ -620,31 +625,94 @@ async def clerk_webhook(request: Request):
             )
             logger.info(f"Successfully created user in DB for Clerk ID: {new_user.clerkId}")
             return {"status": "ok", "message": "User created successfully."}
-        except UniqueViolationError as e:
-            # Handle duplicate email by linking existing user record
-            if 'email' in str(e):
-                logger.warning(f"Webhook Info: Email {email_address} already exists. Linking Clerk ID {clerk_id} to existing user.")
-                updated_user = await prisma.user.update(
-                    where={"email": email_address},
-                    data={"clerkId": clerk_id}
-                )
-                logger.info(f"Successfully linked existing user {updated_user.id} with Clerk ID: {clerk_id}")
-                return {"status": "ok", "message": "Existing user linked successfully."}
-            # Re-raise if it's a different uniqueness constraint
-            raise
+        
         except Exception as e:
-            logger.error(f"Webhook Error: Failed to create user for Clerk ID {event_data.get('id')}: {e}", exc_info=True)
-            # Return 500 so Clerk might retry, or handle specific DB errors
-            raise HTTPException(status_code=500, detail="Failed to process user creation.")
+            logger.error(f"Webhook Error user.created: Failed to process for Clerk ID {event_data.get('id')}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to process user.created event.")
 
-    # Handle other event types if needed in the future (e.g., user.updated, user.deleted)
-    # elif event_type == "user.deleted":
-    #     # ... handle deletion ...
-    #     pass 
-    
+    elif event_type == "user.updated":
+        clerk_id = event_data.get("id")
+        logger.info(f"Processing user.updated event for Clerk ID: {clerk_id}")
+        if not clerk_id:
+            logger.error(f"Webhook Error user.updated: Missing clerk_id. EventData: {event_data}")
+            return {"status": "error", "message": "Missing clerk_id in user.updated event."}
+        try:
+            first_name = event_data.get("first_name")
+            last_name = event_data.get("last_name")
+            image_url = event_data.get("image_url")
+            email_address = None
+            email_addresses = event_data.get("email_addresses", [])
+            if email_addresses:
+                primary_email_obj = next((e for e in email_addresses if e.get("id") == event_data.get("primary_email_address_id")), None)
+                if primary_email_obj:
+                    email_address = primary_email_obj.get("email_address")
+                elif email_addresses: # Fallback to first verified, then first email
+                    verified_email_obj = next((e for e in email_addresses if e.get("verification", {}).get("status") == "verified"), None)
+                    if verified_email_obj:
+                        email_address = verified_email_obj.get("email_address")
+                    else:
+                        email_address = email_addresses[0].get("email_address")
+
+            update_payload = {
+                "firstName": first_name,
+                "lastName": last_name,
+                "profileImageUrl": image_url
+            }
+            if email_address: # Only update email if we successfully determined one
+                update_payload["email"] = email_address
+            
+            # Remove keys where value is None to avoid overwriting existing data with None if not provided in event
+            update_payload_cleaned = {k: v for k, v in update_payload.items() if v is not None}
+
+            if not update_payload_cleaned:
+                logger.info(f"Webhook Info user.updated: No relevant fields to update for Clerk ID: {clerk_id}. Skipping DB update.")
+                return {"status": "ok", "message": "No fields to update."}
+
+            updated_user = await prisma.user.update(
+                where={"clerkId": clerk_id},
+                data=update_payload_cleaned
+            )
+            if updated_user:
+                logger.info(f"Successfully updated user in DB for Clerk ID: {clerk_id}")
+                return {"status": "ok", "message": "User updated successfully."}
+            else:
+                # This might happen if the user was deleted from DB between webhook firing and processing
+                logger.warning(f"Webhook Info user.updated: User with Clerk ID {clerk_id} not found for update. May have been deleted.")
+                return {"status": "ok", "message": "User not found for update."}
+        except Exception as e:
+            logger.error(f"Webhook Error user.updated: Failed for Clerk ID {clerk_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to process user.updated event.")
+
+    elif event_type == "user.deleted":
+        clerk_id = event_data.get("id")
+        logger.info(f"Processing user.deleted event for Clerk ID: {clerk_id}")
+        if not clerk_id:
+            logger.error(f"Webhook Error user.deleted: Missing clerk_id. EventData: {event_data}")
+            return {"status": "error", "message": "Missing clerk_id in user.deleted event."}
+        try:
+            # Clerk sends the full user object that was deleted in event_data for user.deleted
+            # If `deleted: true` is present, it's a soft delete by Clerk, you might choose to deactivate or truly delete
+            # For now, we will perform a hard delete from our database.
+            deleted_user = await prisma.user.delete(where={"clerkId": clerk_id})
+            if deleted_user:
+                logger.info(f"Successfully deleted user from DB for Clerk ID: {clerk_id}")
+                return {"status": "ok", "message": "User deleted successfully."}
+            else:
+                # This implies user was already deleted from our DB
+                logger.warning(f"Webhook Info user.deleted: User with Clerk ID {clerk_id} not found for deletion. Already deleted? Event Data: {event_data}")
+                return {"status": "ok", "message": "User not found, already deleted?"}
+        except Exception as e: # Catch specific Prisma errors like RecordNotFound if needed
+            logger.error(f"Webhook Error user.deleted: Failed for Clerk ID {clerk_id}: {e}", exc_info=True)
+            # If Prisma's delete throws an error because record not found, it's okay for idempotency.
+            # Check if the error indicates record not found. Prisma's P2025 error.
+            if "NotFoundError" in str(e) or (hasattr(e, 'code') and e.code == 'P2025'):
+                 logger.warning(f"Webhook Info user.deleted: User with Clerk ID {clerk_id} already deleted (Prisma P2025). Event Data: {event_data}")
+                 return {"status": "ok", "message": "User already deleted from DB."}
+            raise HTTPException(status_code=500, detail="Failed to process user.deleted event.")
+
     else:
-        logger.info(f"Received Clerk webhook event type '{event_type}', but no handler is configured.")
-        return {"status": "ok", "message": "Event received but not processed."}
+        logger.info(f"Received Clerk webhook event type '{event_type}', but no specific handler is configured beyond create/update/delete.")
+        return {"status": "ok", "message": "Event received but no specific handler executed."}
 
 @app.post("/summarize", response_model=SummarizeResponse)
 async def summarize_article(
