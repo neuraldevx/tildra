@@ -9,7 +9,7 @@ import time
 # Third-party imports
 from fastapi import FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field # Add Field
 import httpx # Use httpx for async API calls
 # --- Removed google.generativeai import ---
 # --- Start Edit: Manual JWT Verification Imports ---
@@ -146,9 +146,9 @@ app.add_middleware(
 # --- Models ---
 class SummarizeRequest(BaseModel):
     article_text: str
-    url: Optional[str] = None # Add optional URL field
-    title: Optional[str] = None # Add optional Title field
-    summaryLength: Optional[str] = "standard" # Add summaryLength field
+    url: Optional[str] = None
+    title: Optional[str] = None
+    summary_length: Optional[str] = Field(default="standard", alias="summaryLength")
 
 class SummarizeResponse(BaseModel):
     tldr: str
@@ -815,7 +815,8 @@ async def summarize_article(
     user_clerk_id: AuthenticatedUserIdWithRLS, # MODIFIED for RLS
     background_tasks: BackgroundTasks
 ):
-    logger.info(f"Received summarize request for user: {user_clerk_id[:5]}... with length: {request_data.summaryLength}")
+    logger.info(f"Full request_data received: {request_data.model_dump()}")
+    logger.info(f"Received summarize request for user: {user_clerk_id[:5]}... with length: {request_data.summary_length}")
 
     if not DEEPSEEK_API_KEY:
         logger.error("DeepSeek API key not configured.")
@@ -854,32 +855,9 @@ async def summarize_article(
     else:
         logger.info(f"Premium user {user_clerk_id} bypassing usage limits.")
 
-    # --- Start: Add Logic for Usage Tracking Before API Call ---
-    # try:
-    #     user_usage = await track_summary_usage(user_clerk_id)
-    #     if user_usage is None: # User not found, should not happen if authenticated
-    #         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found for usage tracking.")
-    #     
-    #     if not user_usage.is_pro and user_usage.summaries_used_today >= user_usage.daily_summary_limit:
-    #         logger.warning(f"User {user_clerk_id[:5]}... has reached their daily limit of {user_usage.daily_summary_limit} summaries.")
-    #         # Return a specific error structure that the frontend can understand
-    #         return SummarizeResponse(tldr="Usage limit reached.", key_points=["Upgrade to Pro for unlimited summaries."]) # Placeholder, adjust as needed by frontend
-    #         # Or raise HTTPException if frontend handles it:
-    #         # raise HTTPException(
-    #         #     status_code=status.HTTP_429_TOO_MANY_REQUESTS, 
-    #         #     detail="Daily summary limit reached. Upgrade for unlimited summaries."
-    #         # )
-    #
-    # except HTTPException as e: # Re-raise known HTTP exceptions
-    #     raise e 
-    # except Exception as e:
-    #     logger.error(f"Error during usage tracking for user {user_clerk_id[:5]}...: {e}")
-    #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error processing your request (usage tracking). Please try again later.")
-    # --- End: Usage Tracking Logic ---
-
     try:
-        # Pass summaryLength to the API call function
-        summary_tldr, key_points_list = await call_deepseek_api(request_data.article_text, request_data.summaryLength)
+        # Pass summary_length (snake_case) to the API call function
+        summary_tldr, key_points_list = await call_deepseek_api(request_data.article_text, request_data.summary_length)
         
         # --- Store summary in history ---
         if summary_tldr and key_points_list: # Only save if summarization was successful
@@ -909,7 +887,7 @@ async def summarize_article(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred. Please try again later.")
 
 # --- Helper function to call DeepSeek API ---
-async def call_deepseek_api(article_text: str, summary_length: str = "standard") -> tuple[str, list[str]]:
+async def call_deepseek_api(article_text: str, summary_length_param: str = "standard") -> tuple[str, list[str]]:
     if not DEEPSEEK_API_KEY:
         logger.error("DeepSeek API key is not configured.")
         return "Error: DeepSeek API key not set.", ["Please configure the API key on the server."]
@@ -922,53 +900,53 @@ async def call_deepseek_api(article_text: str, summary_length: str = "standard")
     # Truncate article to avoid huge payloads
     truncated_article = article_text[:15000]
     
-    # Configure parameters based on summary_length
-    if summary_length == "brief":
+    # Configure parameters based on summary_length_param
+    if summary_length_param == "brief":
         system_prompt = (
-            "You are a concise summarization AI. Your task is to create VERY SHORT summaries. "
-            "Be extremely brief and to the point. Avoid unnecessary details."
+            "You are a concise summarization AI. Always respond in JSON format only. "
+            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
         )
         user_prompt = (
-            f"Create an EXTREMELY BRIEF summary of this article. "
-            f"Requirements:\n"
-            f"- TL;DR: ONE short sentence only (max 15 words)\n"
-            f"- Key Points: EXACTLY 2-3 bullet points (each max 10 words)\n\n"
-            f"Output format: {{'tldr': 'your one sentence here', 'key_points': ['point 1', 'point 2']}}\n\n"
-            f"Article: {truncated_article}"
+            f"Summarize this article in JSON format with these exact requirements:\\n"
+            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
+            f"- TL;DR: ONE short sentence (max 15 words)\\n"
+            f"- Key Points: Array of 2-3 brief points (each max 10 words)\\n\\n"
+            f"Example JSON response: {{ \"tldr\": \"Brief summary here\", \"key_points\": [\"Point 1\", \"Point 2\"] }}\\n\\n"
+            f"Article to summarize:\\n{truncated_article}"
         )
         max_tokens = 300
-        temperature = 0.3  # Lower temperature for more focused output
+        temperature = 0.3
         
-    elif summary_length == "detailed":
+    elif summary_length_param == "detailed":
         system_prompt = (
-            "You are a comprehensive summarization AI. Your task is to create detailed, thorough summaries. "
-            "Include important nuances and context. Be comprehensive but well-organized."
+            "You are a comprehensive summarization AI. Always respond in JSON format only. "
+            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
         )
         user_prompt = (
-            f"Create a DETAILED and COMPREHENSIVE summary of this article. "
-            f"Requirements:\n"
-            f"- TL;DR: A thorough paragraph (3-5 sentences, 50-100 words total)\n"
-            f"- Key Points: EXACTLY 5-7 detailed bullet points (each 15-25 words)\n\n"
-            f"Output format: {{'tldr': 'your detailed paragraph here', 'key_points': ['detailed point 1', 'detailed point 2', ...]}}\n\n"
-            f"Article: {truncated_article}"
+            f"Summarize this article in JSON format with these exact requirements:\\n"
+            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
+            f"- TL;DR: Detailed paragraph (3-5 sentences, 50-100 words)\\n"
+            f"- Key Points: Array of 7-9 comprehensive points (each 15-25 words)\\n\\n"
+            f"Example JSON response: {{ \"tldr\": \"Detailed summary paragraph here\", \"key_points\": [\"Detailed point 1\", \"Detailed point 2\"] }}\\n\\n"
+            f"Article to summarize:\\n{truncated_article}"
         )
         max_tokens = 2000
-        temperature = 0.8  # Higher temperature for more comprehensive output
+        temperature = 0.8
         
-    else:  # standard
+    else:  # standard (or if summary_length_param is None/unexpected)
         system_prompt = (
-            "You are a balanced summarization AI. Create clear, informative summaries that capture "
-            "the main points without being too brief or too detailed."
+            "You are a balanced summarization AI. Always respond in JSON format only. "
+            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
         )
         user_prompt = (
-            f"Create a STANDARD summary of this article. "
-            f"Requirements:\n"
-            f"- TL;DR: 2-3 sentences (30-50 words total)\n"
-            f"- Key Points: EXACTLY 4-5 bullet points (each 10-15 words)\n\n"
-            f"Output format: {{'tldr': 'your 2-3 sentences here', 'key_points': ['point 1', 'point 2', ...]}}\n\n"
-            f"Article: {truncated_article}"
+            f"Summarize this article in JSON format with these exact requirements:\\n"
+            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
+            f"- TL;DR: 2-3 sentences (30-50 words total)\\n"
+            f"- Key Points: Array of 4-6 points (each 10-15 words)\\n\\n"
+            f"Example JSON response: {{ \"tldr\": \"Standard summary here\", \"key_points\": [\"Point 1\", \"Point 2\", \"Point 3\"] }}\\n\\n"
+            f"Article to summarize:\\n{truncated_article}"
         )
-        max_tokens = 800
+        max_tokens = 1000
         temperature = 0.6
 
     payload = {
@@ -984,14 +962,20 @@ async def call_deepseek_api(article_text: str, summary_length: str = "standard")
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
-            logger.info(f"Calling DeepSeek API. Length: {summary_length}, Temp: {temperature}, Max tokens: {max_tokens}")
+            logger.info(f"Calling DeepSeek API. Length: {summary_length_param}, Temp: {temperature}, Max tokens: {max_tokens}")
+            logger.info(f"User content snippet: {user_prompt[:200]}...")
+            
             response = await client.post(DEEPSEEK_API_URL, json=payload, headers=headers)
             response.raise_for_status()
             
             response_data = response.json()
-            logger.info(f"DeepSeek API response received. Choice 0 content: {response_data.get('choices',[{}])[0].get('message',{}).get('content', '')[:100]}...")
+            # OLD LOG: logger.info(f"DeepSeek API response received. Choice 0 content: {response_data.get('choices',[{}])[0].get('message',{}).get('content', '')[:100]}...")
 
             content_str = response_data.get('choices',[{}])[0].get('message',{}).get('content')
+            
+            # NEW DETAILED LOGGING
+            logger.info(f"Full raw content_str from DeepSeek API for length '{summary_length_param}': {content_str}")
+
             if not content_str:
                 logger.error("DeepSeek API response missing content string.")
                 return "Error: No content in API response.", []
@@ -1001,16 +985,21 @@ async def call_deepseek_api(article_text: str, summary_length: str = "standard")
                 tldr = summary_json.get("tldr", "Error: TL;DR not found in response.")
                 key_points = summary_json.get("key_points", ["Error: Key points not found in response."])
                 
+                # NEW DETAILED LOGGING
+                logger.info(f"Parsed TL;DR from DeepSeek for length '{summary_length_param}' (before truncation): {tldr}")
+                logger.info(f"Parsed Key Points from DeepSeek for length '{summary_length_param}' (before truncation): {key_points}")
+
                 # Validate structure
                 if not isinstance(tldr, str) or not (isinstance(key_points, list) and all(isinstance(item, str) for item in key_points)):
                     logger.error(f"DeepSeek API response JSON structure is not as expected. TLDR type: {type(tldr)}, KeyPoints type: {type(key_points)}")
                     return "Error: API response format incorrect.", ["Please check server logs for DeepSeek API response."]
                 
                 # Additional validation for brief summaries
-                if summary_length == "brief" and len(key_points) > 3:
+                if summary_length_param == "brief" and len(key_points) > 3:
                     key_points = key_points[:3]  # Enforce max 3 points
-                elif summary_length == "standard" and len(key_points) > 5:
-                    key_points = key_points[:5]  # Enforce max 5 points
+                elif summary_length_param == "standard" and len(key_points) > 6:
+                    key_points = key_points[:6]  # Enforce max 6 points
+                # No truncation for "detailed" as we want 7+ and prompt requests 7-9
 
                 return tldr, key_points
                 
@@ -1039,10 +1028,22 @@ async def call_deepseek_api(article_text: str, summary_length: str = "standard")
 
         except httpx.HTTPStatusError as e:
             logger.error(f"DeepSeek API HTTPStatusError: {e.response.status_code} - {e.response.text}")
-            raise
+            error_text = e.response.text
+            logger.error(f"HTTP error calling DeepSeek API: {e.response.status_code} - {error_text}")
+            
+            # Return a user-friendly error based on status code
+            if e.response.status_code == 400:
+                return "Error: Invalid request to summarization service.", ["Please try again with different content."]
+            elif e.response.status_code == 429:
+                return "Error: Rate limit exceeded.", ["Please wait a moment and try again."]
+            elif e.response.status_code >= 500:
+                return "Error: Summarization service temporarily unavailable.", ["Please try again later."]
+            else:
+                return "Error: Failed to get summary.", ["Please try again."]
+                
         except httpx.RequestError as e:
             logger.error(f"DeepSeek API RequestError: {e}")
-            raise
+            return "Error: Network issue with summarization service.", ["Please check your connection and try again."]
         except Exception as e:
             logger.error(f"Unexpected error in call_deepseek_api: {e}", exc_info=True)
             return "Error: Failed to communicate with summarization service.", ["Please try again later."]

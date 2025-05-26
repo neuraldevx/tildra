@@ -126,6 +126,97 @@
               </div>
             </div>
 
+            <!-- Onboarding Modal -->
+            <div id="onboarding-modal" class="modal onboarding-modal" style="display: none;">
+              <div class="modal-content onboarding-content">
+                <div class="onboarding-step" id="onboarding-step-1">
+                  <div class="modal-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11H5a2 2 0 0 0-2 2v3c0 1.1.9 2 2 2h4m6-6h4a2 2 0 0 1 2 2v3c0 1.1-.9 2-2 2h-4m-6 0V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-3"></path></svg>
+                  </div>
+                  <h2 class="modal-title">Welcome to Tildra! 🎉</h2>
+                  <p class="modal-message">Transform how you consume content with AI-powered summaries. Let's get you started!</p>
+                  <div class="onboarding-features">
+                    <div class="feature-item">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span>Instant article summaries</span>
+                    </div>
+                    <div class="feature-item">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span>Multiple summary lengths</span>
+                    </div>
+                    <div class="feature-item">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span>Save & organize history</span>
+                    </div>
+                  </div>
+                  <div class="modal-actions">
+                    <button id="onboarding-next-1" class="button-primary">Get Started</button>
+                  </div>
+                </div>
+
+                <div class="onboarding-step" id="onboarding-step-2" style="display: none;">
+                  <div class="modal-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  </div>
+                  <h2 class="modal-title">How It Works</h2>
+                  <p class="modal-message">Summarizing articles is simple:</p>
+                  <div class="onboarding-steps">
+                    <div class="step-item">
+                      <div class="step-number">1</div>
+                      <div class="step-content">
+                        <strong>Navigate to any article</strong>
+                        <span>Open any news article, blog post, or webpage with content</span>
+                      </div>
+                    </div>
+                    <div class="step-item">
+                      <div class="step-number">2</div>
+                      <div class="step-content">
+                        <strong>Click the extension</strong>
+                        <span>Open Tildra from your browser toolbar</span>
+                      </div>
+                    </div>
+                    <div class="step-item">
+                      <div class="step-number">3</div>
+                      <div class="step-content">
+                        <strong>Hit "Summarize This Page"</strong>
+                        <span>Get your AI-powered summary in seconds!</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="modal-actions">
+                    <button id="onboarding-back-2" class="button-secondary">Back</button>
+                    <button id="onboarding-next-2" class="button-primary">Continue</button>
+                  </div>
+                </div>
+
+                <div class="onboarding-step" id="onboarding-step-3" style="display: none;">
+                  <div class="modal-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><settings><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"></path></svg>
+                  </div>
+                  <h2 class="modal-title">Customize Your Experience</h2>
+                  <p class="modal-message">Tailor Tildra to your preferences:</p>
+                  <div class="onboarding-tips">
+                    <div class="tip-item">
+                      <strong>📏 Summary Length:</strong> Choose Brief, Standard, or Detailed summaries
+                    </div>
+                    <div class="tip-item">
+                      <strong>📚 History:</strong> Access all your past summaries in the History tab
+                    </div>
+                    <div class="tip-item">
+                      <strong>⚙️ Settings:</strong> Customize themes, colors, and behavior
+                    </div>
+                    <div class="tip-item">
+                      <strong>📋 Copy & Share:</strong> Easily copy summaries to share or save
+                    </div>
+                  </div>
+                  <div class="modal-actions">
+                    <button id="onboarding-back-3" class="button-secondary">Back</button>
+                    <button id="onboarding-finish" class="button-primary">Start Summarizing!</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- History Panel -->
             <section id="panel-history" class="panel" role="tabpanel" aria-labelledby="history-tab" hidden>
                 <details class="accordion" open>

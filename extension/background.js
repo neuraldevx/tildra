@@ -292,6 +292,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const token = msg.token;
     const url = msg.url;
     const title = msg.title;
+    const summaryLength = msg.summaryLength || 'standard'; // Ensure a default if not provided
 
     if (!token) {
       console.error('Tildra (background): No token provided in summarizeAPI message.');
@@ -303,7 +304,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const requestPayload = {
       article_text: textContent,
       url: url,       // Include URL
-      title: title    // Include Title
+      title: title,   // Include Title
+      summaryLength: summaryLength // Add summaryLength to the payload
     };
 
     fetch(`${EFFECTIVE_API_URL_BASE}/summarize`, {

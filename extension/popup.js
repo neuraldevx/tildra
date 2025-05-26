@@ -151,26 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return Math.max(1, minutes); // Minimum 1 minute
   }
 
-  // Generate confidence scores for key points
-  function generateConfidenceScores(keyPoints) {
-    // In a real implementation, this would come from the AI model
-    // For now, we'll simulate based on point length and content
-    return keyPoints.map(point => {
-      const length = point.length;
-      const hasNumbers = /\d/.test(point);
-      const hasSpecificTerms = /\b(specifically|exactly|precisely|according to|research shows|study found)\b/i.test(point);
-      
-      let confidence = 'medium';
-      if (length > 100 && (hasNumbers || hasSpecificTerms)) {
-        confidence = 'high';
-      } else if (length < 50 || /\b(might|could|possibly|perhaps|seems)\b/i.test(point)) {
-        confidence = 'low';
-      }
-      
-      return confidence;
-    });
-  }
-
   // Function to show loading state (kept for reference, but not used directly for button)
   function showLoading(isLoading) {
     // loadingSpinner.style.display = isLoading ? 'block' : 'none';
@@ -201,9 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     summaryLengthBadge.textContent = lengthLabels[selectedLength] || 'Standard';
     
-    // Clear and populate key points with confidence scores
+    // Clear and populate key points
     keyPointsList.innerHTML = '';
-    const confidenceScores = generateConfidenceScores(summaryData.key_points);
     
     summaryData.key_points.forEach((point, index) => {
       const li = document.createElement('li');
@@ -212,12 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
       pointText.className = 'key-point-text';
       pointText.textContent = point;
       
-      const confidenceScore = document.createElement('span');
-      confidenceScore.className = `confidence-score confidence-${confidenceScores[index]}`;
-      confidenceScore.textContent = confidenceScores[index];
-      
       li.appendChild(pointText);
-      li.appendChild(confidenceScore);
       keyPointsList.appendChild(li);
     });
   }
