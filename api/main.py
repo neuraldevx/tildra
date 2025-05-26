@@ -253,6 +253,70 @@ async def get_authenticated_user_id(request: Request) -> str:
 
 AuthenticatedUserId = Annotated[str, Depends(get_authenticated_user_id)]
 
+# --- NEW: Authentication Dependency with RLS Context Setting ---
+async def get_authenticated_user_id_with_rls_context(request: Request, db_prisma: Prisma = Depends(lambda: prisma)) -> str:
+    """
+    Dependency to authenticate the request using manual JWT verification
+    AND set the 'app.current_clerk_id' for RLS policies.
+    """
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        logger.warning("Auth failed (RLS): Missing/malformed Bearer token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or malformed Bearer token")
+
+    token = auth_header.split(' ')[1]
+    user_id = None # Initialize user_id
+
+    try:
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        claims = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            issuer=CLERK_ISSUER,
+        )
+        user_id = claims.get('sub')
+
+    except jwt.exceptions.PyJWKClientError as e:
+        logger.error(f"Auth failed (RLS): Error fetching/finding JWKS key - {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error retrieving signing key")
+    except jwt.exceptions.ExpiredSignatureError:
+        logger.warning("Auth failed (RLS): Token has expired")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+    except jwt.exceptions.InvalidIssuerError:
+        logger.warning(f"Auth failed (RLS): Invalid token issuer. Expected: {CLERK_ISSUER}, Got: {jwt.get_unverified_header(token).get('iss', 'N/A')}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token issuer")
+    except jwt.exceptions.InvalidSignatureError:
+         logger.warning("Auth failed (RLS): Token signature is invalid")
+         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token signature")
+    except jwt.exceptions.DecodeError as e:
+        logger.warning(f"Auth failed (RLS): Token decoding error - {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Token decode error: {e}")
+    except Exception as e:
+        logger.exception(f"Auth failed (RLS): Unexpected error during JWT validation - {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unexpected token validation error")
+
+    if not user_id:
+        logger.error("Auth successful (RLS) but 'sub' claim missing.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID ('sub' claim) not found in verified token")
+
+    # Set the RLS context for the current transaction/session
+    try:
+        # The third parameter 'true' in set_config makes it a session-local setting.
+        # Using $1 for user_id makes it safe from SQL injection.
+        await db_prisma.execute_raw(f"SELECT set_config('app.current_clerk_id', $1, true);", user_id)
+        logger.info(f"RLS context set for user: {user_id} ('app.current_clerk_id')")
+    except Exception as e:
+        logger.error(f"Failed to set RLS context (app.current_clerk_id) for user {user_id}: {e}", exc_info=True)
+        # This is a critical failure for RLS to work, so raise an error.
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to set security context for the request.")
+
+    logger.info(f"Authenticated user (RLS context): {user_id}")
+    return user_id
+
+AuthenticatedUserIdWithRLS = Annotated[str, Depends(get_authenticated_user_id_with_rls_context)]
+# --- END NEW ---
+
 # --- Background Tasks ---
 async def track_summary_usage(user_clerk_id: str):
     """Increments the summary usage count for the user in the database."""
@@ -260,10 +324,13 @@ async def track_summary_usage(user_clerk_id: str):
         logger.info(f"[Usage Tracking] Attempting to increment usage for Clerk ID: {user_clerk_id}")
         updated_user = await prisma.user.update(
             where={"clerkId": user_clerk_id},
-            data={"summariesUsed": {"increment": 1}}
+            data={
+                "summariesUsed": {"increment": 1},
+                "totalSummariesMade": {"increment": 1} # Increment total summaries
+            }
         )
         if updated_user:
-             logger.info(f"[Usage Tracking] Successfully incremented usage for Clerk ID: {user_clerk_id}. New count: {updated_user.summariesUsed}")
+             logger.info(f"[Usage Tracking] Successfully incremented usage for Clerk ID: {user_clerk_id}. New count: {updated_user.summariesUsed}, Total ever: {updated_user.totalSummariesMade}")
         else:
              # This case should be rare if user exists from check in main endpoint
              logger.error(f"[Usage Tracking] Failed to increment usage: User not found for Clerk ID: {user_clerk_id}")
@@ -279,7 +346,7 @@ def read_root():
 @app.post("/create-checkout-session", response_model=CreateCheckoutResponse)
 async def create_checkout_session(
     checkout_request: CreateCheckoutRequest,
-    user_clerk_id: AuthenticatedUserId, # Inject authenticated user ID
+    user_clerk_id: AuthenticatedUserIdWithRLS, # MODIFIED for RLS
 ):
     """Creates a Stripe Checkout session for upgrading to Premium."""
     logger.info(f"Received create_checkout_session request for Clerk ID: {user_clerk_id}, key: {checkout_request.price_lookup_key}")
@@ -620,6 +687,7 @@ async def clerk_webhook(request: Request):
                     "plan": "free",
                     "summaryLimit": 5, 
                     "summariesUsed": 0,
+                    "totalSummariesMade": 0, # Initialize total summaries
                     "usageResetAt": datetime.now(timezone.utc)
                 }
             )
@@ -717,7 +785,7 @@ async def clerk_webhook(request: Request):
 @app.post("/summarize", response_model=SummarizeResponse)
 async def summarize_article(
     request_data: SummarizeRequest,
-    user_clerk_id: AuthenticatedUserId, 
+    user_clerk_id: AuthenticatedUserIdWithRLS, # MODIFIED for RLS
     background_tasks: BackgroundTasks
 ):
     logger.info(f"Received summarize request for Clerk ID: {user_clerk_id}")
@@ -799,9 +867,9 @@ Example: {"tldr": "Short summary...", "key_points": ["Point 1...", "Point 2..."]
         summary_data = SummarizeResponse.model_validate_json(json_str)
         logger.info("Successfully generated and parsed summary from DeepSeek.")
 
-        if user.plan == "free":
-            background_tasks.add_task(track_summary_usage, user_clerk_id)
-            logger.info(f"Usage tracking initiated for free user {user_clerk_id}")
+        # MODIFIED: Call usage tracking for ALL users after successful summarization
+        background_tasks.add_task(track_summary_usage, user_clerk_id)
+        logger.info(f"Usage tracking initiated for user {user_clerk_id} (Plan: {user.plan})") # Log plan for clarity
 
         logger.info(f"Summary generated for user {user_clerk_id}. Extension will store it locally.")
         return summary_data
@@ -853,7 +921,7 @@ if __name__ == "__main__":
 
 # --- MODIFIED: User Account Details Endpoint ---
 @app.get("/api/user/account-details", response_model=UserAccountDetailsResponse)
-async def get_user_account_details(user_id: str = Depends(get_authenticated_user_id)):
+async def get_user_account_details(user_id: AuthenticatedUserIdWithRLS): # MODIFIED for RLS
     """
     Retrieves account details for the authenticated user.
     """
@@ -879,7 +947,7 @@ async def get_user_account_details(user_id: str = Depends(get_authenticated_user
 
 # --- ADDED: User Status Endpoint --- 
 @app.get("/api/user/status", response_model=UserStatusResponse)
-async def get_user_status(user_id: AuthenticatedUserId):
+async def get_user_status(user_id: AuthenticatedUserIdWithRLS): # MODIFIED for RLS
     """Retrieves the pro status for the authenticated user."""
     logger.info(f"Fetching status for Clerk ID: {user_id}")
     try:
@@ -899,7 +967,7 @@ async def get_user_status(user_id: AuthenticatedUserId):
 
 # --- ADDED: History Endpoint --- 
 @app.get("/api/history", response_model=List[HistoryItemResponse])
-async def get_user_history(user_id: AuthenticatedUserId):
+async def get_user_history(user_id: AuthenticatedUserIdWithRLS): # MODIFIED for RLS
     """Retrieves the summary history for the authenticated user."""
     logger.info(f"Fetching history for Clerk ID: {user_id}")
     try:
@@ -919,7 +987,7 @@ async def get_user_history(user_id: AuthenticatedUserId):
 
 # --- ADDED: Delete Single History Item Endpoint ---
 @app.delete("/api/history/{history_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_single_history_item(history_id: str, user_id: AuthenticatedUserId):
+async def delete_single_history_item(history_id: str, user_id: AuthenticatedUserIdWithRLS): # MODIFIED for RLS
     """Deletes a specific summary history item for the authenticated user."""
     logger.info(f"Attempting to delete history item {history_id} for user {user_id}")
     try:
@@ -949,7 +1017,7 @@ async def delete_single_history_item(history_id: str, user_id: AuthenticatedUser
 
 # --- ADDED: Delete All History Items Endpoint ---
 @app.delete("/api/history", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_all_user_history(user_id: AuthenticatedUserId):
+async def delete_all_user_history(user_id: AuthenticatedUserIdWithRLS): # MODIFIED for RLS
     """Deletes all summary history items for the authenticated user."""
     logger.info(f"Attempting to delete ALL history for user {user_id}")
     try:

@@ -24,6 +24,7 @@ model User {
   summariesUsed Int      @default(0)
   summaryLimit  Int      @default(5)
   usageResetAt  DateTime @default(now()) @map("usageResetAt")
+  totalSummariesMade Int @default(0)
   // isAdminOrDev  Boolean  @default(false) // Skipping for now
 
   // --- Stripe Fields ---
