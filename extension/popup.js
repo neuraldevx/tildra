@@ -27,6 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const overlayTextPicker = document.getElementById('overlay-text-picker');
   const enableHighlightingToggle = document.getElementById('enable-highlighting-toggle');
 
+  // --- New summary enhancement elements ---
+  const summaryLengthSelect = document.getElementById('summary-length');
+  const loadingProgress = document.getElementById('loading-progress');
+  const progressBar = document.querySelector('.progress-fill');
+  const progressText = document.querySelector('.progress-text');
+  const progressSubtext = document.querySelector('.progress-subtext');
+  const readingTime = document.getElementById('reading-time');
+  const summaryLengthBadge = document.getElementById('summary-length-badge');
+
   // --- Existing/Modified element references ---
   const loadingSpinner = document.getElementById('loading'); // Keep for potential future use, though hidden by CSS
   const summaryContainer = document.getElementById('summary-container');
@@ -71,30 +80,155 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   // --- End Edit ---
 
+  // Smart loading progress management
+  function showSmartLoading(show = true) {
+    if (show) {
+      loadingProgress.style.display = 'block';
+      summarizeButton.setAttribute('aria-busy', 'true');
+      summarizeButton.querySelector('.button-icon').style.display = 'inline-block';
+      
+      // Start progress sequence
+      setTimeout(() => updateProgress('analyzing'), 100);
+      setTimeout(() => updateProgress('processing'), 2000);
+      setTimeout(() => updateProgress('generating'), 4000);
+    } else {
+      loadingProgress.style.display = 'none';
+      summarizeButton.setAttribute('aria-busy', 'false');
+      summarizeButton.querySelector('.button-icon').style.display = 'none';
+      resetProgress();
+    }
+  }
+
+  function updateProgress(phase) {
+    const phases = {
+      analyzing: {
+        text: 'Analyzing content...',
+        subtext: 'Reading and understanding the article',
+        class: 'progress-analyzing'
+      },
+      processing: {
+        text: 'Processing information...',
+        subtext: 'Extracting key insights and themes',
+        class: 'progress-processing'
+      },
+      generating: {
+        text: 'Generating summary...',
+        subtext: 'Creating your personalized summary',
+        class: 'progress-generating'
+      },
+      complete: {
+        text: 'Complete!',
+        subtext: 'Summary ready',
+        class: 'progress-complete'
+      }
+    };
+
+    const phaseData = phases[phase];
+    if (phaseData) {
+      progressText.textContent = phaseData.text;
+      progressSubtext.textContent = phaseData.subtext;
+      
+      // Remove all phase classes
+      loadingProgress.className = 'loading-progress';
+      // Add current phase class
+      loadingProgress.classList.add(phaseData.class);
+    }
+  }
+
+  function resetProgress() {
+    loadingProgress.className = 'loading-progress';
+    progressText.textContent = 'Analyzing content...';
+    progressSubtext.textContent = 'This may take a few moments';
+  }
+
+  // Calculate reading time estimate
+  function calculateReadingTime(text, keyPoints = []) {
+    const wordsPerMinute = 200; // Average reading speed
+    const tldrWords = text.split(' ').length;
+    const keyPointsWords = keyPoints.reduce((total, point) => total + point.split(' ').length, 0);
+    const totalWords = tldrWords + keyPointsWords;
+    const minutes = Math.ceil(totalWords / wordsPerMinute);
+    return Math.max(1, minutes); // Minimum 1 minute
+  }
+
+  // Generate confidence scores for key points
+  function generateConfidenceScores(keyPoints) {
+    // In a real implementation, this would come from the AI model
+    // For now, we'll simulate based on point length and content
+    return keyPoints.map(point => {
+      const length = point.length;
+      const hasNumbers = /\d/.test(point);
+      const hasSpecificTerms = /\b(specifically|exactly|precisely|according to|research shows|study found)\b/i.test(point);
+      
+      let confidence = 'medium';
+      if (length > 100 && (hasNumbers || hasSpecificTerms)) {
+        confidence = 'high';
+      } else if (length < 50 || /\b(might|could|possibly|perhaps|seems)\b/i.test(point)) {
+        confidence = 'low';
+      }
+      
+      return confidence;
+    });
+  }
+
   // Function to show loading state (kept for reference, but not used directly for button)
   function showLoading(isLoading) {
     // loadingSpinner.style.display = isLoading ? 'block' : 'none';
   }
 
-  // Function to display summary
+  // Function to display summary with enhanced features
   function displaySummary(summaryData) {
+    // Show completion progress briefly
+    updateProgress('complete');
+    setTimeout(() => showSmartLoading(false), 1000);
+    
     summaryContainer.style.display = 'block';
-    copyButton.style.display = 'inline-block'; // Ensure copy button is visible
+    copyButton.style.display = 'inline-block';
+    
+    // Update TL;DR
     tldrSection.textContent = summaryData.tldr;
-    keyPointsList.innerHTML = ''; // Clear previous points
-    summaryData.key_points.forEach(point => {
+    
+    // Calculate and display reading time
+    const estimatedTime = calculateReadingTime(summaryData.tldr, summaryData.key_points);
+    readingTime.textContent = `📖 ~${estimatedTime} min read`;
+    
+    // Update summary length badge
+    const selectedLength = summaryLengthSelect.value;
+    const lengthLabels = {
+      brief: 'Brief',
+      standard: 'Standard', 
+      detailed: 'Detailed'
+    };
+    summaryLengthBadge.textContent = lengthLabels[selectedLength] || 'Standard';
+    
+    // Clear and populate key points with confidence scores
+    keyPointsList.innerHTML = '';
+    const confidenceScores = generateConfidenceScores(summaryData.key_points);
+    
+    summaryData.key_points.forEach((point, index) => {
       const li = document.createElement('li');
-      li.textContent = point;
+      
+      const pointText = document.createElement('span');
+      pointText.className = 'key-point-text';
+      pointText.textContent = point;
+      
+      const confidenceScore = document.createElement('span');
+      confidenceScore.className = `confidence-score confidence-${confidenceScores[index]}`;
+      confidenceScore.textContent = confidenceScores[index];
+      
+      li.appendChild(pointText);
+      li.appendChild(confidenceScore);
       keyPointsList.appendChild(li);
     });
   }
 
   // Function to display errors
   function displayError(message) {
+    showSmartLoading(false);
     errorDiv.textContent = message;
     errorDiv.style.display = 'block';
-    if(summaryContainer) summaryContainer.style.display = 'none'; // Hide summary view on error
-    if(copyButton) copyButton.style.display = 'none'; // Hide copy button on error
+    if(summaryContainer) summaryContainer.style.display = 'none';
+    if(copyButton) copyButton.style.display = 'none';
   }
 
   // Function to clear previous state
@@ -102,11 +236,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if(summaryContainer) summaryContainer.style.display = 'none';
     if(errorDiv) errorDiv.style.display = 'none';
     if(copyButton) {
-         copyButton.disabled = false; // Re-enable copy button if it was disabled
-         copyButton.style.display = 'none'; // Hide copy button initially
+         copyButton.disabled = false;
+         copyButton.style.display = 'none';
     }
     if(tldrSection) tldrSection.textContent = '';
     if(keyPointsList) keyPointsList.innerHTML = '';
+    showSmartLoading(false);
   }
 
   // --- Start Edit: Add function to get Clerk session cookie ---
@@ -207,16 +342,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (summarizeButton.getAttribute('aria-busy') === 'true') return; // Prevent multiple clicks
 
     clearState();
-    summarizeButton.setAttribute('aria-busy', 'true');
-    const originalButtonText = summarizeButton.textContent;
-    summarizeButton.textContent = 'Summarizing...'; // Change text while loading
+    showSmartLoading(true); // Use new smart loading instead of old method
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const currentTab = tabs[0];
       if (!currentTab || !currentTab.id) {
         displayError("Could not get current tab info.");
-        summarizeButton.removeAttribute('aria-busy');
-        summarizeButton.textContent = originalButtonText;
         return;
       }
 
@@ -225,26 +356,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chrome.runtime.lastError) {
           console.error("Inject Readability Error:", chrome.runtime.lastError.message);
           displayError(`Failed to inject script: ${chrome.runtime.lastError.message}`);
-          summarizeButton.removeAttribute('aria-busy');
-          summarizeButton.textContent = originalButtonText;
           return;
         }
 
         // Inject function to get content
         chrome.scripting.executeScript({ target: { tabId: currentTab.id }, function: getArticleContent }, async (injectionResults) => {
-          // Reset button state regardless of outcome
-          const resetButtonState = () => {
-            summarizeButton.removeAttribute('aria-busy');
-            summarizeButton.textContent = originalButtonText;
-          };
-
           if (chrome.runtime.lastError || !injectionResults || !injectionResults[0]) {
             let msg = chrome.runtime.lastError ? chrome.runtime.lastError.message : "Content script error.";
             if (msg.includes("Cannot access a chrome:// URL")) msg = "Cannot summarize Chrome pages.";
             else if (msg.includes("Cannot access contents")) msg = "Cannot access this page.";
             console.error("Injection Error:", msg);
             displayError(msg);
-            resetButtonState();
             return;
           }
 
@@ -252,14 +374,12 @@ document.addEventListener('DOMContentLoaded', () => {
           if (result.error) {
             console.error("Content Extraction Error:", result.error);
             displayError(result.error);
-            resetButtonState();
             return;
           }
 
           const articleText = result.content;
           if (!articleText || articleText.trim().length < 50) {
             displayError("Not enough content found to summarize.");
-            resetButtonState();
             return;
           }
 
@@ -268,14 +388,15 @@ document.addEventListener('DOMContentLoaded', () => {
             sessionToken = await getClerkSessionToken();
             if (!sessionToken) {
               displayError("Please log in to tildra.xyz first.");
-              resetButtonState();
               return;
             }
           } catch (error) {
             displayError(`Auth Error: ${error.message}`);
-            resetButtonState();
             return;
           }
+
+          // Get selected summary length
+          const summaryLength = summaryLengthSelect.value || 'standard';
 
           // Use background script for the API call
           chrome.runtime.sendMessage(
@@ -284,7 +405,8 @@ document.addEventListener('DOMContentLoaded', () => {
               textContent: articleText, 
               token: sessionToken,
               url: currentTab.url, 
-              title: currentTab.title || 'Untitled Page' 
+              title: currentTab.title || 'Untitled Page',
+              summaryLength: summaryLength // Pass the summary length preference
             }, 
             (response) => {
               if (chrome.runtime.lastError) {
@@ -303,7 +425,6 @@ document.addEventListener('DOMContentLoaded', () => {
               } else {
                 displayError(`API Error: ${response?.error || 'Unknown error'}`);
               }
-              resetButtonState(); // Reset button AFTER response
             }
           );
         }); // End function injection callback

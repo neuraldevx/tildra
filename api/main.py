@@ -148,6 +148,7 @@ class SummarizeRequest(BaseModel):
     article_text: str
     url: Optional[str] = None # Add optional URL field
     title: Optional[str] = None # Add optional Title field
+    summaryLength: Optional[str] = "standard" # Add summaryLength field
 
 class SummarizeResponse(BaseModel):
     tldr: str
@@ -788,7 +789,7 @@ async def summarize_article(
     user_clerk_id: AuthenticatedUserIdWithRLS, # MODIFIED for RLS
     background_tasks: BackgroundTasks
 ):
-    logger.info(f"Received summarize request for Clerk ID: {user_clerk_id}")
+    logger.info(f"Received summarize request for user: {user_clerk_id[:5]}... with length: {request_data.summaryLength}")
 
     if not DEEPSEEK_API_KEY:
         logger.error("DeepSeek API key not configured.")
@@ -827,70 +828,175 @@ async def summarize_article(
     else:
         logger.info(f"Premium user {user_clerk_id} bypassing usage limits.")
 
-    response_text_for_logging = "N/A"
-    message_content_for_logging = "N/A"
+    # --- Start: Add Logic for Usage Tracking Before API Call ---
+    # try:
+    #     user_usage = await track_summary_usage(user_clerk_id)
+    #     if user_usage is None: # User not found, should not happen if authenticated
+    #         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found for usage tracking.")
+    #     
+    #     if not user_usage.is_pro and user_usage.summaries_used_today >= user_usage.daily_summary_limit:
+    #         logger.warning(f"User {user_clerk_id[:5]}... has reached their daily limit of {user_usage.daily_summary_limit} summaries.")
+    #         # Return a specific error structure that the frontend can understand
+    #         return SummarizeResponse(tldr="Usage limit reached.", key_points=["Upgrade to Pro for unlimited summaries."]) # Placeholder, adjust as needed by frontend
+    #         # Or raise HTTPException if frontend handles it:
+    #         # raise HTTPException(
+    #         #     status_code=status.HTTP_429_TOO_MANY_REQUESTS, 
+    #         #     detail="Daily summary limit reached. Upgrade for unlimited summaries."
+    #         # )
+    #
+    # except HTTPException as e: # Re-raise known HTTP exceptions
+    #     raise e 
+    # except Exception as e:
+    #     logger.error(f"Error during usage tracking for user {user_clerk_id[:5]}...: {e}")
+    #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error processing your request (usage tracking). Please try again later.")
+    # --- End: Usage Tracking Logic ---
 
     try:
-        prompt_messages = [
-            {
-                "role": "system",
-                "content": ("""
-You are an expert summarizer. Summarize the provided article text. 
-Respond ONLY with a JSON object containing two keys: 'tldr' (a 1-2 sentence summary) 
-and 'key_points' (a list of 3-5 string bullet points). 
-Example: {"tldr": "Short summary...", "key_points": ["Point 1...", "Point 2..."]}
-""") # Corrected multi-line string
-            },
-            {
-                "role": "user",
-                "content": f"Article Text:\n{request_data.article_text}"
-            }
-        ]
-        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {DEEPSEEK_API_KEY}"}
-        payload = {"model": "deepseek-chat", "messages": prompt_messages, "temperature": 0.7, "max_tokens": 500, "stream": False}
-
-        logger.info("Sending request to DeepSeek AI for summarization...")
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload)
+        # Pass summaryLength to the API call function
+        summary_tldr, key_points_list = await call_deepseek_api(request_data.article_text, request_data.summaryLength)
         
-        response_text_for_logging = response.text
-        response.raise_for_status()
-
-        deepseek_response_data = response.json()
-        message_content_raw = deepseek_response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        message_content_for_logging = message_content_raw
+        # --- Store summary in history ---
+        if summary_tldr and key_points_list: # Only save if summarization was successful
+            background_tasks.add_task(
+                save_summary_to_history, 
+                user_clerk_id=user_clerk_id, 
+                url=request_data.url,
+                title=request_data.title,
+                tldr=summary_tldr, 
+                key_points=key_points_list
+            )
+            background_tasks.add_task( # Add usage tracking here
+                track_summary_usage,
+                user_clerk_id=user_clerk_id
+            )
+        # -----------------------------
         
-        start_index = message_content_raw.find('{')
-        end_index = message_content_raw.rfind('}') + 1
-        json_str = message_content_raw[start_index:end_index] if start_index != -1 and end_index > start_index else message_content_raw
-        
-        summary_data = SummarizeResponse.model_validate_json(json_str)
-        logger.info("Successfully generated and parsed summary from DeepSeek.")
-
-        # MODIFIED: Call usage tracking for ALL users after successful summarization
-        background_tasks.add_task(track_summary_usage, user_clerk_id)
-        logger.info(f"Usage tracking initiated for user {user_clerk_id} (Plan: {user.plan})") # Log plan for clarity
-
-        logger.info(f"Summary generated for user {user_clerk_id}. Extension will store it locally.")
-        return summary_data
-
-    except httpx.HTTPStatusError as http_err:
-        error_detail = "Summarization service error."
-        status_code_to_raise = 503
-        if http_err.response is not None:
-            status_code_to_raise = http_err.response.status_code
-            try: error_detail = json.dumps(http_err.response.json())
-            except json.JSONDecodeError: error_detail = http_err.response.text if http_err.response.text else "Unknown error"
-        logger.error(f"DeepSeek API HTTP error: Status {status_code_to_raise}, Response: {error_detail}", exc_info=True)
-        raise HTTPException(status_code=status_code_to_raise, detail=error_detail)
-    except httpx.RequestError as req_err:
-        logger.error(f"Error sending request to DeepSeek: {req_err}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Could not connect to summarization service: {req_err}")
+        return SummarizeResponse(tldr=summary_tldr, key_points=key_points_list)
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error calling DeepSeek API: {e.response.status_code} - {e.response.text}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"External API error (DeepSeek): {e.response.status_code}")
+    except httpx.RequestError as e:
+        logger.error(f"Request error calling DeepSeek API: {e}")
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="External API request failed (DeepSeek). Please try again later.")
     except Exception as e:
-        logger.error(f"Error during summarization (parsing or other) for user {user_clerk_id}: {e}", exc_info=True)
-        log_extra = f"Raw DeepSeek Response Text: {response_text_for_logging}. Raw Message Content: {message_content_for_logging}."
-        logger.error(log_extra)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to generate or parse summary: {e}")
+        logger.error(f"Unexpected error in summarize_article for user {user_clerk_id[:5]}...: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred. Please try again later.")
+
+# --- Helper function to call DeepSeek API ---
+async def call_deepseek_api(article_text: str, summary_length: str = "standard") -> tuple[str, list[str]]:
+    if not DEEPSEEK_API_KEY:
+        logger.error("DeepSeek API key is not configured.")
+        # Consider raising an error or returning a specific message
+        # For now, let's make it obvious in the output if this happens
+        return "Error: DeepSeek API key not set.", ["Please configure the API key on the server."]
+
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    
+    # Base prompt
+    base_prompt = (
+        f"Please summarize the following article. Provide a concise TL;DR (Too Long; Didn't Read) summary "
+        f"and a list of key bullet points. Format the output as a JSON object with two keys: \"tldr\" (a string) "
+        f"and \"key_points\" (an array of strings). Article:\n\n{article_text[:15000]}" # Limit article length to avoid huge payloads
+    )
+
+    # Adjust prompt based on summary_length
+    length_instruction = ""
+    if summary_length == "brief":
+        length_instruction = " Focus on providing a very short TL;DR and 2-3 crucial key points."
+    elif summary_length == "detailed":
+        length_instruction = " Provide a comprehensive TL;DR and at least 5-7 detailed key points."
+    else: # Standard (default)
+        length_instruction = " Provide a standard TL;DR and 4-5 important key points."
+        
+    final_prompt = base_prompt + length_instruction
+    
+    # Max tokens can also be adjusted, though DeepSeek might handle length well with prompt alone.
+    # Let's set a slightly higher max_tokens for detailed summaries if desired.
+    max_tokens = 1024
+    if summary_length == "detailed":
+        max_tokens = 1536
+    elif summary_length == "brief":
+        max_tokens = 768
+
+    payload = {
+        "model": "deepseek-chat", # Use the appropriate model
+        "messages": [
+            {"role": "system", "content": "You are an expert summarization AI. Provide summaries in the requested JSON format."},
+            {"role": "user", "content": final_prompt}
+        ],
+        "max_tokens": max_tokens, # Adjust as needed
+        "temperature": 0.7, # Adjust for creativity vs. factuality
+        "response_format": { "type": "json_object" } # Request JSON output
+    }
+
+    async with httpx.AsyncClient(timeout=60.0) as client: # Increased timeout to 60s
+        try:
+            logger.info(f"Calling DeepSeek API. Length preference: {summary_length}. Prompt snippet: {final_prompt[:100]}...")
+            response = await client.post(DEEPSEEK_API_URL, json=payload, headers=headers)
+            response.raise_for_status() # Will raise HTTPStatusError for 4xx/5xx responses
+            
+            response_data = response.json()
+            logger.info(f"DeepSeek API response received. Choice 0 content: {response_data.get('choices',[{}])[0].get('message',{}).get('content', '')[:100]}...")
+
+            # Extract content from the correct part of the response
+            # Assuming the JSON output is directly in the content of the first choice message
+            content_str = response_data.get('choices',[{}])[0].get('message',{}).get('content')
+            if not content_str:
+                logger.error("DeepSeek API response missing content string.")
+                return "Error: No content in API response.", []
+
+            try:
+                # Attempt to parse the JSON string from the content
+                summary_json = json.loads(content_str)
+                tldr = summary_json.get("tldr", "Error: TL;DR not found in response.")
+                key_points = summary_json.get("key_points", ["Error: Key points not found in response."])
+                
+                # Basic validation of the parsed structure
+                if not isinstance(tldr, str) or not (isinstance(key_points, list) and all(isinstance(item, str) for item in key_points)):
+                    logger.error(f"DeepSeek API response JSON structure is not as expected. TLDR type: {type(tldr)}, KeyPoints type: {type(key_points)}")
+                    return "Error: API response format incorrect.", ["Please check server logs for DeepSeek API response."]
+
+                return tldr, key_points
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON from DeepSeek response: {e}. Content: {content_str[:200]}...")
+                # Fallback: Try to extract TL;DR and Key Points using a simpler split if the JSON is malformed
+                # This is a basic fallback and might not always work as expected.
+                tldr_fallback = "Could not parse TL;DR."
+                key_points_fallback = ["Could not parse key points from API response."]
+                
+                # Attempt to find TL;DR marker (highly dependent on consistent non-JSON output)
+                if "TL;DR:" in content_str:
+                    parts = content_str.split("Key Points:", 1)
+                    tldr_part = parts[0].replace("TL;DR:", "").strip()
+                    if tldr_part:
+                        tldr_fallback = tldr_part
+                    if len(parts) > 1:
+                        key_points_raw = parts[1].strip()
+                        # Split bullet points (common formats: -, *, •)
+                        key_points_fallback = [p.strip() for p in key_points_raw.split('\n') if p.strip().startswith( ('-', '*', '•') ) and len(p.strip()) > 1]
+                        if not key_points_fallback: # If no bullets found, just return raw block
+                            key_points_fallback = ["Could not reliably extract key points."]
+                
+                return tldr_fallback, key_points_fallback
+            except Exception as e: # Catch any other unexpected error during parsing
+                logger.error(f"Unexpected error parsing DeepSeek response content: {e}", exc_info=True)
+                return "Error processing API response.", ["Please try again later."]
+
+        except httpx.HTTPStatusError as e:
+            # Log the error and re-raise to be caught by the endpoint handler
+            logger.error(f"DeepSeek API HTTPStatusError: {e.response.status_code} - {e.response.text}")
+            raise # Re-raise the exception
+        except httpx.RequestError as e:
+            # Log the error and re-raise
+            logger.error(f"DeepSeek API RequestError: {e}")
+            raise # Re-raise
+        except Exception as e: # Catch-all for other unexpected errors from this function
+            logger.error(f"Unexpected error in call_deepseek_api: {e}", exc_info=True)
+            # Return a generic error that can be displayed to the user
+            return "Error: Failed to communicate with summarization service.", ["Please try again later."]
 
 # Health check endpoint
 @app.get("/health")

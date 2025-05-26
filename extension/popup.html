@@ -8,7 +8,7 @@
     <!-- Inter font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <!-- Favicon links -->
     <link rel="icon" type="image/png" href="favicon/favicon-96x96.png" sizes="96x96" />
@@ -24,24 +24,30 @@
         <!-- HEADER -->
         <header class="header">
             <h1 class="logo-text">
-                <img src="favicon/favicon-96x96.png" alt="Tildra Logo" class="logo-icon" width="24" height="24">
+                <img src="favicon/favicon-96x96.png" alt="Tildra Logo" class="logo-icon" width="32" height="32">
                 Tildra
             </h1>
-            <button class="open-tab-button" aria-label="Open Tildra in new tab">
+            <button class="open-tab-button" aria-label="Open Tildra in new tab" title="Open in new tab">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
             </button>
         </header>
 
         <!-- TABS -->
         <nav class="tabs" role="tablist">
-            <button id="summarize-tab" class="tab active" role="tab" aria-controls="panel-summarize" aria-selected="true">Summarize</button>
-            <button id="history-tab" class="tab" role="tab" aria-controls="panel-history" aria-selected="false">History</button>
-            <button id="followup-tab" class="tab" role="tab" aria-controls="panel-followup" aria-selected="false">Follow-up (Pro)</button>
-            <button id="sections-tab" class="tab" role="tab" aria-controls="panel-sections" aria-selected="false">
-                <svg width="16" height="16" style="vertical-align:middle;margin-right:4px;opacity:0.7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
-                Settings
+            <button id="summarize-tab" class="tab active" role="tab" aria-controls="panel-summarize" aria-selected="true">
+                <span>Summarize</span>
             </button>
-            <span class="tab-underline" aria-hidden="true"></span>
+            <button id="history-tab" class="tab" role="tab" aria-controls="panel-history" aria-selected="false">
+                <span>History</span>
+            </button>
+            <button id="followup-tab" class="tab" role="tab" aria-controls="panel-followup" aria-selected="false">
+                <span>Follow-up</span>
+                <span class="pro-badge">Pro</span>
+            </button>
+            <button id="sections-tab" class="tab" role="tab" aria-controls="panel-sections" aria-selected="false">
+                <svg width="14" height="14" style="vertical-align:middle;margin-right:4px;opacity:0.7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                <span>Settings</span>
+            </button>
         </nav>
 
         <!-- PANELS / MAIN CONTENT -->
@@ -49,17 +55,45 @@
             <!-- Summarize Panel -->
             <section id="panel-summarize" class="panel active" role="tabpanel" aria-labelledby="summarize-tab">
                 <details class="accordion" open>
-                  <summary class="accordion-header" tabindex="0" aria-expanded="true">Summarize Controls</summary>
+                  <summary class="accordion-header" tabindex="0" aria-expanded="true">
+                    <span class="accordion-title">Summarize Controls</span>
+                  </summary>
                   <div class="accordion-content">
+                    <div class="summary-options">
+                        <label for="summary-length" class="option-label">Summary Length</label>
+                        <select id="summary-length" class="summary-length-select" aria-label="Choose summary length">
+                            <option value="brief">Brief (2-3 key points)</option>
+                            <option value="standard" selected>Standard (4-6 key points)</option>
+                            <option value="detailed">Detailed (7+ key points)</option>
+                        </select>
+                    </div>
                     <div class="action-section">
-                        <button id="summarize-button" class="button-primary" aria-label="Summarize this page">Summarize This Page</button>
+                        <button id="summarize-button" class="button-primary" aria-label="Summarize this page">
+                            <span class="button-text">Summarize This Page</span>
+                            <span class="button-icon" style="display: none;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"></path></svg>
+                            </span>
+                        </button>
+                    </div>
+                    <div class="loading-progress" id="loading-progress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">Analyzing content...</div>
+                        <div class="progress-subtext">This may take a few moments</div>
                     </div>
                     <div class="status-section" id="status-section">
                         <div id="error" class="error" style="display: none;"></div>
                     </div>
                     <div id="summary-container" class="summary-container" style="display: none;">
                         <div class="summary-header">
-                            <h3>Summary</h3>
+                            <div class="summary-title-section">
+                                <h3>Summary</h3>
+                                <div class="summary-meta">
+                                    <span id="reading-time" class="reading-time">📖 ~2 min read</span>
+                                    <span class="summary-length-badge" id="summary-length-badge">Standard</span>
+                                </div>
+                            </div>
                             <button id="copy-button" class="icon-button" title="Copy Summary" aria-label="Copy summary">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
                             </button>
@@ -95,13 +129,20 @@
             <!-- History Panel -->
             <section id="panel-history" class="panel" role="tabpanel" aria-labelledby="history-tab" hidden>
                 <details class="accordion" open>
-                  <summary class="accordion-header" tabindex="0" aria-expanded="true">Recent Summaries</summary>
+                  <summary class="accordion-header" tabindex="0" aria-expanded="true">
+                    <span class="accordion-title">Recent Summaries</span>
+                  </summary>
                   <div class="accordion-content">
                     <div class="history-controls">
-                         <button id="clear-history-button" class="button-secondary" title="Clear all summary history">Clear All</button>
+                         <button id="clear-history-button" class="button-secondary" title="Clear all summary history">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            Clear All
+                         </button>
                      </div>
                     <div id="history-empty" class="history-empty" style="display: none;">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.3; margin-bottom: 12px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                         <p>No summary history yet.</p>
+                        <p style="font-size: 12px; opacity: 0.7; margin-top: 4px;">Summaries will appear here after you create them.</p>
                      </div>
                     <ul id="history-list" class="history-list"></ul>
                   </div>
@@ -111,19 +152,27 @@
             <!-- Follow-up (Pro) Panel -->
             <section id="panel-followup" class="panel" role="tabpanel" aria-labelledby="followup-tab" hidden>
                 <div class="followup-skeleton">
-                  <div class="skeleton-title">Pro feature coming soon</div>
-                  <div class="skeleton-desc">Use AI to ask follow-up questions about your summaries.</div>
-                  <input type="text" placeholder="Ask a follow-up..." disabled />
-                  <button disabled>Ask</button>
+                  <div class="pro-feature-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                  </div>
+                  <div class="skeleton-title">Pro Feature Coming Soon</div>
+                  <div class="skeleton-desc">Use AI to ask follow-up questions about your summaries and get deeper insights.</div>
+                  <div class="pro-preview">
+                    <input type="text" placeholder="Ask a follow-up question..." disabled />
+                    <button disabled>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                      Ask
+                    </button>
+                  </div>
                 </div>
             </section>
 
             <!-- Sections/Settings Panel -->
             <section id="panel-sections" class="panel" role="tabpanel" aria-labelledby="sections-tab" hidden>
               <div class="settings-section">
-                <h3 class="settings-header">Theme & Appearance</h3>
+                <h3 class="settings-header">Appearance</h3>
                 <div class="settings-row">
-                  <label for="theme-select">Theme:</label>
+                  <label for="theme-select">Theme</label>
                   <select id="theme-select" aria-label="Theme select">
                     <option value="system">System</option>
                     <option value="dark">Dark</option>
@@ -131,47 +180,31 @@
                   </select>
                 </div>
                 <div class="settings-row">
-                  <label for="accent-color-picker">Accent Color:</label>
-                  <input type="color" id="accent-color-picker" aria-label="Accent color picker" value="#7c3aed" />
+                  <label for="accent-color-picker">Accent Color</label>
+                  <input type="color" id="accent-color-picker" aria-label="Accent color picker" value="#6366f1" />
                 </div>
               </div>
+              
               <div class="settings-section">
-                <h3 class="settings-header">Overlay</h3>
+                <h3 class="settings-header">Behavior</h3>
                 <div class="settings-row">
-                  <label for="disable-overlay-toggle">Disable Webpage Overlay</label>
+                  <label for="disable-overlay-toggle">Disable Overlay</label>
                   <input type="checkbox" id="disable-overlay-toggle" aria-label="Disable summary overlay on webpages" />
                 </div>
-              </div>
-              <div class="settings-section">
-                <h3 class="settings-header">Interaction</h3>
                 <div class="settings-row">
-                  <label for="enable-highlighting-toggle">Enable Scroll Sync Highlighting</label>
+                  <label for="enable-highlighting-toggle">Scroll Highlighting</label>
                   <input type="checkbox" id="enable-highlighting-toggle" aria-label="Enable scroll sync highlighting on webpages" />
                 </div>
               </div>
+              
               <div class="settings-section">
-                <h3 class="settings-header">Export</h3>
+                <h3 class="settings-header">Data</h3>
                 <div class="settings-row">
-                  <button id="export-history-button" class="button-secondary" aria-label="Export summary history">Export History (.txt)</button>
-                </div>
-              </div>
-              <div class="settings-section">
-                <h3 class="settings-header">Custom Colors</h3>
-                <div class="settings-row">
-                  <label for="popup-bg-picker">Popup Background</label>
-                  <input type="color" id="popup-bg-picker" aria-label="Popup background color" value="#1a1a24" />
-                </div>
-                <div class="settings-row">
-                  <label for="popup-text-picker">Popup Text</label>
-                  <input type="color" id="popup-text-picker" aria-label="Popup text color" value="#ffffff" />
-                </div>
-                <div class="settings-row">
-                  <label for="overlay-bg-picker">Overlay Background</label>
-                  <input type="color" id="overlay-bg-picker" aria-label="Overlay background color" value="#232336" />
-                </div>
-                <div class="settings-row">
-                  <label for="overlay-text-picker">Overlay Text</label>
-                  <input type="color" id="overlay-text-picker" aria-label="Overlay text color" value="#ffffff" />
+                  <label>Export History</label>
+                  <button id="export-history-button" class="button-secondary" aria-label="Export summary history">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    Export
+                  </button>
                 </div>
               </div>
             </section>
@@ -180,7 +213,7 @@
         <!-- FOOTER / UPSELL -->
         <hr class="footer-divider" />
         <footer class="footer">
-            ✨ Summaries limited on free plan. <a href="https://www.tildra.xyz" target="_blank" id="upgrade-link">Upgrade</a>
+            <span class="footer-sparkle">✨</span> Summaries limited on free plan. <a href="https://www.tildra.xyz" target="_blank" id="upgrade-link">Upgrade</a>
         </footer>
 
     </div>
