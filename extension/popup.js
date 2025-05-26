@@ -194,6 +194,46 @@ document.addEventListener('DOMContentLoaded', () => {
       li.appendChild(pointText);
       keyPointsList.appendChild(li);
     });
+    
+    // Check if this is the user's first summary and show a welcome tip
+    chrome.storage.local.get(['summaryHistory', 'hasSeenFirstSummary'], (result) => {
+      const history = result.summaryHistory || [];
+      const hasSeenFirstSummary = result.hasSeenFirstSummary || false;
+      
+      if (history.length === 0 && !hasSeenFirstSummary) {
+        showFirstSummaryTip();
+        chrome.storage.local.set({ hasSeenFirstSummary: true });
+      }
+    });
+  }
+
+  function showFirstSummaryTip() {
+    // Create a small tooltip near the copy button
+    const tooltip = document.createElement('div');
+    tooltip.className = 'first-summary-tip';
+    tooltip.innerHTML = `
+      <div class="tip-content">
+        🎉 Great! Your first summary is ready. 
+        <br>Try the <strong>History</strong> tab to see all your summaries!
+      </div>
+    `;
+    
+    // Position it near the summary container
+    summaryContainer.appendChild(tooltip);
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+      if (tooltip.parentNode) {
+        tooltip.parentNode.removeChild(tooltip);
+      }
+    }, 5000);
+    
+    // Allow manual dismissal
+    tooltip.addEventListener('click', () => {
+      if (tooltip.parentNode) {
+        tooltip.parentNode.removeChild(tooltip);
+      }
+    });
   }
 
   // Function to display errors
@@ -605,7 +645,119 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Now proceed with original initializePopup logic that might use BG_CONFIG
       updateProStatusUI(); // Renamed the original logic
+      
+      // Check if user needs onboarding
+      checkAndShowOnboarding();
     });
+  }
+
+  // Onboarding functionality
+  function checkAndShowOnboarding() {
+    chrome.storage.local.get(['hasSeenOnboarding'], (result) => {
+      if (!result.hasSeenOnboarding) {
+        showOnboarding();
+      }
+    });
+  }
+
+  function showOnboarding() {
+    const onboardingModal = document.getElementById('onboarding-modal');
+    if (onboardingModal) {
+      onboardingModal.style.display = 'flex';
+      showOnboardingStep(1);
+      
+      // Add click-outside-to-close functionality
+      onboardingModal.addEventListener('click', (e) => {
+        if (e.target === onboardingModal) {
+          hideOnboarding();
+        }
+      });
+      
+      // Add keyboard navigation
+      const handleKeydown = (e) => {
+        if (e.key === 'Escape') {
+          hideOnboarding();
+          document.removeEventListener('keydown', handleKeydown);
+        }
+      };
+      
+      document.addEventListener('keydown', handleKeydown);
+      
+      // Store the handler so we can remove it later
+      onboardingModal._keydownHandler = handleKeydown;
+    }
+  }
+
+  function hideOnboarding() {
+    const onboardingModal = document.getElementById('onboarding-modal');
+    if (onboardingModal) {
+      onboardingModal.style.display = 'none';
+      
+      // Remove keyboard event listener
+      if (onboardingModal._keydownHandler) {
+        document.removeEventListener('keydown', onboardingModal._keydownHandler);
+        delete onboardingModal._keydownHandler;
+      }
+    }
+    // Mark onboarding as completed
+    chrome.storage.local.set({ hasSeenOnboarding: true });
+  }
+
+  function showOnboardingStep(stepNumber) {
+    // Hide all steps
+    for (let i = 1; i <= 3; i++) {
+      const step = document.getElementById(`onboarding-step-${i}`);
+      if (step) {
+        step.style.display = 'none';
+      }
+    }
+    
+    // Show current step
+    const currentStep = document.getElementById(`onboarding-step-${stepNumber}`);
+    if (currentStep) {
+      currentStep.style.display = 'block';
+    }
+  }
+
+  // Onboarding event listeners
+  const onboardingNext1 = document.getElementById('onboarding-next-1');
+  const onboardingNext2 = document.getElementById('onboarding-next-2');
+  const onboardingBack2 = document.getElementById('onboarding-back-2');
+  const onboardingBack3 = document.getElementById('onboarding-back-3');
+  const onboardingFinish = document.getElementById('onboarding-finish');
+
+  if (onboardingNext1) {
+    onboardingNext1.addEventListener('click', () => showOnboardingStep(2));
+  }
+
+  if (onboardingNext2) {
+    onboardingNext2.addEventListener('click', () => showOnboardingStep(3));
+  }
+
+  if (onboardingBack2) {
+    onboardingBack2.addEventListener('click', () => showOnboardingStep(1));
+  }
+
+  if (onboardingBack3) {
+    onboardingBack3.addEventListener('click', () => showOnboardingStep(2));
+  }
+
+  if (onboardingFinish) {
+    onboardingFinish.addEventListener('click', () => {
+      hideOnboarding();
+      // Optionally highlight the summarize button or show a tooltip
+      highlightSummarizeButton();
+    });
+  }
+
+  function highlightSummarizeButton() {
+    const summarizeButton = document.getElementById('summarize-button');
+    if (summarizeButton) {
+      summarizeButton.style.animation = 'pulseGlow 2s ease-in-out 3';
+      setTimeout(() => {
+        summarizeButton.style.animation = '';
+      }, 6000);
+    }
   }
 
   async function updateProStatusUI() { // Original initializePopup logic, now uses BG_CONFIG
@@ -784,6 +936,13 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
+  // --- Show Tutorial Button ---
+  const showTutorialButton = document.getElementById('show-tutorial-button');
+  if (showTutorialButton) {
+    showTutorialButton.addEventListener('click', () => {
+      showOnboarding();
+    });
+  }
   // --- Focus Ring for Accessibility ---
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
@@ -804,4 +963,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   initializePopup(); // Call initialization logic
+
+  // Developer function to reset onboarding (for testing)
+  window.resetOnboarding = function() {
+    chrome.storage.local.remove(['hasSeenOnboarding', 'hasSeenFirstSummary'], () => {
+      console.log('Onboarding state reset. Reload the extension to see onboarding again.');
+    });
+  };
 });
