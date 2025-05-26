@@ -339,6 +339,32 @@ async def track_summary_usage(user_clerk_id: str):
         # Log error but don't crash the main request
         logger.error(f"[Usage Tracking] Error incrementing usage count for Clerk ID {user_clerk_id}: {e}", exc_info=True)
 
+# --- ADDED: save_summary_to_history function ---
+async def save_summary_to_history(
+    user_clerk_id: str,
+    url: Optional[str],
+    title: Optional[str],
+    tldr: str,
+    key_points: List[str]
+):
+    """Saves the summary details to the SummaryHistory table."""
+    try:
+        logger.info(f"[History] Attempting to save summary for Clerk ID: {user_clerk_id}, URL: {url}")
+        await prisma.summaryhistory.create(
+            data={
+                "userId": user_clerk_id,
+                "url": url,
+                "title": title,
+                "tldr": tldr,
+                "keyPoints": key_points, # Ensure this matches your Prisma schema (e.g., list of strings)
+                # createdAt is usually handled by the database or Prisma default
+            }
+        )
+        logger.info(f"[History] Successfully saved summary for Clerk ID: {user_clerk_id}, URL: {url}")
+    except Exception as e:
+        logger.error(f"[History] Error saving summary for Clerk ID {user_clerk_id}, URL: {url}: {e}", exc_info=True)
+# --- END ADDED ---
+
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
@@ -886,8 +912,6 @@ async def summarize_article(
 async def call_deepseek_api(article_text: str, summary_length: str = "standard") -> tuple[str, list[str]]:
     if not DEEPSEEK_API_KEY:
         logger.error("DeepSeek API key is not configured.")
-        # Consider raising an error or returning a specific message
-        # For now, let's make it obvious in the output if this happens
         return "Error: DeepSeek API key not set.", ["Please configure the API key on the server."]
 
     headers = {
@@ -895,79 +919,107 @@ async def call_deepseek_api(article_text: str, summary_length: str = "standard")
         "Content-Type": "application/json",
     }
     
-    # Base prompt
-    base_prompt = (
-        f"Please summarize the following article. Provide a concise TL;DR (Too Long; Didn't Read) summary "
-        f"and a list of key bullet points. Format the output as a JSON object with two keys: \"tldr\" (a string) "
-        f"and \"key_points\" (an array of strings). Article:\n\n{article_text[:15000]}" # Limit article length to avoid huge payloads
-    )
-
-    # Adjust prompt based on summary_length
-    length_instruction = ""
-    if summary_length == "brief":
-        length_instruction = " Focus on providing a very short TL;DR and 2-3 crucial key points."
-    elif summary_length == "detailed":
-        length_instruction = " Provide a comprehensive TL;DR and at least 5-7 detailed key points."
-    else: # Standard (default)
-        length_instruction = " Provide a standard TL;DR and 4-5 important key points."
-        
-    final_prompt = base_prompt + length_instruction
+    # Truncate article to avoid huge payloads
+    truncated_article = article_text[:15000]
     
-    # Max tokens can also be adjusted, though DeepSeek might handle length well with prompt alone.
-    # Let's set a slightly higher max_tokens for detailed summaries if desired.
-    max_tokens = 1024
-    if summary_length == "detailed":
-        max_tokens = 1536
-    elif summary_length == "brief":
-        max_tokens = 768
+    # Configure parameters based on summary_length
+    if summary_length == "brief":
+        system_prompt = (
+            "You are a concise summarization AI. Your task is to create VERY SHORT summaries. "
+            "Be extremely brief and to the point. Avoid unnecessary details."
+        )
+        user_prompt = (
+            f"Create an EXTREMELY BRIEF summary of this article. "
+            f"Requirements:\n"
+            f"- TL;DR: ONE short sentence only (max 15 words)\n"
+            f"- Key Points: EXACTLY 2-3 bullet points (each max 10 words)\n\n"
+            f"Output format: {{'tldr': 'your one sentence here', 'key_points': ['point 1', 'point 2']}}\n\n"
+            f"Article: {truncated_article}"
+        )
+        max_tokens = 300
+        temperature = 0.3  # Lower temperature for more focused output
+        
+    elif summary_length == "detailed":
+        system_prompt = (
+            "You are a comprehensive summarization AI. Your task is to create detailed, thorough summaries. "
+            "Include important nuances and context. Be comprehensive but well-organized."
+        )
+        user_prompt = (
+            f"Create a DETAILED and COMPREHENSIVE summary of this article. "
+            f"Requirements:\n"
+            f"- TL;DR: A thorough paragraph (3-5 sentences, 50-100 words total)\n"
+            f"- Key Points: EXACTLY 5-7 detailed bullet points (each 15-25 words)\n\n"
+            f"Output format: {{'tldr': 'your detailed paragraph here', 'key_points': ['detailed point 1', 'detailed point 2', ...]}}\n\n"
+            f"Article: {truncated_article}"
+        )
+        max_tokens = 2000
+        temperature = 0.8  # Higher temperature for more comprehensive output
+        
+    else:  # standard
+        system_prompt = (
+            "You are a balanced summarization AI. Create clear, informative summaries that capture "
+            "the main points without being too brief or too detailed."
+        )
+        user_prompt = (
+            f"Create a STANDARD summary of this article. "
+            f"Requirements:\n"
+            f"- TL;DR: 2-3 sentences (30-50 words total)\n"
+            f"- Key Points: EXACTLY 4-5 bullet points (each 10-15 words)\n\n"
+            f"Output format: {{'tldr': 'your 2-3 sentences here', 'key_points': ['point 1', 'point 2', ...]}}\n\n"
+            f"Article: {truncated_article}"
+        )
+        max_tokens = 800
+        temperature = 0.6
 
     payload = {
-        "model": "deepseek-chat", # Use the appropriate model
+        "model": "deepseek-chat",
         "messages": [
-            {"role": "system", "content": "You are an expert summarization AI. Provide summaries in the requested JSON format."},
-            {"role": "user", "content": final_prompt}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ],
-        "max_tokens": max_tokens, # Adjust as needed
-        "temperature": 0.7, # Adjust for creativity vs. factuality
-        "response_format": { "type": "json_object" } # Request JSON output
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "response_format": {"type": "json_object"}
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client: # Increased timeout to 60s
+    async with httpx.AsyncClient(timeout=60.0) as client:
         try:
-            logger.info(f"Calling DeepSeek API. Length preference: {summary_length}. Prompt snippet: {final_prompt[:100]}...")
+            logger.info(f"Calling DeepSeek API. Length: {summary_length}, Temp: {temperature}, Max tokens: {max_tokens}")
             response = await client.post(DEEPSEEK_API_URL, json=payload, headers=headers)
-            response.raise_for_status() # Will raise HTTPStatusError for 4xx/5xx responses
+            response.raise_for_status()
             
             response_data = response.json()
             logger.info(f"DeepSeek API response received. Choice 0 content: {response_data.get('choices',[{}])[0].get('message',{}).get('content', '')[:100]}...")
 
-            # Extract content from the correct part of the response
-            # Assuming the JSON output is directly in the content of the first choice message
             content_str = response_data.get('choices',[{}])[0].get('message',{}).get('content')
             if not content_str:
                 logger.error("DeepSeek API response missing content string.")
                 return "Error: No content in API response.", []
 
             try:
-                # Attempt to parse the JSON string from the content
                 summary_json = json.loads(content_str)
                 tldr = summary_json.get("tldr", "Error: TL;DR not found in response.")
                 key_points = summary_json.get("key_points", ["Error: Key points not found in response."])
                 
-                # Basic validation of the parsed structure
+                # Validate structure
                 if not isinstance(tldr, str) or not (isinstance(key_points, list) and all(isinstance(item, str) for item in key_points)):
                     logger.error(f"DeepSeek API response JSON structure is not as expected. TLDR type: {type(tldr)}, KeyPoints type: {type(key_points)}")
                     return "Error: API response format incorrect.", ["Please check server logs for DeepSeek API response."]
+                
+                # Additional validation for brief summaries
+                if summary_length == "brief" and len(key_points) > 3:
+                    key_points = key_points[:3]  # Enforce max 3 points
+                elif summary_length == "standard" and len(key_points) > 5:
+                    key_points = key_points[:5]  # Enforce max 5 points
 
                 return tldr, key_points
+                
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse JSON from DeepSeek response: {e}. Content: {content_str[:200]}...")
-                # Fallback: Try to extract TL;DR and Key Points using a simpler split if the JSON is malformed
-                # This is a basic fallback and might not always work as expected.
+                # Fallback parsing attempt
                 tldr_fallback = "Could not parse TL;DR."
                 key_points_fallback = ["Could not parse key points from API response."]
                 
-                # Attempt to find TL;DR marker (highly dependent on consistent non-JSON output)
                 if "TL;DR:" in content_str:
                     parts = content_str.split("Key Points:", 1)
                     tldr_part = parts[0].replace("TL;DR:", "").strip()
@@ -975,27 +1027,24 @@ async def call_deepseek_api(article_text: str, summary_length: str = "standard")
                         tldr_fallback = tldr_part
                     if len(parts) > 1:
                         key_points_raw = parts[1].strip()
-                        # Split bullet points (common formats: -, *, •)
-                        key_points_fallback = [p.strip() for p in key_points_raw.split('\n') if p.strip().startswith( ('-', '*', '•') ) and len(p.strip()) > 1]
-                        if not key_points_fallback: # If no bullets found, just return raw block
+                        key_points_fallback = [p.strip() for p in key_points_raw.split('\n') if p.strip().startswith(('-', '*', '•')) and len(p.strip()) > 1]
+                        if not key_points_fallback:
                             key_points_fallback = ["Could not reliably extract key points."]
                 
                 return tldr_fallback, key_points_fallback
-            except Exception as e: # Catch any other unexpected error during parsing
+                
+            except Exception as e:
                 logger.error(f"Unexpected error parsing DeepSeek response content: {e}", exc_info=True)
                 return "Error processing API response.", ["Please try again later."]
 
         except httpx.HTTPStatusError as e:
-            # Log the error and re-raise to be caught by the endpoint handler
             logger.error(f"DeepSeek API HTTPStatusError: {e.response.status_code} - {e.response.text}")
-            raise # Re-raise the exception
+            raise
         except httpx.RequestError as e:
-            # Log the error and re-raise
             logger.error(f"DeepSeek API RequestError: {e}")
-            raise # Re-raise
-        except Exception as e: # Catch-all for other unexpected errors from this function
+            raise
+        except Exception as e:
             logger.error(f"Unexpected error in call_deepseek_api: {e}", exc_info=True)
-            # Return a generic error that can be displayed to the user
             return "Error: Failed to communicate with summarization service.", ["Please try again later."]
 
 # Health check endpoint
