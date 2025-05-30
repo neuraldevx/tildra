@@ -336,10 +336,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         
         sendResponse({ success: true, summaryData: data });
       })
-      .catch(error => { // Catch network errors or the rejected Error object
+      .catch(async error => { // Catch network errors or the rejected Error object
         let errorMessage = 'Failed to fetch summary: Unknown error'; // Default message
         let isExpiredToken = false;
         let isUsageLimit = false; // Flag for usage limit
+        let isPremiumUser = false; // Flag for premium user status
 
         console.warn('[Tildra Background] API call failed:', error);
 
@@ -349,7 +350,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           const status = match ? parseInt(match[1], 10) : null;
 
           if (status === 429) {
-            errorMessage = "You've reached your daily free summary limit. Please upgrade for unlimited use.";
+            // Check if user is premium to provide appropriate message
+            try {
+              const userStatus = await fetchFromApi(USER_STATUS_API_URL);
+              isPremiumUser = userStatus.is_pro;
+              
+              if (isPremiumUser) {
+                errorMessage = "You've used all 500 summaries in your current premium plan! Your limit will reset at the start of your next billing cycle. Need more summaries? Contact support for additional options.";
+              } else {
+                errorMessage = "You've reached your daily free summary limit (10 per day). Upgrade to Premium for 500 summaries per month!";
+              }
+            } catch (statusError) {
+              console.warn('[Tildra Background] Failed to fetch user status, using default message:', statusError);
+              errorMessage = "You've reached your summary limit. Please try again later or upgrade your plan.";
+            }
+            
             isUsageLimit = true;
             console.warn('[Tildra Background] API Usage Limit Reached (429)');
           } else if (status === 401 || status === 403) {
@@ -374,7 +389,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             success: false, 
             error: errorMessage, 
             isExpiredToken: isExpiredToken,
-            isUsageLimit: isUsageLimit // Include the flag in the response
+            isUsageLimit: isUsageLimit, // Include the flag in the response
+            isPremiumUser: isPremiumUser // Include premium status for UI decisions
         }); 
       });
     return true; // Indicate async response expected

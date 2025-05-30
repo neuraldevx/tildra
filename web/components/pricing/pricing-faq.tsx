@@ -19,6 +19,11 @@ export function PricingFaq() {
         "The free plan includes 10 summaries per day. A summary is counted each time you generate a new summary for an article or text. Your daily limit resets at midnight UTC. With the Premium plan, you get 500 summaries per month, and access to new features as they are released.",
     },
     {
+      question: "What if I need more than 500 summaries per month?",
+      answer:
+        "If you're a Premium user who needs more summaries, you have several options: upgrade to Premium Plus (1,500 summaries/month), purchase one-time summary add-on packs, or contact our sales team for custom enterprise pricing. We're happy to work with you to find the right solution for your needs.",
+    },
+    {
       question: "Can I cancel my subscription anytime?",
       answer:
         "Yes, you can cancel your Premium subscription at any time. If you cancel, you'll still have access to Premium features until the end of your current billing period. After that, your account will automatically switch to the Free plan.",

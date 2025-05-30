@@ -152,6 +152,56 @@ export function PricingSection() {
     premiumCtaLink = ""; // No link needed
   }
 
+  const plans = [
+    {
+      name: "Free",
+      price: { monthly: 0, yearly: 0 },
+      description: "Perfect for getting started",
+      features: [
+        { name: "10 Summaries per Day", included: true },
+        { name: "Basic AI Summaries", included: true },
+        { name: "Chrome Extension", included: true },
+        { name: "Export Options", included: false },
+        { name: "Priority Support", included: false },
+        { name: "Advanced AI Models", included: false },
+      ],
+      buttonText: "Get Started",
+      popular: false,
+    },
+    {
+      name: "Premium",
+      price: { monthly: 10, yearly: 96 },
+      description: "For professionals and power users",
+      features: [
+        { name: "500 Summaries per Month", included: true },
+        { name: "Advanced AI Models", included: true },
+        { name: "Chrome Extension", included: true },
+        { name: "Export Options", included: true },
+        { name: "Priority Support", included: true },
+        { name: "Summary History", included: true },
+      ],
+      buttonText: "Upgrade Now",
+      popular: true,
+    },
+    {
+      name: "Premium Plus",
+      price: { monthly: 25, yearly: 240 },
+      description: "For heavy users and teams",
+      features: [
+        { name: "1,500 Summaries per Month", included: true },
+        { name: "Advanced AI Models", included: true },
+        { name: "Chrome Extension", included: true },
+        { name: "Export Options", included: true },
+        { name: "Priority Support", included: true },
+        { name: "Summary History", included: true },
+        { name: "Team Management", included: true },
+        { name: "API Access", included: true },
+      ],
+      buttonText: "Upgrade Now",
+      popular: false,
+    },
+  ];
+
   return (
     <section id="pricing" className="container mx-auto px-4 py-20 relative z-10" ref={ref}>
       <motion.div
@@ -169,40 +219,60 @@ export function PricingSection() {
       <PricingToggle billingCycle={billingCycle} onChange={setBillingCycle} yearlyDiscount={yearlyDiscountDisplay} />
 
       <motion.div
-        className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto mt-8"
+        className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-7xl mx-auto mt-8"
         variants={container}
         initial="hidden"
         animate={isInView ? "show" : "hidden"}
       >
-        <motion.div variants={item}>
-          <PricingCard
-            title="Free"
-            price="$0"
-            description="Perfect for getting started"
-            features={freeFeatures}
-            ctaText="Get Started Free"
-            ctaLink="#"
-            isPrimary={false}
-            billingCycle={billingCycle}
-          />
-        </motion.div>
+        {plans.map((plan, index) => {
+          let ctaText = plan.buttonText;
+          let ctaDisabled = false;
+          let ctaLink = "#";
+          
+          if (plan.name === "Free") {
+            ctaText = "Get Started Free";
+            ctaLink = "#"; // Could link to sign up
+          } else if (plan.name === "Premium") {
+            if (isLoadingStatus) {
+              ctaText = "Loading...";
+              ctaDisabled = true;
+            } else if (isProUser) {
+              ctaText = "Current Plan";
+              ctaDisabled = true;
+            } else {
+              ctaText = "Upgrade Now";
+              ctaLink = "#"; // Link to checkout
+            }
+          } else if (plan.name === "Premium Plus") {
+            ctaText = "Contact Sales";
+            ctaLink = "mailto:sales@tildra.xyz?subject=Premium Plus Inquiry";
+          }
 
-        <motion.div variants={item}>
-          <PricingCard
-            title="Premium"
-            price={billingCycle === "monthly" ? `$${monthlyPrice}` : `$${Math.round(yearlyMonthlyPrice)}`}
-            pricePeriod={billingCycle === "monthly" ? "month" : "month, billed annually"}
-            yearlyPrice={billingCycle === "yearly" ? `$${yearlyPrice}/year` : undefined}
-            description="Unlock unlimited potential"
-            features={premiumFeatures}
-            ctaText={premiumCtaText}
-            ctaLink={premiumCtaLink}
-            ctaDisabled={premiumCtaDisabled}
-            billingCycle={billingCycle}
-            isPrimary={!isProUser}
-            popularBadge={!isProUser}
-          />
-        </motion.div>
+          const currentPrice = billingCycle === "monthly" ? plan.price.monthly : Math.round(plan.price.yearly / 12);
+          const yearlyTotal = plan.price.yearly;
+          
+          return (
+            <motion.div key={plan.name} variants={item}>
+              <PricingCard
+                title={plan.name}
+                price={plan.price.monthly === 0 ? "$0" : `$${currentPrice}`}
+                pricePeriod={plan.price.monthly === 0 ? "" : billingCycle === "monthly" ? "month" : "month, billed annually"}
+                yearlyPrice={billingCycle === "yearly" && plan.price.yearly > 0 ? `$${yearlyTotal}/year` : undefined}
+                description={plan.description}
+                features={plan.features.map(feature => ({ 
+                  name: feature.name, 
+                  included: feature.included 
+                }))}
+                ctaText={ctaText}
+                ctaLink={ctaLink}
+                ctaDisabled={ctaDisabled}
+                billingCycle={billingCycle}
+                isPrimary={plan.popular && !isProUser}
+                popularBadge={plan.popular && !isProUser}
+              />
+            </motion.div>
+          );
+        })}
       </motion.div>
 
       <div className="max-w-3xl mx-auto mt-20">

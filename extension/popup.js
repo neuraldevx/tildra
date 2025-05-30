@@ -431,10 +431,29 @@ document.addEventListener('DOMContentLoaded', () => {
               } else if (response && response.expired) {
                 displayError("Session expired. Please log back in to tildra.xyz.");
               } else if (response && response.isUsageLimit) {
-                displayError("Daily free limit reached. Upgrade for unlimited summaries!");
+                displayError(response.error || "You've reached your summary limit.");
                 const upgradeCTA = document.getElementById('upgrade-link');
                 if (upgradeCTA) {
-                    upgradeCTA.style.display = 'block';
+                    // Only show upgrade CTA for free users, not premium users
+                    if (response.isPremiumUser) {
+                        upgradeCTA.style.display = 'none';
+                        // Add a note about contacting support for premium users
+                        const supportNote = document.createElement('div');
+                        supportNote.className = 'support-note';
+                        supportNote.innerHTML = `
+                          <div style="text-align: center; margin-top: 10px; padding: 8px; background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 6px; font-size: 12px;">
+                            <strong>Need more summaries?</strong><br>
+                            <a href="mailto:support@tildra.xyz?subject=Additional Summaries Request" style="color: #0ea5e9; text-decoration: none;">Contact Support</a> for custom options
+                          </div>
+                        `;
+                        // Insert after error div
+                        const errorDiv = document.getElementById('error');
+                        if (errorDiv && errorDiv.parentNode) {
+                          errorDiv.parentNode.insertBefore(supportNote, errorDiv.nextSibling);
+                        }
+                    } else {
+                        upgradeCTA.style.display = 'block';
+                    }
                 }
               } else {
                 displayError(`API Error: ${response?.error || 'Unknown error'}`);

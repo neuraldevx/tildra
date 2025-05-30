@@ -418,23 +418,20 @@ async def create_checkout_session(
         # If the user doesn't have a Stripe Customer ID, create one
         if not stripe_customer_id:
             try:
-                # Fetch primary email address from Clerk
-                user_data = await clerk_async_client.users.get_user(user_id=user_clerk_id)
-                primary_email_address = None
-                if user_data.email_addresses:
-                    for email_obj in user_data.email_addresses:
-                        if email_obj.id == user_data.primary_email_address_id:
-                            primary_email_address = email_obj.email_address
-                            break
-                if not primary_email_address:
-                    logger.error(f"Primary email not found for Clerk user {user_clerk_id}. Cannot create Stripe customer.")
+                # Use the email from our database instead of fetching from Clerk
+                user_email = user.email
+                if not user_email:
+                    logger.error(f"No email found for user {user_clerk_id}. Cannot create Stripe customer.")
                     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not determine user email for Stripe.")
                 
-                logger.info(f"Creating Stripe customer for Clerk ID: {user_clerk_id}, Email: {primary_email_address}")
+                # Use names from database if available
+                user_name = f"{user.firstName} {user.lastName}".strip() if user.firstName and user.lastName else user_email
+                
+                logger.info(f"Creating Stripe customer for Clerk ID: {user_clerk_id}, Email: {user_email}")
                 customer = stripe.Customer.create(
-                    email=primary_email_address,
+                    email=user_email,
                     metadata={"clerkId": user_clerk_id},
-                    name=f"{user_data.first_name} {user_data.last_name}" if user_data.first_name and user_data.last_name else primary_email_address
+                    name=user_name
                 )
                 stripe_customer_id = customer.id
                 logger.info(f"Updating user record {user_clerk_id} with Stripe Customer ID: {stripe_customer_id}")
@@ -446,8 +443,8 @@ async def create_checkout_session(
             except stripe.error.StripeError as e:
                 logger.error(f"Stripe API error creating customer for {user_clerk_id}: {e}")
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Stripe customer creation failed: {str(e)}")
-            except Exception as e: # Catch other potential errors like Clerk API issues
-                logger.error(f"Error fetching user data or creating Stripe customer for {user_clerk_id}: {e}", exc_info=True)
+            except Exception as e: # Catch other potential errors
+                logger.error(f"Error creating Stripe customer for {user_clerk_id}: {e}", exc_info=True)
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to prepare user data for Stripe.")
 
         # Create new Checkout Session
@@ -516,82 +513,49 @@ async def stripe_webhook(request: Request):
         # Extract necessary information
         stripe_customer_id = session.get('customer')
         stripe_subscription_id = session.get('subscription')
-        # Note: We need to retrieve the subscription to get price and period end
 
         if not stripe_customer_id or not stripe_subscription_id:
-            logger.error(f"Webhook error: Missing customer or subscription ID in checkout session {session.id}")
-            return {"error": "Missing data in webhook payload"} # Return 200 OK to Stripe, but log error
+            logger.error(f"Missing customer or subscription ID in checkout session {session.id}")
+            return {"error": "Missing data in webhook payload"}
 
         try:
             # Retrieve the subscription to get price details and current period end
-            logger.info(f"Retrieving subscription details for ID: {stripe_subscription_id}")
+            logger.info(f"Retrieving subscription: {stripe_subscription_id}")
             subscription = stripe.Subscription.retrieve(stripe_subscription_id)
-            logger.info(f"Retrieved subscription object: {subscription}")
 
-            # --- Corrected Extraction Logic --- 
+            # Extract price ID and period end
             stripe_price_id = None
             period_end_timestamp = None
 
-            # --- Try Dictionary-Style Access --- 
-            subscription_items_data = None
-            logger.info(f"Attempting dictionary access subscription['items']...")
-            items_object = subscription.get('items') # Use .get() for safety
-
-            if items_object and isinstance(items_object, stripe.ListObject):
-                logger.info(f"items_object is a ListObject. Type: {type(items_object)}")
-                if hasattr(items_object, 'data') and items_object.data:
-                    subscription_items_data = items_object.data
-                    logger.info("Successfully extracted items_object.data")
-                else:
-                    logger.warning("items_object does not have .data or .data is empty")
-            elif items_object:
-                 logger.warning(f"items_object exists but is not a ListObject. Type: {type(items_object)}")
-            else:
-                 logger.warning("subscription.get('items') returned None")
-
-            if subscription_items_data and len(subscription_items_data) > 0:
-                logger.info("Accessing first subscription item via dictionary access...") # Log Step 1
-                first_item = subscription_items_data[0] # Get the first item
-                
-                # Get Price ID from the item's plan or price object
-                logger.info(f"First item object: {first_item}") # Log Step 2
+            items_object = subscription.get('items')
+            if items_object and hasattr(items_object, 'data') and items_object.data:
+                first_item = items_object.data[0]
                 plan = first_item.get('plan')
                 price = first_item.get('price')
-                logger.info(f"Extracted plan object: {plan}") # Log Step 3
-                logger.info(f"Extracted price object: {price}") # Log Step 4
-
+                
                 if plan:
                     stripe_price_id = plan.get('id')
-                    logger.info(f"Price ID from plan.get('id'): {stripe_price_id}") # Log Step 5a
                 elif price:
-                     stripe_price_id = price.get('id')
-                     logger.info(f"Price ID from price.get('id'): {stripe_price_id}") # Log Step 5b
+                    stripe_price_id = price.get('id')
                 
-                # Get Period End from the subscription object itself, not the item
-                period_end_timestamp = subscription.get('current_period_end') 
-                logger.info(f"Period end timestamp from subscription.get('current_period_end'): {period_end_timestamp}") # Log Step 6
-            else:
-                # This log now indicates the extraction logic failed
-                logger.warning(f"Failed to extract subscription_items_data or it was empty. Items Data: {subscription_items_data}") # Log Step 7
-            # --- End Corrected Extraction Logic --- 
+                period_end_timestamp = subscription.get('current_period_end')
 
-            stripe_current_period_end = datetime.fromtimestamp(period_end_timestamp, tz=timezone.utc) if period_end_timestamp else None
-            logger.info(f"Converted stripe_current_period_end: {stripe_current_period_end}") # Log Step 8
+            if not stripe_price_id or not period_end_timestamp:
+                logger.error(f"Missing price ID or period end. Price: {stripe_price_id}, Period: {period_end_timestamp}")
+                return {"error": "Missing subscription data"}
 
-            if not stripe_price_id or not stripe_current_period_end:
-                 # Log with corrected values
-                 logger.error(f"Webhook error CHECK FAILED: PriceID: {stripe_price_id}, PeriodEnd DateTime: {stripe_current_period_end}, PeriodEnd Raw: {period_end_timestamp}")
-                 return {"error": "Missing data in subscription item check"}
+            stripe_current_period_end = datetime.fromtimestamp(period_end_timestamp, tz=timezone.utc)
+            logger.info(f"Extracted: Price={stripe_price_id}, PeriodEnd={stripe_current_period_end}")
 
             # Find user by Stripe Customer ID
-            logger.info(f"Finding user by stripe_customer_id: {stripe_customer_id}")
             user = await prisma.user.find_unique(where={"stripeCustomerId": stripe_customer_id})
-
             if not user:
-                logger.error(f"Webhook error: User not found for stripe_customer_id: {stripe_customer_id}")
-                return {"error": "User not found for Stripe customer"}
+                logger.error(f"User not found for stripe_customer_id: {stripe_customer_id}")
+                return {"error": "User not found"}
 
-            # --- Update User Record --- 
+            logger.info(f"Found user: {user.clerkId} - Current plan: {user.plan}")
+
+            # Update User Record to Premium
             update_data = {
                 "plan": "premium",
                 "summaryLimit": 500,
@@ -601,28 +565,24 @@ async def stripe_webhook(request: Request):
                 "summariesUsed": 0,
                 "usageResetAt": stripe_current_period_end
             }
-            logger.info(f"Attempting to update user {user.clerkId} (DB ID: {user.id}) with data: {update_data}") # Log before update
             
+            logger.info(f"UPGRADING USER {user.clerkId} TO PREMIUM")
             updated_user = await prisma.user.update(
                 where={"stripeCustomerId": stripe_customer_id},
                 data=update_data
             )
             
-            # Log the result of the update call
             if updated_user:
-                 logger.info(f"Prisma update call returned: {updated_user}") # Log the returned object
-                 logger.info(f"Successfully processed update for user {user.clerkId} to premium.") # Refined Success Log
+                logger.info(f"SUCCESS: User {user.clerkId} upgraded to plan: {updated_user.plan}, limit: {updated_user.summaryLimit}")
             else:
-                 # This case shouldn't happen if no error was thrown, but log it just in case
-                 logger.error(f"Prisma update call returned None or empty for user {user.clerkId}, update may have failed silently.")
-            # --- End Update User Record --- 
+                logger.error(f"FAILED: Database update returned None for user {user.clerkId}")
 
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe API error retrieving subscription {stripe_subscription_id}: {e}", exc_info=True)
+            logger.error(f"Stripe API error: {e}")
             return {"error": f"Stripe API error: {e}"}
         except Exception as e:
-            logger.error(f"Database or other error processing webhook for customer {stripe_customer_id}: {e}", exc_info=True)
-            return {"error": f"Internal processing error: {e}"}
+            logger.error(f"Critical error in checkout completion: {e}", exc_info=True)
+            return {"error": f"Processing error: {e}"}
 
     # --- ADDED: Handler for invoice.payment_succeeded ---
     elif event.type == 'invoice.payment_succeeded':

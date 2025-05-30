@@ -308,11 +308,11 @@ export default function DashboardPage() {
     { 
       label: "Usage", 
       used: accountDetails.summariesUsed, 
-      limit: accountDetails.is_pro ? (accountDetails.summaryLimit || 1 ) : accountDetails.summaryLimit // Handle limit for pro if needed
+      limit: accountDetails.summaryLimit
     }
   ] : [];
   
-  const usagePercentage = accountDetails && !accountDetails.is_pro && accountDetails.summaryLimit > 0 
+  const usagePercentage = accountDetails && accountDetails.summaryLimit > 0 
     ? Math.round((accountDetails.summariesUsed / accountDetails.summaryLimit) * 100) 
     : 0;
 
@@ -438,33 +438,116 @@ export default function DashboardPage() {
               <CardTitle className="text-xl">Usage This Period</CardTitle>
               <CardDescription className="text-xs opacity-70">
                 {is_pro 
-                  ? "You have unlimited summaries with your premium plan." 
-                  : `You've used ${summariesUsed} of your ${summaryLimit} free summaries.`}
+                  ? `You've used ${summariesUsed} of your ${summaryLimit} premium summaries this month.` 
+                  : `You've used ${summariesUsed} of your ${summaryLimit} free summaries today.`}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
               {is_pro ? (
-                <div className="flex items-center text-green-600 space-x-2">
-                  <div className="p-1.5 bg-green-50 dark:bg-green-950/30 rounded-full">
-                    <Zap className="h-5 w-5 text-yellow-500" />
+                <div className="space-y-3">
+                  <div className="relative">
+                    <div className="h-3 w-full bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-full overflow-hidden shadow-inner">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-1000 ease-out transform origin-left ${
+                          usagePercentage <= 25 
+                            ? 'bg-gradient-to-r from-emerald-400 to-green-500 shadow-lg shadow-green-500/25' 
+                            : usagePercentage <= 50
+                            ? 'bg-gradient-to-r from-blue-400 to-indigo-500 shadow-lg shadow-blue-500/25'
+                            : usagePercentage <= 75
+                            ? 'bg-gradient-to-r from-amber-400 to-orange-500 shadow-lg shadow-amber-500/25'
+                            : 'bg-gradient-to-r from-red-400 to-rose-500 shadow-lg shadow-red-500/25'
+                        }`}
+                        style={{ 
+                          width: `${usagePercentage}%`,
+                          animation: 'progressGrow 1.5s ease-out'
+                        }}
+                      />
+                      {usagePercentage > 0 && (
+                        <div 
+                          className="absolute top-0 h-full w-1 bg-white/30 animate-pulse rounded-full"
+                          style={{ 
+                            left: `${Math.max(usagePercentage - 2, 0)}%`,
+                            animation: 'glowPulse 2s ease-in-out infinite'
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <span className="text-sm font-medium">Unlimited Access</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        usagePercentage <= 25 ? 'bg-green-500' :
+                        usagePercentage <= 50 ? 'bg-blue-500' :
+                        usagePercentage <= 75 ? 'bg-amber-500' : 'bg-red-500'
+                      } animate-pulse`} />
+                      <span className="text-muted-foreground font-medium">{summariesUsed} used</span>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-xs font-bold transition-all duration-300 ${
+                      usagePercentage <= 25 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
+                        : usagePercentage <= 50
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                        : usagePercentage <= 75
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                        : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                    }`}>
+                      {usagePercentage}%
+                    </div>
+                    <span className="text-muted-foreground font-medium">{summaryLimit} monthly</span>
+                  </div>
+                  <div className="flex items-center text-green-600 space-x-2 mt-3 p-2 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800/50">
+                    <div className="p-1.5 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full shadow-lg">
+                      <Zap className="h-4 w-4 text-white animate-pulse" />
+                    </div>
+                    <span className="text-sm font-semibold">Premium Plan Active</span>
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="h-2 w-full bg-muted/50 rounded-full overflow-hidden">
-                    <Progress value={usagePercentage} className="h-full" 
-                      style={{
-                        background: usagePercentage > 75 
-                          ? 'linear-gradient(90deg, #f97316 0%, #ef4444 100%)' 
-                          : 'linear-gradient(90deg, #0ea5e9 0%, #6366f1 100%)'
-                      }}
-                    />
+                <div className="space-y-3">
+                  <div className="relative">
+                    <div className="h-3 w-full bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-full overflow-hidden shadow-inner">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-1000 ease-out transform origin-left ${
+                          usagePercentage <= 50 
+                            ? 'bg-gradient-to-r from-blue-400 to-indigo-500 shadow-lg shadow-blue-500/25' 
+                            : usagePercentage <= 75
+                            ? 'bg-gradient-to-r from-amber-400 to-orange-500 shadow-lg shadow-amber-500/25'
+                            : 'bg-gradient-to-r from-red-400 to-rose-500 shadow-lg shadow-red-500/25'
+                        }`}
+                        style={{ 
+                          width: `${usagePercentage}%`,
+                          animation: 'progressGrow 1.5s ease-out'
+                        }}
+                      />
+                      {usagePercentage > 0 && (
+                        <div 
+                          className="absolute top-0 h-full w-1 bg-white/30 rounded-full"
+                          style={{ 
+                            left: `${Math.max(usagePercentage - 2, 0)}%`,
+                            animation: 'glowPulse 2s ease-in-out infinite'
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{summariesUsed} used</span>
-                    <span className="font-medium">{usagePercentage}%</span>
-                    <span>{summaryLimit} total</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        usagePercentage <= 50 ? 'bg-blue-500' :
+                        usagePercentage <= 75 ? 'bg-amber-500' : 'bg-red-500'
+                      } animate-pulse`} />
+                      <span className="text-muted-foreground font-medium">{summariesUsed} used</span>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-xs font-bold transition-all duration-300 ${
+                      usagePercentage <= 50 
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                        : usagePercentage <= 75
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                        : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                    }`}>
+                      {usagePercentage}%
+                    </div>
+                    <span className="text-muted-foreground font-medium">{summaryLimit} daily</span>
                   </div>
                 </div>
               )}
