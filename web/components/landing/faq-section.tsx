@@ -25,7 +25,7 @@ export function FaqSection() {
     {
       question: "Is there a limit to how many articles I can summarize?",
       answer:
-        "Free users can summarize up to 5 articles per day. For unlimited summaries and access to premium features, you can upgrade to our Premium plan.",
+        "Free users can summarize up to 10 articles per day. For unlimited summaries and access to premium features, you can upgrade to our Premium plan.",
     },
     {
       question: "What types of content can Tildra summarize?",

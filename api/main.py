@@ -102,6 +102,8 @@ PREMIUM_PRICE_ID_MONTHLY = os.getenv("PREMIUM_PRICE_ID_MONTHLY")
 PREMIUM_PRICE_ID_YEARLY = os.getenv("PREMIUM_PRICE_ID_YEARLY")
 # Get your frontend URL for success/cancel redirects
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") # Define FRONTEND_URL here
+SUCCESS_URL = f"{FRONTEND_URL}/payment/success" # Define SUCCESS_URL
+CANCEL_URL = f"{FRONTEND_URL}/payment/cancel"   # Define CANCEL_URL
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET") # <-- Load webhook secret
 
 if not STRIPE_SECRET_KEY:
@@ -377,59 +379,78 @@ async def save_summary_to_history(
 def read_root():
     return {"message": "Tildra API is running!"}
 
+# --- Stripe Related Endpoints ---
+
+PRICE_IDs = {
+    "monthly": "price_1RTWE7AGvsrc7mtDIbGZqLgm", # Updated from old monthly ID
+    "yearly": "price_1RUX3xAGvsrc7mtDT8Cx3YZM",  # Updated from old yearly ID
+}
+
+class CreateCheckoutSessionRequest(BaseModel):
+    price_lookup_key: str # e.g., 'monthly' or 'yearly'
+
 @app.post("/create-checkout-session", response_model=CreateCheckoutResponse)
 async def create_checkout_session(
-    checkout_request: CreateCheckoutRequest,
+    request_data: CreateCheckoutSessionRequest,
     user_clerk_id: AuthenticatedUserIdWithRLS, # MODIFIED for RLS
 ):
     """Creates a Stripe Checkout session for upgrading to Premium."""
-    logger.info(f"Received create_checkout_session request for Clerk ID: {user_clerk_id}, key: {checkout_request.price_lookup_key}")
+    logger.info(f"Received create_checkout_session request for Clerk ID: {user_clerk_id}, key: {request_data.price_lookup_key}")
 
     # Verify Stripe configuration is loaded
-    if not stripe.api_key or not PREMIUM_PRICE_ID_MONTHLY or not PREMIUM_PRICE_ID_YEARLY:
-         logger.error("Stripe configuration is missing or incomplete. Cannot create checkout session.")
-         raise HTTPException(status_code=500, detail="Server configuration error preventing checkout.")
-
-    # Determine the Price ID based on the request
-    price_id = PREMIUM_PRICE_ID_MONTHLY if checkout_request.price_lookup_key == 'monthly' else PREMIUM_PRICE_ID_YEARLY
-
-    # Basic validation for the provided key
-    if checkout_request.price_lookup_key not in ['monthly', 'yearly']:
-         logger.warning(f"Invalid price_lookup_key received: {checkout_request.price_lookup_key}")
-         raise HTTPException(status_code=400, detail="Invalid billing cycle specified.")
+    if not STRIPE_SECRET_KEY or not STRIPE_WEBHOOK_SECRET:
+        logger.error("Stripe API keys are not configured.")
+        raise HTTPException(status_code=500, detail="Stripe is not configured on the server.")
 
     try:
-        # Find user in our DB to get email and potentially existing Stripe Customer ID
-        logger.debug(f"Looking up user in DB for Clerk ID: {user_clerk_id}")
         user = await prisma.user.find_unique(where={"clerkId": user_clerk_id})
         if not user:
-            logger.error(f"User not found in database for Clerk ID: {user_clerk_id}")
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found in our system.")
+            logger.error(f"User not found for Clerk ID: {user_clerk_id} during checkout session creation.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        price_id = PRICE_IDs.get(request_data.price_lookup_key)
+        if not price_id:
+            logger.error(f"Invalid price key provided: {request_data.price_lookup_key} for Clerk ID: {user_clerk_id}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid price key")
 
         stripe_customer_id = user.stripeCustomerId
 
-        # If user doesn't have a Stripe Customer ID yet, create one in Stripe
+        # If the user doesn't have a Stripe Customer ID, create one
         if not stripe_customer_id:
-            logger.info(f"Creating Stripe customer for Clerk ID: {user_clerk_id}, Email: {user.email}")
-            customer = stripe.Customer.create(
-                email=user.email,
-                name=f"{user.firstName} {user.lastName}" if user.firstName and user.lastName else user.email, # Optional: Add name
-                metadata={
-                    'clerkId': user_clerk_id # Link Clerk ID in Stripe metadata
-                }
-            )
-            stripe_customer_id = customer.id
-            # Save the new Stripe Customer ID to our database
-            logger.info(f"Updating user record {user_clerk_id} with Stripe Customer ID: {stripe_customer_id}")
-            await prisma.user.update(
-                where={"clerkId": user_clerk_id},
-                data={"stripeCustomerId": stripe_customer_id}
-            )
-            logger.info(f"Stripe customer {stripe_customer_id} created and linked for Clerk ID: {user_clerk_id}")
-        else:
-             logger.info(f"Found existing Stripe customer {stripe_customer_id} for Clerk ID: {user_clerk_id}")
+            try:
+                # Fetch primary email address from Clerk
+                user_data = await clerk_async_client.users.get_user(user_id=user_clerk_id)
+                primary_email_address = None
+                if user_data.email_addresses:
+                    for email_obj in user_data.email_addresses:
+                        if email_obj.id == user_data.primary_email_address_id:
+                            primary_email_address = email_obj.email_address
+                            break
+                if not primary_email_address:
+                    logger.error(f"Primary email not found for Clerk user {user_clerk_id}. Cannot create Stripe customer.")
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not determine user email for Stripe.")
+                
+                logger.info(f"Creating Stripe customer for Clerk ID: {user_clerk_id}, Email: {primary_email_address}")
+                customer = stripe.Customer.create(
+                    email=primary_email_address,
+                    metadata={"clerkId": user_clerk_id},
+                    name=f"{user_data.first_name} {user_data.last_name}" if user_data.first_name and user_data.last_name else primary_email_address
+                )
+                stripe_customer_id = customer.id
+                logger.info(f"Updating user record {user_clerk_id} with Stripe Customer ID: {stripe_customer_id}")
+                await prisma.user.update(
+                    where={"clerkId": user_clerk_id},
+                    data={"stripeCustomerId": stripe_customer_id}
+                )
+                logger.info(f"Stripe customer {stripe_customer_id} created and linked for Clerk ID: {user_clerk_id}")
+            except stripe.error.StripeError as e:
+                logger.error(f"Stripe API error creating customer for {user_clerk_id}: {e}")
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Stripe customer creation failed: {str(e)}")
+            except Exception as e: # Catch other potential errors like Clerk API issues
+                logger.error(f"Error fetching user data or creating Stripe customer for {user_clerk_id}: {e}", exc_info=True)
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to prepare user data for Stripe.")
 
-        # Create the Stripe Checkout Session
+        # Create new Checkout Session
         logger.info(f"Creating Stripe Checkout session for customer: {stripe_customer_id}, price: {price_id}")
         checkout_session = stripe.checkout.Session.create(
             customer=stripe_customer_id,
@@ -441,34 +462,22 @@ async def create_checkout_session(
                 },
             ],
             mode='subscription',
-            allow_promotion_codes=True, # Optional: Allow discount codes
-            success_url=f'{FRONTEND_URL}/premium-tools', # Redirect to Premium Tools page after successful upgrade
-            cancel_url=f'{FRONTEND_URL}/pricing', # Redirect back to pricing on cancel
-            # Pass metadata that might be useful in webhooks
+            success_url=SUCCESS_URL + "?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url=CANCEL_URL,
             metadata={
-                 'clerkId': user_clerk_id
+                'clerk_user_id': user_clerk_id # Include clerk_user_id for webhook handler
             }
         )
-        logger.info(f"Checkout session created: {checkout_session.id}")
-
-        if not checkout_session.url:
-             logger.error("Stripe Checkout Session object missing URL after creation.")
-             raise HTTPException(status_code=500, detail="Could not retrieve checkout session URL from Stripe.")
-
         return CreateCheckoutResponse(sessionId=checkout_session.id, url=checkout_session.url)
 
-    except HTTPException as http_exc:
-        # Re-raise specific HTTP exceptions (like the 404 above)
-        # This prevents them from being caught by the generic Exception handler
-        raise http_exc
     except stripe.error.StripeError as e:
         logger.error(f"Stripe API error during checkout session creation for Clerk ID {user_clerk_id}: {e}", exc_info=True)
-        detail = e.user_message if hasattr(e, 'user_message') and e.user_message else "A payment processing error occurred."
-        # Use status code appropriate for Stripe errors (e.g., 500 or 502 Bad Gateway)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Stripe error: {detail}")
-    except Exception as e: # Generic handler for truly unexpected errors
-        logger.error(f"Unexpected error creating checkout session for Clerk ID {user_clerk_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error creating checkout session.")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Stripe API error: {str(e)}")
+    except HTTPException as e: # Re-raise known HTTPExceptions
+        raise e 
+    except Exception as e:
+        logger.error(f"Unexpected error in create_checkout_session for Clerk ID {user_clerk_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred. Please try again later.")
 
 @app.post("/stripe-webhook")
 async def stripe_webhook(request: Request):
@@ -558,9 +567,9 @@ async def stripe_webhook(request: Request):
                      stripe_price_id = price.get('id')
                      logger.info(f"Price ID from price.get('id'): {stripe_price_id}") # Log Step 5b
                 
-                # Get Period End from the item itself using .get()
-                period_end_timestamp = first_item.get('current_period_end') 
-                logger.info(f"Period end timestamp from first_item.get(): {period_end_timestamp}") # Log Step 6
+                # Get Period End from the subscription object itself, not the item
+                period_end_timestamp = subscription.get('current_period_end') 
+                logger.info(f"Period end timestamp from subscription.get('current_period_end'): {period_end_timestamp}") # Log Step 6
             else:
                 # This log now indicates the extraction logic failed
                 logger.warning(f"Failed to extract subscription_items_data or it was empty. Items Data: {subscription_items_data}") # Log Step 7
@@ -585,12 +594,12 @@ async def stripe_webhook(request: Request):
             # --- Update User Record --- 
             update_data = {
                 "plan": "premium",
-                "summaryLimit": 1000,
+                "summaryLimit": 500,
                 "stripeSubscriptionId": stripe_subscription_id,
                 "stripePriceId": stripe_price_id,
                 "stripeCurrentPeriodEnd": stripe_current_period_end,
                 "summariesUsed": 0,
-                "usageResetAt": datetime.now(timezone.utc)
+                "usageResetAt": stripe_current_period_end
             }
             logger.info(f"Attempting to update user {user.clerkId} (DB ID: {user.id}) with data: {update_data}") # Log before update
             
@@ -615,13 +624,57 @@ async def stripe_webhook(request: Request):
             logger.error(f"Database or other error processing webhook for customer {stripe_customer_id}: {e}", exc_info=True)
             return {"error": f"Internal processing error: {e}"}
 
-    # Add handlers for other event types if needed (e.g., subscription updated/canceled)
-    # elif event.type == 'invoice.payment_succeeded':
-    #     # Handle successful recurring payment
-    #     pass
-    # elif event.type == 'customer.subscription.deleted':
-    #     # Handle subscription cancellation
-    #     pass
+    # --- ADDED: Handler for invoice.payment_succeeded ---
+    elif event.type == 'invoice.payment_succeeded':
+        invoice = event.data.object
+        stripe_subscription_id = invoice.get('subscription')
+        stripe_customer_id = invoice.get('customer')
+
+        logger.info(f"Handling invoice.payment_succeeded for subscription: {stripe_subscription_id}, customer: {stripe_customer_id}")
+
+        if not stripe_subscription_id or not stripe_customer_id:
+            logger.error(f"Webhook invoice.payment_succeeded: Missing subscription or customer ID. Invoice: {invoice.id}")
+            return {"status": "error", "message": "Missing subscription or customer ID in invoice"}
+
+        # Only process if it's for a subscription (not a one-time payment if you have those)
+        # And if it's not the very first payment of a new subscription (which is handled by checkout.session.completed)
+        if invoice.billing_reason == 'subscription_cycle' or invoice.billing_reason == 'subscription_update':
+            try:
+                # Retrieve the subscription to get the new current_period_end
+                logger.info(f"Retrieving subscription {stripe_subscription_id} for renewal update.")
+                subscription = stripe.Subscription.retrieve(stripe_subscription_id)
+                new_period_end_timestamp = subscription.current_period_end
+                new_period_end_datetime = datetime.fromtimestamp(new_period_end_timestamp, tz=timezone.utc)
+
+                logger.info(f"Subscription {stripe_subscription_id} renewed. New period end: {new_period_end_datetime}")
+
+                user = await prisma.user.find_unique(where={"stripeCustomerId": stripe_customer_id})
+                if not user:
+                    logger.error(f"Webhook invoice.payment_succeeded: User not found for Stripe Customer ID {stripe_customer_id}. Sub ID: {stripe_subscription_id}")
+                    return {"status": "error", "message": "User not found for subscription renewal."}
+
+                # Only update if the user is currently on a premium plan
+                if user.plan == "premium":
+                    update_data = {
+                        "summariesUsed": 0, # Reset usage count
+                        "usageResetAt": new_period_end_datetime, # Update reset date to new period end
+                        "stripeCurrentPeriodEnd": new_period_end_datetime # Also update the stored period end
+                    }
+                    await prisma.user.update(
+                        where={"stripeCustomerId": stripe_customer_id},
+                        data=update_data
+                    )
+                    logger.info(f"Successfully reset summary usage for premium user {user.clerkId} (Stripe Sub: {stripe_subscription_id}) upon renewal.")
+                else:
+                    logger.info(f"User {user.clerkId} (Stripe Sub: {stripe_subscription_id}) is not on premium plan. No usage reset needed for renewal.")
+
+            except stripe.error.StripeError as e:
+                logger.error(f"Stripe API error during subscription retrieval for renewal (Sub ID: {stripe_subscription_id}): {e}", exc_info=True)
+                # Don't crash, but log. Stripe will retry webhooks.
+            except Exception as e:
+                logger.error(f"Error processing invoice.payment_succeeded for subscription {stripe_subscription_id}: {e}", exc_info=True)
+        else:
+            logger.info(f"Skipping invoice.payment_succeeded for invoice {invoice.id} with reason '{invoice.billing_reason}'. Not a typical renewal or update.")
 
     else:
         logger.info(f"Unhandled event type: {event.type}")
@@ -719,7 +772,7 @@ async def clerk_webhook(request: Request, background_tasks: BackgroundTasks):
                     "lastName": last_name,
                     "profileImageUrl": image_url,
                     "plan": "free",
-                    "summaryLimit": 5, 
+                    "summaryLimit": 10, 
                     "summariesUsed": 0,
                     "totalSummariesMade": 0, # Initialize total summaries
                     "usageResetAt": datetime.now(timezone.utc)
@@ -841,18 +894,34 @@ async def summarize_article(
     try:
         logger.debug(f"Checking database for Clerk ID: {user_clerk_id}")
         user = await prisma.user.find_unique(where={"clerkId": user_clerk_id})
-        if user:
-            now = datetime.now(timezone.utc)
+        
+        if not user: # Should be caught by AuthenticatedUserIdWithRLS, but good to double check
+            logger.error(f"User not found in DB for Clerk ID: {user_clerk_id} in /summarize endpoint.")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User profile not found.")
+
+        now = datetime.now(timezone.utc)
+
+        # For free users, check and reset daily limit if usageResetAt is before start of today
+        if user.plan == "free":
             start_of_current_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
             if user.usageResetAt < start_of_current_day:
-                logger.info(f"Usage period expired for Clerk ID: {user_clerk_id}. Resetting daily count.")
+                logger.info(f"Daily usage period expired for free user Clerk ID: {user_clerk_id}. Resetting count.")
                 user = await prisma.user.update(
                     where={"clerkId": user_clerk_id},
-                    data={"summariesUsed": 0, "usageResetAt": now}
+                    data={"summariesUsed": 0, "usageResetAt": now} # Reset to now for daily
                 )
                 if not user: 
-                     logger.error(f"Failed to update usage for Clerk ID: {user_clerk_id} after reset.")
+                     logger.error(f"Failed to update usage for free user Clerk ID: {user_clerk_id} after daily reset.")
                      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update user usage data.")
+        
+        # For premium users, the reset is handled by webhooks (invoice.payment_succeeded).
+        # We just check if their current period has technically ended according to stored usageResetAt.
+        # This can be a fallback if a webhook is delayed or missed, but primary reset is webhook-driven.
+        elif user.plan == "premium" and user.usageResetAt and now >= user.usageResetAt:
+            logger.warning(f"Premium user {user.clerkId} current period ended ({user.usageResetAt}), but usage not reset by webhook. Current summariesUsed: {user.summariesUsed}. Relying on Stripe webhook for actual reset.")
+            # Potentially, one could reset here as a fallback, but it might conflict if webhook is just delayed.
+            # For now, just log. The limit check below will still apply against potentially non-reset count.
+
     except Exception as db_error:
         logger.error(f"Database error during user lookup/reset for Clerk ID {user_clerk_id}: {db_error}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error during usage check.")
@@ -861,21 +930,22 @@ async def summarize_article(
         logger.error(f"User not found in DB for Clerk ID: {user_clerk_id}. This should not happen if authenticated.")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User profile not found.")
 
-    if user.plan == "free":
-        if user.summariesUsed >= user.summaryLimit:
-            logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}.")
+    # Check usage against limits
+    if user.summariesUsed >= user.summaryLimit:
+        logger.warning(f"Usage limit reached for Clerk ID: {user_clerk_id}. Used: {user.summariesUsed}, Limit: {user.summaryLimit}, Plan: {user.plan}")
+        if user.plan == "free":
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Daily summary limit ({user.summaryLimit}) reached.")
-        else:
-            logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}.")
+        elif user.plan == "premium":
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Monthly summary limit ({user.summaryLimit}) reached. Please wait for your next billing cycle or contact support if you believe this is an error.")
     else:
-        logger.info(f"Premium user {user_clerk_id} bypassing usage limits.")
+        logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}. Used: {user.summariesUsed}, Limit: {user.summaryLimit}, Plan: {user.plan}")
 
     try:
         # Pass summary_length (snake_case) to the API call function
         summary_tldr, key_points_list = await call_deepseek_api(request_data.article_text, request_data.summary_length)
         
-        # --- Store summary in history ---
-        if summary_tldr and key_points_list: # Only save if summarization was successful
+        # --- Store summary in history and track usage ---
+        if not summary_tldr.startswith("Error:"): # Only proceed if not an error
             background_tasks.add_task(
                 save_summary_to_history, 
                 user_clerk_id=user_clerk_id, 
@@ -900,137 +970,6 @@ async def summarize_article(
     except Exception as e:
         logger.error(f"Unexpected error in summarize_article for user {user_clerk_id[:5]}...: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred. Please try again later.")
-
-# --- Helper function to call DeepSeek API ---
-async def call_deepseek_api(article_text: str, summary_length_param: str = "standard") -> tuple[str, list[str]]:
-    if not DEEPSEEK_API_KEY:
-        logger.error("DeepSeek API key is not configured.")
-        return "Error: DeepSeek API key not set.", ["Please configure the API key on the server."]
-
-    headers = {
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    
-    # Truncate article to avoid huge payloads
-    truncated_article = article_text[:15000]
-    
-    # Configure parameters based on summary_length_param
-    if summary_length_param == "brief":
-        system_prompt = (
-            "You are a concise summarization AI. Always respond in JSON format only. "
-            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
-        )
-        user_prompt = (
-            f"Summarize this article in JSON format with these exact requirements:\\n"
-            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
-            f"- TL;DR: ONE short sentence (max 15 words)\\n"
-            f"- Key Points: Array of 2-3 brief points (each max 10 words)\\n\\n"
-            f"Example JSON response: {{ \"tldr\": \"Brief summary here\", \"key_points\": [\"Point 1\", \"Point 2\"] }}\\n\\n"
-            f"Article to summarize:\\n{truncated_article}"
-        )
-        max_tokens = 300
-        temperature = 0.3
-        
-    elif summary_length_param == "detailed":
-        system_prompt = (
-            "You are a comprehensive summarization AI. Always respond in JSON format only. "
-            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
-        )
-        user_prompt = (
-            f"Summarize this article in JSON format with these exact requirements:\\n"
-            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
-            f"- TL;DR: Detailed paragraph (3-5 sentences, 50-100 words)\\n"
-            f"- Key Points: Array of 7-9 comprehensive points (each 15-25 words)\\n\\n"
-            f"Example JSON response: {{ \"tldr\": \"Detailed summary paragraph here\", \"key_points\": [\"Detailed point 1\", \"Detailed point 2\"] }}\\n\\n"
-            f"Article to summarize:\\n{truncated_article}"
-        )
-        max_tokens = 2000
-        temperature = 0.8
-        
-    else:  # standard (or if summary_length_param is None/unexpected)
-        system_prompt = (
-            "You are a balanced summarization AI. Always respond in JSON format only. "
-            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
-        )
-        user_prompt = (
-            f"Summarize this article in JSON format with these exact requirements:\\n"
-            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
-            f"- TL;DR: 2-3 sentences (30-50 words total)\\n"
-            f"- Key Points: Array of 4-6 points (each 10-15 words)\\n\\n"
-            f"Example JSON response: {{ \"tldr\": \"Standard summary here\", \"key_points\": [\"Point 1\", \"Point 2\", \"Point 3\"] }}\\n\\n"
-            f"Article to summarize:\\n{truncated_article}"
-        )
-        max_tokens = 1000
-        temperature = 0.6
-
-    payload = {
-        "model": "deepseek-chat",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "response_format": {"type": "json_object"}
-    }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            logger.debug(f"Calling DeepSeek API with payload: {json.dumps(payload, indent=2)}")
-            response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=90.0) # Increased timeout
-            response.raise_for_status()  # Raise an exception for bad status codes
-            
-            response_data = response.json()
-            logger.debug(f"Raw DeepSeek response: {response_data}")
-
-            # Validate the structure of the response
-            if not isinstance(response_data, dict) or "choices" not in response_data or not response_data["choices"]:
-                logger.error(f"DeepSeek API response is not a valid JSON object or missing 'choices': {response_data}")
-                raise ValueError("DeepSeek API response is not a valid JSON object or missing 'choices'.")
-
-            message_content_str = response_data["choices"][0].get("message", {}).get("content")
-            if not message_content_str:
-                logger.error(f"DeepSeek API response missing message content: {response_data}")
-                raise ValueError("DeepSeek API response missing message content.")
-
-            try:
-                content_json = json.loads(message_content_str)
-            except json.JSONDecodeError as e:
-                logger.error(f"Error decoding message content JSON from DeepSeek: {message_content_str} - {e}")
-                raise ValueError("Error decoding message content from DeepSeek.")
-
-            tldr = content_json.get("tldr")
-            key_points = content_json.get("key_points")
-
-            if tldr is None or key_points is None:
-                logger.error(f"DeepSeek API response missing 'tldr' or 'key_points': {response_data}")
-                raise ValueError("DeepSeek API response is missing 'tldr' or 'key_points'.")
-            
-            if not isinstance(tldr, str) or not isinstance(key_points, list):
-                logger.error(f"DeepSeek API 'tldr' is not a string or 'key_points' is not a list: {response_data}")
-                raise ValueError("'tldr' must be a string and 'key_points' must be a list.")
-
-            return tldr, key_points
-
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error from DeepSeek API: Status {e.response.status_code} - {e.response.text}", exc_info=True)
-            # Return a user-friendly error message tuple
-            error_message = f"Summarization service returned an error: {e.response.status_code}."
-            if e.response.status_code == 429:
-                error_message = "Summarization service is temporarily busy (rate limit). Please try again shortly."
-            elif e.response.status_code >= 500:
-                error_message = "Summarization service is currently unavailable. Please try again later."
-            return "Error processing article.", [error_message]
-        except httpx.RequestError as e:
-            logger.error(f"Request error calling DeepSeek API: {e}", exc_info=True)
-            return "Error processing article.", ["Could not connect to the summarization service. Please check your connection or try again later."]
-        except (json.JSONDecodeError, ValueError) as e: # Catch parsing/validation errors
-            logger.error(f"Error parsing or validating DeepSeek API response: {e}", exc_info=True)
-            return "Error processing article.", ["Received an invalid response from the summarization service."]
-        except Exception as e:
-            logger.error(f"Unexpected error in call_deepseek_api: {e}", exc_info=True)
-            return "Error processing article.", ["An unexpected error occurred while summarizing."]
 
 # Health check endpoint
 @app.get("/health")
@@ -1305,3 +1244,134 @@ async def send_welcome_email(user_email: str, user_first_name: Optional[str], ba
     background_tasks.add_task(task)
     logger.info(f"[Welcome Email] Successfully added welcome email task for {user_email} to background.") # ADDED
 # --- END ADDED ---
+
+# --- Helper function to call DeepSeek API ---
+async def call_deepseek_api(article_text: str, summary_length_param: str = "standard") -> tuple[str, list[str]]:
+    if not DEEPSEEK_API_KEY:
+        logger.error("DeepSeek API key is not configured.")
+        return "Error: DeepSeek API key not set.", ["Please configure the API key on the server."]
+
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    
+    # Truncate article to avoid huge payloads
+    truncated_article = article_text[:15000]
+    
+    # Configure parameters based on summary_length_param
+    if summary_length_param == "brief":
+        system_prompt = (
+            "You are a concise summarization AI. Always respond in JSON format only. "
+            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
+        )
+        user_prompt = (
+            f"Summarize this article in JSON format with these exact requirements:\\n"
+            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
+            f"- TL;DR: ONE short sentence (max 15 words)\\n"
+            f"- Key Points: Array of 2-3 brief points (each max 10 words)\\n\\n"
+            f"Example JSON response: {{ \"tldr\": \"Brief summary here\", \"key_points\": [\"Point 1\", \"Point 2\"] }}\\n\\n"
+            f"Article to summarize:\\n{truncated_article}"
+        )
+        max_tokens = 300
+        temperature = 0.3
+        
+    elif summary_length_param == "detailed":
+        system_prompt = (
+            "You are a comprehensive summarization AI. Always respond in JSON format only. "
+            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
+        )
+        user_prompt = (
+            f"Summarize this article in JSON format with these exact requirements:\\n"
+            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
+            f"- TL;DR: Detailed paragraph (3-5 sentences, 50-100 words)\\n"
+            f"- Key Points: Array of 7-9 comprehensive points (each 15-25 words)\\n\\n"
+            f"Example JSON response: {{ \"tldr\": \"Detailed summary paragraph here\", \"key_points\": [\"Detailed point 1\", \"Detailed point 2\"] }}\\n\\n"
+            f"Article to summarize:\\n{truncated_article}"
+        )
+        max_tokens = 2000
+        temperature = 0.8
+        
+    else:  # standard (or if summary_length_param is None/unexpected)
+        system_prompt = (
+            "You are a balanced summarization AI. Always respond in JSON format only. "
+            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
+        )
+        user_prompt = (
+            f"Summarize this article in JSON format with these exact requirements:\\n"
+            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
+            f"- TL;DR: 2-3 sentences (30-50 words total)\\n"
+            f"- Key Points: Array of 4-6 points (each 10-15 words)\\n\\n"
+            f"Example JSON response: {{ \"tldr\": \"Standard summary here\", \"key_points\": [\"Point 1\", \"Point 2\", \"Point 3\"] }}\\n\\n"
+            f"Article to summarize:\\n{truncated_article}"
+        )
+        max_tokens = 1000
+        temperature = 0.6
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "response_format": {"type": "json_object"}
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            logger.debug(f"Calling DeepSeek API with payload: {json.dumps(payload, indent=2)}")
+            response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=90.0) # Increased timeout
+            response.raise_for_status()  # Raise an exception for bad status codes
+            
+            response_data = response.json()
+            logger.debug(f"Raw DeepSeek response: {response_data}")
+
+            # Validate the structure of the response
+            if not isinstance(response_data, dict) or "choices" not in response_data or not response_data["choices"]:
+                logger.error(f"DeepSeek API response is not a valid JSON object or missing 'choices': {response_data}")
+                raise ValueError("DeepSeek API response is not a valid JSON object or missing 'choices'.")
+
+            message_content_str = response_data["choices"][0].get("message", {}).get("content")
+            if not message_content_str:
+                logger.error(f"DeepSeek API response missing message content: {response_data}")
+                raise ValueError("DeepSeek API response missing message content.")
+
+            try:
+                content_json = json.loads(message_content_str)
+            except json.JSONDecodeError as e:
+                logger.error(f"Error decoding message content JSON from DeepSeek: {message_content_str} - {e}")
+                raise ValueError("Error decoding message content from DeepSeek.")
+
+            tldr = content_json.get("tldr")
+            key_points = content_json.get("key_points")
+
+            if tldr is None or key_points is None:
+                logger.error(f"DeepSeek API response missing 'tldr' or 'key_points': {response_data}")
+                raise ValueError("DeepSeek API response is missing 'tldr' or 'key_points'.")
+            
+            if not isinstance(tldr, str) or not isinstance(key_points, list):
+                logger.error(f"DeepSeek API 'tldr' is not a string or 'key_points' is not a list: {response_data}")
+                raise ValueError("'tldr' must be a string and 'key_points' must be a list.")
+
+            return tldr, key_points
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error from DeepSeek API: Status {e.response.status_code} - {e.response.text}", exc_info=True)
+            # Return a user-friendly error message tuple
+            error_message = f"Summarization service returned an error: {e.response.status_code}."
+            if e.response.status_code == 429:
+                error_message = "Summarization service is temporarily busy (rate limit). Please try again shortly."
+            elif e.response.status_code >= 500:
+                error_message = "Summarization service is currently unavailable. Please try again later."
+            return "Error processing article.", [error_message]
+        except httpx.RequestError as e:
+            logger.error(f"Request error calling DeepSeek API: {e}", exc_info=True)
+            return "Error processing article.", ["Could not connect to the summarization service. Please check your connection or try again later."]
+        except (json.JSONDecodeError, ValueError) as e: # Catch parsing/validation errors
+            logger.error(f"Error parsing or validating DeepSeek API response: {e}", exc_info=True)
+            return "Error processing article.", ["Received an invalid response from the summarization service."]
+        except Exception as e:
+            logger.error(f"Unexpected error in call_deepseek_api: {e}", exc_info=True)
+            return "Error processing article.", ["An unexpected error occurred while summarizing."]

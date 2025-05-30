@@ -16,7 +16,7 @@ export function PricingFaq() {
     {
       question: "How does the summary limit work?",
       answer:
-        "The free plan includes 5 summaries per day. A summary is counted each time you generate a new summary for an article or text. Your daily limit resets at midnight UTC. With the Premium plan, you get 1000 summaries per month, and access to new features as they are released.",
+        "The free plan includes 10 summaries per day. A summary is counted each time you generate a new summary for an article or text. Your daily limit resets at midnight UTC. With the Premium plan, you get 500 summaries per month, and access to new features as they are released.",
     },
     {
       question: "Can I cancel my subscription anytime?",

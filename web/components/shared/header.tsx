@@ -6,8 +6,29 @@ import { Menu } from "lucide-react"
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useUserStatus } from "@/app/hooks/useUserStatus"
+
+// Client-only wrapper to prevent hydration issues
+function ClientOnlyClerkComponents({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center space-x-4">
+        {/* Skeleton while loading */}
+        <div className="h-8 w-16 bg-muted rounded animate-pulse" />
+        <div className="h-8 w-16 bg-muted rounded animate-pulse" />
+      </div>
+    )
+  }
+
+  return <>{children}</>
+}
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -99,22 +120,24 @@ export function Header() {
 
         {/* Right side: Auth & Theme */}
         <div className="flex items-center space-x-4 ml-auto">
-          <SignedOut>
-            <SignInButton mode="modal">
-              <Button variant="ghost" size="sm">Sign in</Button>
-            </SignInButton>
-            <SignUpButton mode="modal">
-              <Button size="sm">Sign up</Button>
-            </SignUpButton>
-          </SignedOut>
-          <SignedIn>
-            <UserButton afterSignOutUrl="/" />
-            {!statusLoading && isPro && (
-              <span className="pro-badge-animated ml-1">
-                <span>PRO</span>
-              </span>
-            )}
-          </SignedIn>
+          <ClientOnlyClerkComponents>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button variant="ghost" size="sm">Sign in</Button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <Button size="sm">Sign up</Button>
+              </SignUpButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+              {!statusLoading && isPro && (
+                <span className="pro-badge-animated ml-1">
+                  <span>PRO</span>
+                </span>
+              )}
+            </SignedIn>
+          </ClientOnlyClerkComponents>
           <ThemeToggle />
         </div>
       </div>

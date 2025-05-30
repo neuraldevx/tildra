@@ -95,11 +95,12 @@ export function PricingSection() {
     return () => { isMounted = false; }; // Cleanup function
   }, [isSignedIn, getToken]); // Depend on isSignedIn and getToken
 
-  const monthlyPrice = 15 // Set base monthly price
-  const yearlyMonthlyPrice = 12 // Equivalent monthly price when paying yearly
-  const premiumPrice = billingCycle === "monthly" ? monthlyPrice : yearlyMonthlyPrice
-  const yearlyPrice = yearlyMonthlyPrice * 12
-  const yearlyDiscount = Math.round(((monthlyPrice * 12 - yearlyPrice) / (monthlyPrice * 12)) * 100)
+  const monthlyPrice = 10; // Set base monthly price to $10
+  const yearlyDiscountPercentage = 0.20; // 20% discount for annual
+  const yearlyMonthlyPrice = monthlyPrice * (1 - yearlyDiscountPercentage); // Equivalent monthly price when paying yearly
+  const premiumPrice = billingCycle === "monthly" ? monthlyPrice : yearlyMonthlyPrice;
+  const yearlyPrice = monthlyPrice * 12 * (1 - yearlyDiscountPercentage); // Total annual price
+  const yearlyDiscountDisplay = Math.round(yearlyDiscountPercentage * 100);
 
   const container = {
     hidden: { opacity: 0 },
@@ -117,7 +118,7 @@ export function PricingSection() {
   }
 
   const freeFeatures = [
-    { name: "5 Summaries per Day", included: true },
+    { name: "10 Summaries per Day", included: true },
     { name: "Standard AI Model", included: true },
     { name: "Browser Extension Access", included: true },
     { name: "Community Support", included: true },
@@ -127,7 +128,7 @@ export function PricingSection() {
   ]
 
   const premiumFeatures = [
-    { name: "5 Summaries per Day", included: true, upgraded: "1000 Summaries per Month" },
+    { name: "Daily Summary Limit", included: true, upgraded: "500 Summaries per Month" },
     { name: "Standard AI Model", included: true, upgraded: "Advanced AI Model" },
     { name: "Browser Extension Access", included: true },
     { name: "Community Support", included: true, upgraded: "Priority Email Support" },
@@ -165,7 +166,7 @@ export function PricingSection() {
         </p>
       </motion.div>
 
-      <PricingToggle billingCycle={billingCycle} onChange={setBillingCycle} yearlyDiscount={yearlyDiscount} />
+      <PricingToggle billingCycle={billingCycle} onChange={setBillingCycle} yearlyDiscount={yearlyDiscountDisplay} />
 
       <motion.div
         className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto mt-8"
@@ -189,17 +190,17 @@ export function PricingSection() {
         <motion.div variants={item}>
           <PricingCard
             title="Premium"
-            price={`$${premiumPrice}`}
+            price={billingCycle === "monthly" ? `$${monthlyPrice}` : `$${Math.round(yearlyMonthlyPrice)}`}
             pricePeriod={billingCycle === "monthly" ? "month" : "month, billed annually"}
+            yearlyPrice={billingCycle === "yearly" ? `$${yearlyPrice}/year` : undefined}
             description="Unlock unlimited potential"
             features={premiumFeatures}
             ctaText={premiumCtaText}
             ctaLink={premiumCtaLink}
             ctaDisabled={premiumCtaDisabled}
+            billingCycle={billingCycle}
             isPrimary={!isProUser}
             popularBadge={!isProUser}
-            yearlyPrice={billingCycle === "yearly" ? `$${yearlyPrice}/year` : undefined}
-            billingCycle={billingCycle}
           />
         </motion.div>
       </motion.div>

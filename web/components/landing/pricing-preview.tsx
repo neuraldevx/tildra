@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { FileText, Zap, Star, ArrowRight, Check } from "lucide-react"
 import Link from "next/link"
+import { motion } from "framer-motion"
 
 interface Feature {
   name: string
@@ -19,7 +20,7 @@ interface PricingTier {
   name: string
   price: {
     monthly: number
-    yearly?: number
+    annually?: number
   }
   description: string
   features: Feature[]
@@ -35,10 +36,70 @@ interface PricingSectionProps {
   className?: string
 }
 
+// Billing cycle toggle component (inline)
+function BillingToggle({ 
+  billingCycle, 
+  onChange, 
+  yearlyDiscount 
+}: { 
+  billingCycle: "monthly" | "yearly"
+  onChange: (value: "monthly" | "yearly") => void
+  yearlyDiscount: number
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center mb-8">
+      <div className="flex items-center bg-card border border-border rounded-lg p-1 relative">
+        <button
+          onClick={() => onChange("monthly")}
+          className={`relative z-10 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            billingCycle === "monthly" ? "text-primary-foreground" : "text-foreground/70"
+          }`}
+        >
+          Monthly
+        </button>
+        <button
+          onClick={() => onChange("yearly")}
+          className={`relative z-10 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            billingCycle === "yearly" ? "text-primary-foreground" : "text-foreground/70"
+          }`}
+        >
+          Annual
+        </button>
+        <motion.div
+          className="absolute inset-0 z-0 rounded-md m-1 bg-primary"
+          initial={false}
+          animate={{
+            x: billingCycle === "monthly" ? 0 : "100%",
+            width: "50%",
+          }}
+          transition={{ type: "tween", duration: 0.3 }}
+        />
+      </div>
+      {billingCycle === "yearly" && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="mt-2 text-sm text-primary font-medium"
+        >
+          Save {yearlyDiscount}% with annual billing
+        </motion.div>
+      )}
+    </div>
+  )
+}
+
 function PricingSection({ tiers, className }: PricingSectionProps) {
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly")
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { getToken } = useAuth();
+
+  const monthlyPrice = 10;
+  const yearlyDiscountPercentage = 0.20;
+  const yearlyMonthlyPrice = monthlyPrice * (1 - yearlyDiscountPercentage);
+  const yearlyPrice = monthlyPrice * 12 * (1 - yearlyDiscountPercentage);
+  const yearlyDiscountDisplay = Math.round(yearlyDiscountPercentage * 100);
 
   const handleUpgradeClick = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -60,7 +121,7 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ price_lookup_key: 'monthly' }),
+        body: JSON.stringify({ price_lookup_key: billingCycle }),
       });
       
       console.log(`[Upgrade] Response Status: ${response.status}`);
@@ -158,6 +219,12 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
           </p>
         </div>
 
+        <BillingToggle 
+          billingCycle={billingCycle} 
+          onChange={setBillingCycle} 
+          yearlyDiscount={yearlyDiscountDisplay} 
+        />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {tiers.map((tier) => (
             <div
@@ -208,15 +275,20 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
                     ) : (
                       <>
                         <span className="text-4xl font-bold">
-                          ${tier.price.monthly}
+                          ${billingCycle === "monthly" ? tier.price.monthly : Math.round(yearlyMonthlyPrice)}
                         </span>
                         <span className="text-sm text-muted-foreground">
-                          /month
+                          {billingCycle === "monthly" ? "/month" : "/month"}
                         </span>
                       </>
                     )}
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  {tier.name === "Pro" && billingCycle === "yearly" && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Billed annually (${yearlyPrice}/year)
+                    </p>
+                  )}
+                  <p className="mt-3 text-sm text-muted-foreground">
                     {tier.description}
                   </p>
                 </div>
@@ -294,10 +366,6 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
           
           <p className="mt-6 text-sm text-muted-foreground max-w-2xl mx-auto">
             All plans include access to our web and mobile apps. Upgrade or downgrade anytime.
-            <br />
-            <span className="font-medium text-foreground">
-              Limited time offer: Get 20% off Pro plan for the first 3 months!
-            </span>
           </p>
         </div>
       </div>
@@ -321,7 +389,7 @@ const pricingTiers: PricingTier[] = [
     href: "/dashboard",
     features: [
       {
-        name: "5 Summaries per day",
+        name: "10 Summaries per day",
         description: "Enough for most casual users",
         included: true,
       },
@@ -345,9 +413,10 @@ const pricingTiers: PricingTier[] = [
   {
     name: "Pro",
     price: {
-      monthly: 9,
+      monthly: 10,
+      annually: 96,
     },
-    description: "For power users who need unlimited access and advanced features",
+    description: "For power users who need advanced features and a generous summary limit",
     highlight: true,
     badge: "Most Popular",
     icon: (
@@ -359,8 +428,8 @@ const pricingTiers: PricingTier[] = [
     href: "/pricing",
     features: [
       {
-        name: "Unlimited summaries",
-        description: "No daily limits",
+        name: "500 Summaries per month",
+        description: "Generous monthly allowance",
         included: true,
       },
       {
