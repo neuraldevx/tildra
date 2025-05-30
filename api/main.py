@@ -853,9 +853,14 @@ async def clerk_webhook(request: Request, background_tasks: BackgroundTasks):
             logger.error(f"Webhook Error user.deleted: Missing clerk_id. EventData: {event_data}")
             return {"status": "error", "message": "Missing clerk_id in user.deleted event."}
         try:
-            # Clerk sends the full user object that was deleted in event_data for user.deleted
-            # If `deleted: true` is present, it's a soft delete by Clerk, you might choose to deactivate or truly delete
-            # For now, we will perform a hard delete from our database.
+            # First, delete all summary history records for this user to avoid foreign key constraint
+            logger.info(f"Deleting summary history for user: {clerk_id}")
+            deleted_history = await prisma.summaryhistory.delete_many(
+                where={"userId": clerk_id}
+            )
+            logger.info(f"Deleted {deleted_history.count if hasattr(deleted_history, 'count') else 'unknown'} summary history records for user: {clerk_id}")
+            
+            # Now delete the user
             deleted_user = await prisma.user.delete(where={"clerkId": clerk_id})
             if deleted_user:
                 logger.info(f"Successfully deleted user from DB for Clerk ID: {clerk_id}")
