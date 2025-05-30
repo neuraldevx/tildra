@@ -1,0 +1,106 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tildra Email</title>
+  <style type="text/css">
+    body { margin: 0; padding: 0; background-color: #f4f7f6; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    table { border-spacing: 0; }
+    td { padding: 0; }
+    img { border: 0; }
+    .wrapper { width: 100%; table-layout: fixed; background-color: #f4f7f6; padding-bottom: 60px; }
+    .main { margin: 0 auto; width: 100%; max-width: 600px; background-color: #ffffff; border-spacing: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333333; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .two-columns { text-align: center; font-size: 0; }
+    .two-columns .column { width: 100%; max-width: 300px; display: inline-block; vertical-align: top; }
+    .button { background-color: #007bff; color: #ffffff; text-decoration: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; display: inline-block; }
+    .button:hover { background-color: #0056b3; }
+    .footer { font-size: 12px; color: #777777; text-align: center; }
+    .footer a { color: #007bff; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    @media screen and (max-width: 600px) {
+      .main { width: 100% !important; }
+      .two-columns .column { max-width: 100% !important; }
+      .content-padding { padding-left: 15px !important; padding-right: 15px !important; }
+    }
+  </style>
+</head>
+<body>
+  <center class="wrapper">
+    <table class="main" width="100%" role="presentation">
+
+      <!-- Header with Logo -->
+      <tr>
+        <td style="padding: 30px 20px 20px 20px; text-align: center; background-color: #2c3e50;">
+          <a href="https://www.tildra.xyz" target="_blank">
+            <img src="http://cdn.mcauto-images-production.sendgrid.net/8f889c8a25ad1b1a/740c226c-b297-4091-b294-4f5798b6e9b7/500x500.png" alt="Tildra Logo" width="150" style="max-width: 150px; height: auto; display: block; margin: 0 auto;" title="Tildra"/>
+          </a>
+        </td>
+      </tr>
+
+      <!-- Email Headline -->
+      <tr>
+        <td class="content-padding" style="padding: 30px 40px 10px 40px; text-align: left;">
+          <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #2c3e50;">{{emailHeadline}}</h1>
+        </td>
+      </tr>
+
+      <!-- Email Body -->
+      <tr>
+        <td class="content-padding" style="padding: 10px 40px 30px 40px; text-align: left;">
+          <p style="margin: 0 0 15px 0; font-size: 16px; line-height: 1.6; color: #555555;">
+            Hi {{userName}},
+          </p>
+          <p style="margin: 0 0 15px 0; font-size: 16px; line-height: 1.6; color: #555555;">
+            {{{emailBody}}} <!-- Use triple curly braces if emailBody contains HTML -->
+          </p>
+          <!-- Call to Action Button (Optional) -->
+          {{#if ctaLink}}
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation">
+            <tr>
+              <td align="center" style="padding: 10px 0 20px 0;">
+                <a href="{{ctaLink}}" target="_blank" class="button" style="background-color: #007bff; color: #ffffff; text-decoration: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; display: inline-block;">
+                  {{ctaText}}
+                </a>
+              </td>
+            </tr>
+          </table>
+          {{/if}}
+          <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #555555;">
+            Thanks,<br/>
+            The Tildra Team
+          </p>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="padding: 30px 20px 30px 20px; background-color: #ecf0f1;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation">
+            <tr>
+              <td class="footer content-padding">
+                <p style="margin: 0 0 10px 0;">
+                  &copy; {{currentYear}} Tildra. All rights reserved.<br/>
+                  123 Innovation Drive, Tech City, TX 75001 <!-- Replace with your actual address -->
+                </p>
+                <p style="margin: 0 0 10px 0;">
+                  <a href="https://www.tildra.xyz/privacy" target="_blank">Privacy Policy</a> | 
+                  <a href="https://www.tildra.xyz/terms" target="_blank">Terms of Service</a> | 
+                  <a href="{{unsubscribeLink}}" target="_blank">Unsubscribe</a>
+                </p>
+                 <p style="margin: 0;">
+                  <a href="https://www.tildra.xyz" target="_blank">
+                    <img src="http://cdn.mcauto-images-production.sendgrid.net/8f889c8a25ad1b1a/740c226c-b297-4091-b294-4f5798b6e9b7/500x500.png" alt="Tildra Small Logo" width="50" style="max-width: 50px; height: auto;" title="Tildra"/>
+                  </a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+    </table>
+  </center>
+</body>
+</html> 

@@ -27,6 +27,13 @@ from prisma.errors import UniqueViolationError # Import DB constraint exception 
 # --- END ADD ---
 # --------------------------
 
+# --- ADD Brevo Configuration ---
+BREVO_API_KEY = os.getenv("BREVO_API_KEY")
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+SENDER_EMAIL = "support@tildra.xyz"
+SENDER_NAME = "Tildra Team"
+# --- END ADD ---
+
 # --- Explicitly load .env from project root ---
 # Assuming this main.py is in an 'api' subdirectory of the project root
 project_root_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -668,6 +675,10 @@ async def clerk_webhook(request: Request):
     event_type = evt.get("type")
     event_data = evt.get("data", {}) # Default to empty dict if 'data' is missing
 
+    # --- ADDED: Define background_tasks here to be available for user.created ---
+    background_tasks = BackgroundTasks()
+    # --- END ADDED ---
+
     if event_type == "user.created":
         logger.info(f"Processing user.created event for Clerk ID: {event_data.get('id')}")
         try:
@@ -719,6 +730,14 @@ async def clerk_webhook(request: Request):
                 }
             )
             logger.info(f"Successfully created user in DB for Clerk ID: {new_user.clerkId}")
+            
+            # --- ADDED: Send welcome email --- 
+            if new_user and new_user.email:
+                logger.info(f"Scheduling welcome email for new user: {new_user.email}")
+                # Use the background_tasks instance defined earlier in the endpoint
+                await send_welcome_email(new_user.email, new_user.firstName, background_tasks)
+            # --- END ADDED ---
+
             return {"status": "ok", "message": "User created successfully."}
         
         except Exception as e:
@@ -969,11 +988,8 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
             response.raise_for_status()
             
             response_data = response.json()
-            # OLD LOG: logger.info(f"DeepSeek API response received. Choice 0 content: {response_data.get('choices',[{}])[0].get('message',{}).get('content', '')[:100]}...")
-
             content_str = response_data.get('choices',[{}])[0].get('message',{}).get('content')
             
-            # NEW DETAILED LOGGING
             logger.info(f"Full raw content_str from DeepSeek API for length '{summary_length_param}': {content_str}")
 
             if not content_str:
@@ -985,7 +1001,6 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
                 tldr = summary_json.get("tldr", "Error: TL;DR not found in response.")
                 key_points = summary_json.get("key_points", ["Error: Key points not found in response."])
                 
-                # NEW DETAILED LOGGING
                 logger.info(f"Parsed TL;DR from DeepSeek for length '{summary_length_param}' (before truncation): {tldr}")
                 logger.info(f"Parsed Key Points from DeepSeek for length '{summary_length_param}' (before truncation): {key_points}")
 
@@ -1188,3 +1203,129 @@ async def delete_all_user_history(user_id: AuthenticatedUserIdWithRLS): # MODIFI
         logger.error(f"Error deleting all history for user {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error clearing history.")
 # --- END ADDED --- 
+
+# --- ADDED: User Settings Models and Endpoints ---
+class UserSettingsResponse(BaseModel):
+    emailNotifications: bool
+    summaryNotifications: bool
+    marketingEmails: bool
+
+class UserSettingsUpdateRequest(BaseModel):
+    emailNotifications: bool
+    summaryNotifications: bool
+    marketingEmails: bool
+
+@app.get("/api/user/settings", response_model=UserSettingsResponse)
+async def get_user_settings(user_id: AuthenticatedUserIdWithRLS):
+    """Retrieves notification settings for the authenticated user."""
+    logger.info(f"Fetching settings for Clerk ID: {user_id}")
+    try:
+        user = await prisma.user.find_unique(
+            where={"clerkId": user_id}
+        )
+        
+        if not user:
+            logger.error(f"User not found in DB for Clerk ID: {user_id}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found.")
+        
+        # Return settings with defaults if None
+        return UserSettingsResponse(
+            emailNotifications=user.emailNotifications if user.emailNotifications is not None else True,
+            summaryNotifications=user.summaryNotifications if user.summaryNotifications is not None else True,
+            marketingEmails=user.marketingEmails if user.marketingEmails is not None else False,
+        )
+        
+    except Exception as e:
+        logger.error(f"Error fetching user settings for {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching user settings.")
+
+@app.put("/api/user/settings", response_model=UserSettingsResponse)
+async def update_user_settings(
+    settings_update: UserSettingsUpdateRequest,
+    user_id: AuthenticatedUserIdWithRLS
+):
+    """Updates notification settings for the authenticated user."""
+    logger.info(f"Updating settings for Clerk ID: {user_id}")
+    try:
+        # Update user notification settings
+        await prisma.user.update(
+            where={"clerkId": user_id},
+            data={
+                "emailNotifications": settings_update.emailNotifications,
+                "summaryNotifications": settings_update.summaryNotifications,
+                "marketingEmails": settings_update.marketingEmails,
+                "updatedAt": datetime.now(timezone.utc),
+            }
+        )
+        
+        # Fetch the updated user data to return
+        updated_user = await prisma.user.find_unique(where={"clerkId": user_id})
+
+        if not updated_user:
+            logger.error(f"Failed to refetch user after update for Clerk ID: {user_id}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to confirm settings update.")
+
+        logger.info(f"Successfully updated settings for user {user_id}")
+        return UserSettingsResponse(
+            emailNotifications=updated_user.emailNotifications if updated_user.emailNotifications is not None else True,
+            summaryNotifications=updated_user.summaryNotifications if updated_user.summaryNotifications is not None else True,
+            marketingEmails=updated_user.marketingEmails if updated_user.marketingEmails is not None else False,
+        )
+        
+    except Exception as e:
+        logger.error(f"Error updating user settings for {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error updating user settings.")
+# --- END ADDED ---
+
+# --- ADDED: Function to send welcome email via Brevo ---
+async def send_welcome_email(user_email: str, user_first_name: Optional[str], background_tasks: BackgroundTasks):
+    if not BREVO_API_KEY:
+        logger.error("BREVO_API_KEY not configured. Cannot send welcome email.")
+        return
+
+    # Use a default if first name is not available
+    first_name_greeting = user_first_name if user_first_name else "Friend" # Default for greeting if no first name
+    # frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000") # Not needed if HTML is in Brevo
+
+    # --- MODIFIED FOR TEMPLATE ID ---
+    template_id = 2 
+    # Prepare params for Brevo template. Template uses {{params.userName}}
+    params_payload = {"userName": first_name_greeting}
+
+    # The subject and HTML content are now defined in the Brevo template
+    # email_subject = f"Welcome to Tildra, {first_name_greeting}!"
+    # email_html_content = f"""...""" # Removed
+
+    payload = {
+        "sender": {"name": SENDER_NAME, "email": SENDER_EMAIL}, # This can override template sender if needed
+        "to": [{"email": user_email, "name": user_first_name if user_first_name else user_email}],
+        # "subject": email_subject, # Subject is now in the template
+        # "htmlContent": email_html_content, # HTML is now in the template
+        "templateId": template_id,
+        "params": params_payload
+    }
+    # --- END MODIFICATION ---
+
+    async def task():
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    BREVO_API_URL,
+                    headers={
+                        "api-key": BREVO_API_KEY,
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    },
+                    json=payload,
+                )
+                response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
+                logger.info(f"Welcome email successfully sent to {user_email}. Message ID: {response.json().get('messageId')}")
+            except httpx.HTTPStatusError as e:
+                logger.error(f"HTTP error sending welcome email to {user_email}: {e.response.status_code} - {e.response.text}")
+            except httpx.RequestError as e:
+                logger.error(f"Request error sending welcome email to {user_email}: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error sending welcome email to {user_email}: {e}", exc_info=True)
+    
+    background_tasks.add_task(task)
+# --- END ADDED ---

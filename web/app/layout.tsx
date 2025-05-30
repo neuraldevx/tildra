@@ -8,6 +8,7 @@ import { SidebarProvider } from "@/components/sidebar-context"
 import { ChromeTokenHelper } from "@/components/chrome-token-helper"
 import { MainContent } from "@/components/main-content"
 import { Header } from "@/components/shared/header"
+import { Toaster } from "@/components/ui/sonner"
 
 const lexend = Lexend({ subsets: ["latin"] })
 
@@ -39,6 +40,7 @@ export default function RootLayout({
                 </div>
               </div>
             </SidebarProvider>
+            <Toaster />
           </ThemeProvider>
         </body>
       </html>

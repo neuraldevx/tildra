@@ -34,6 +34,11 @@ model User {
   stripeCurrentPeriodEnd DateTime?      // Optional: Tracks when the current paid period ends
   profileImageUrl        String?       // Optional: stores the user's profile image URL
 
+  // --- Notification Settings ---
+  emailNotifications    Boolean @default(true)   // Receive important updates via email
+  summaryNotifications  Boolean @default(true)   // Get notified when summaries are ready
+  marketingEmails       Boolean @default(false)  // Receive updates about new features and tips
+
   // --- ADDED: Relation to Summary History ---
   summaryHistory SummaryHistory[]
   // --- END ADDED ---
