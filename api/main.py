@@ -630,7 +630,7 @@ async def stripe_webhook(request: Request):
     return {"received": True}
 
 @app.post("/clerk-webhook")
-async def clerk_webhook(request: Request):
+async def clerk_webhook(request: Request, background_tasks: BackgroundTasks):
     """Handles incoming webhooks from Clerk.
     Verifies the signature and processes user.created events.
     """
@@ -671,13 +671,9 @@ async def clerk_webhook(request: Request):
         logger.error(f"Unexpected error during webhook verification: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error verifying webhook.")
 
-    # --- Process the validated event --- 
+    # Process the validated event --- 
     event_type = evt.get("type")
     event_data = evt.get("data", {}) # Default to empty dict if 'data' is missing
-
-    # --- ADDED: Define background_tasks here to be available for user.created ---
-    background_tasks = BackgroundTasks()
-    # --- END ADDED ---
 
     if event_type == "user.created":
         logger.info(f"Processing user.created event for Clerk ID: {event_data.get('id')}")
@@ -979,89 +975,62 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
         "response_format": {"type": "json_object"}
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient() as client:
         try:
-            logger.info(f"Calling DeepSeek API. Length: {summary_length_param}, Temp: {temperature}, Max tokens: {max_tokens}")
-            logger.info(f"User content snippet: {user_prompt[:200]}...")
-            
-            response = await client.post(DEEPSEEK_API_URL, json=payload, headers=headers)
-            response.raise_for_status()
+            logger.debug(f"Calling DeepSeek API with payload: {json.dumps(payload, indent=2)}")
+            response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=90.0) # Increased timeout
+            response.raise_for_status()  # Raise an exception for bad status codes
             
             response_data = response.json()
-            content_str = response_data.get('choices',[{}])[0].get('message',{}).get('content')
-            
-            logger.info(f"Full raw content_str from DeepSeek API for length '{summary_length_param}': {content_str}")
+            logger.debug(f"Raw DeepSeek response: {response_data}")
 
-            if not content_str:
-                logger.error("DeepSeek API response missing content string.")
-                return "Error: No content in API response.", []
+            # Validate the structure of the response
+            if not isinstance(response_data, dict) or "choices" not in response_data or not response_data["choices"]:
+                logger.error(f"DeepSeek API response is not a valid JSON object or missing 'choices': {response_data}")
+                raise ValueError("DeepSeek API response is not a valid JSON object or missing 'choices'.")
+
+            message_content_str = response_data["choices"][0].get("message", {}).get("content")
+            if not message_content_str:
+                logger.error(f"DeepSeek API response missing message content: {response_data}")
+                raise ValueError("DeepSeek API response missing message content.")
 
             try:
-                summary_json = json.loads(content_str)
-                tldr = summary_json.get("tldr", "Error: TL;DR not found in response.")
-                key_points = summary_json.get("key_points", ["Error: Key points not found in response."])
-                
-                logger.info(f"Parsed TL;DR from DeepSeek for length '{summary_length_param}' (before truncation): {tldr}")
-                logger.info(f"Parsed Key Points from DeepSeek for length '{summary_length_param}' (before truncation): {key_points}")
-
-                # Validate structure
-                if not isinstance(tldr, str) or not (isinstance(key_points, list) and all(isinstance(item, str) for item in key_points)):
-                    logger.error(f"DeepSeek API response JSON structure is not as expected. TLDR type: {type(tldr)}, KeyPoints type: {type(key_points)}")
-                    return "Error: API response format incorrect.", ["Please check server logs for DeepSeek API response."]
-                
-                # Additional validation for brief summaries
-                if summary_length_param == "brief" and len(key_points) > 3:
-                    key_points = key_points[:3]  # Enforce max 3 points
-                elif summary_length_param == "standard" and len(key_points) > 6:
-                    key_points = key_points[:6]  # Enforce max 6 points
-                # No truncation for "detailed" as we want 7+ and prompt requests 7-9
-
-                return tldr, key_points
-                
+                content_json = json.loads(message_content_str)
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse JSON from DeepSeek response: {e}. Content: {content_str[:200]}...")
-                # Fallback parsing attempt
-                tldr_fallback = "Could not parse TL;DR."
-                key_points_fallback = ["Could not parse key points from API response."]
-                
-                if "TL;DR:" in content_str:
-                    parts = content_str.split("Key Points:", 1)
-                    tldr_part = parts[0].replace("TL;DR:", "").strip()
-                    if tldr_part:
-                        tldr_fallback = tldr_part
-                    if len(parts) > 1:
-                        key_points_raw = parts[1].strip()
-                        key_points_fallback = [p.strip() for p in key_points_raw.split('\n') if p.strip().startswith(('-', '*', '•')) and len(p.strip()) > 1]
-                        if not key_points_fallback:
-                            key_points_fallback = ["Could not reliably extract key points."]
-                
-                return tldr_fallback, key_points_fallback
-                
-            except Exception as e:
-                logger.error(f"Unexpected error parsing DeepSeek response content: {e}", exc_info=True)
-                return "Error processing API response.", ["Please try again later."]
+                logger.error(f"Error decoding message content JSON from DeepSeek: {message_content_str} - {e}")
+                raise ValueError("Error decoding message content from DeepSeek.")
+
+            tldr = content_json.get("tldr")
+            key_points = content_json.get("key_points")
+
+            if tldr is None or key_points is None:
+                logger.error(f"DeepSeek API response missing 'tldr' or 'key_points': {response_data}")
+                raise ValueError("DeepSeek API response is missing 'tldr' or 'key_points'.")
+            
+            if not isinstance(tldr, str) or not isinstance(key_points, list):
+                logger.error(f"DeepSeek API 'tldr' is not a string or 'key_points' is not a list: {response_data}")
+                raise ValueError("'tldr' must be a string and 'key_points' must be a list.")
+
+            return tldr, key_points
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"DeepSeek API HTTPStatusError: {e.response.status_code} - {e.response.text}")
-            error_text = e.response.text
-            logger.error(f"HTTP error calling DeepSeek API: {e.response.status_code} - {error_text}")
-            
-            # Return a user-friendly error based on status code
-            if e.response.status_code == 400:
-                return "Error: Invalid request to summarization service.", ["Please try again with different content."]
-            elif e.response.status_code == 429:
-                return "Error: Rate limit exceeded.", ["Please wait a moment and try again."]
+            logger.error(f"HTTP error from DeepSeek API: Status {e.response.status_code} - {e.response.text}", exc_info=True)
+            # Return a user-friendly error message tuple
+            error_message = f"Summarization service returned an error: {e.response.status_code}."
+            if e.response.status_code == 429:
+                error_message = "Summarization service is temporarily busy (rate limit). Please try again shortly."
             elif e.response.status_code >= 500:
-                return "Error: Summarization service temporarily unavailable.", ["Please try again later."]
-            else:
-                return "Error: Failed to get summary.", ["Please try again."]
-                
+                error_message = "Summarization service is currently unavailable. Please try again later."
+            return "Error processing article.", [error_message]
         except httpx.RequestError as e:
-            logger.error(f"DeepSeek API RequestError: {e}")
-            return "Error: Network issue with summarization service.", ["Please check your connection and try again."]
+            logger.error(f"Request error calling DeepSeek API: {e}", exc_info=True)
+            return "Error processing article.", ["Could not connect to the summarization service. Please check your connection or try again later."]
+        except (json.JSONDecodeError, ValueError) as e: # Catch parsing/validation errors
+            logger.error(f"Error parsing or validating DeepSeek API response: {e}", exc_info=True)
+            return "Error processing article.", ["Received an invalid response from the summarization service."]
         except Exception as e:
             logger.error(f"Unexpected error in call_deepseek_api: {e}", exc_info=True)
-            return "Error: Failed to communicate with summarization service.", ["Please try again later."]
+            return "Error processing article.", ["An unexpected error occurred while summarizing."]
 
 # Health check endpoint
 @app.get("/health")
@@ -1307,8 +1276,10 @@ async def send_welcome_email(user_email: str, user_first_name: Optional[str], ba
     # --- END MODIFICATION ---
 
     async def task():
+        logger.info(f"[Welcome Email Task EXECUTION STARTED] For {user_email}") # ADDED: Log at start of task execution
         async with httpx.AsyncClient() as client:
             try:
+                logger.info(f"[Welcome Email Task] Attempting to send email to {user_email} with template ID {template_id}. Payload: {json.dumps(payload)}") # Log payload
                 response = await client.post(
                     BREVO_API_URL,
                     headers={
@@ -1317,15 +1288,20 @@ async def send_welcome_email(user_email: str, user_first_name: Optional[str], ba
                         "Accept": "application/json",
                     },
                     json=payload,
+                    timeout=30.0 # Add a timeout
                 )
+                logger.info(f"[Welcome Email Task] Brevo API response status: {response.status_code} for {user_email}") # Log status code
                 response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
-                logger.info(f"Welcome email successfully sent to {user_email}. Message ID: {response.json().get('messageId')}")
+                logger.info(f"[Welcome Email Task] Welcome email successfully sent to {user_email}. Message ID: {response.json().get('messageId')}")
             except httpx.HTTPStatusError as e:
-                logger.error(f"HTTP error sending welcome email to {user_email}: {e.response.status_code} - {e.response.text}")
+                # Log the full response content for HTTPStatusError for more details
+                logger.error(f"[Welcome Email Task] HTTP error sending welcome email to {user_email}: {e.response.status_code} - {e.response.text}", exc_info=True)
             except httpx.RequestError as e:
-                logger.error(f"Request error sending welcome email to {user_email}: {e}")
+                logger.error(f"[Welcome Email Task] Request error sending welcome email to {user_email}: {e}", exc_info=True)
             except Exception as e:
-                logger.error(f"Unexpected error sending welcome email to {user_email}: {e}", exc_info=True)
+                logger.error(f"[Welcome Email Task] Unexpected error sending welcome email to {user_email}: {e}", exc_info=True)
     
+    logger.info(f"[Welcome Email] About to add welcome email task for {user_email} to background.") # ADDED
     background_tasks.add_task(task)
+    logger.info(f"[Welcome Email] Successfully added welcome email task for {user_email} to background.") # ADDED
 # --- END ADDED ---
