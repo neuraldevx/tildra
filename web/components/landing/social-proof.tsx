@@ -65,7 +65,7 @@ export function SocialProof() {
   const isInView = useInView(ref, { once: true, amount: 0.2 })
 
   return (
-    <section ref={ref} className="py-20 bg-muted/30">
+    <section id="testimonials" ref={ref} className="py-20 bg-muted/30">
       <div className="container mx-auto px-4">
         {/* Header */}
         <motion.div
