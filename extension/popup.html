@@ -27,9 +27,14 @@
                 <img src="favicon/favicon-96x96.png" alt="Tildra Logo" class="logo-icon" width="32" height="32">
                 Tildra
             </h1>
-            <button class="open-tab-button" aria-label="Open Tildra in new tab" title="Open in new tab">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-            </button>
+            <div class="header-actions">
+                <button id="sections-tab" class="settings-button" aria-label="Open settings" title="Settings" role="tab" aria-controls="panel-sections" aria-selected="false">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"></path></svg>
+                </button>
+                <button class="open-tab-button" aria-label="Open Tildra in new tab" title="Open in new tab">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                </button>
+            </div>
         </header>
 
         <!-- TABS -->
@@ -43,10 +48,6 @@
             <button id="followup-tab" class="tab" role="tab" aria-controls="panel-followup" aria-selected="false">
                 <span>Follow-up</span>
                 <span class="pro-badge">Pro</span>
-            </button>
-            <button id="sections-tab" class="tab" role="tab" aria-controls="panel-sections" aria-selected="false">
-                <svg width="14" height="14" style="vertical-align:middle;margin-right:4px;opacity:0.7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
-                <span>Settings</span>
             </button>
         </nav>
 

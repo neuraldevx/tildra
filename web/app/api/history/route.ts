@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 
-const backendApiBaseUrl = process.env.INTERNAL_API_URL 
-  || process.env.NEXT_PUBLIC_API_BASE_URL 
-  || 'https://snipsummary.fly.dev';
-
 export async function GET() {
   try {
     const { userId, getToken } = await auth();
@@ -14,6 +10,9 @@ export async function GET() {
       console.error('[API Proxy /history] User not authenticated.');
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
+
+    const backendApiBaseUrl = process.env.INTERNAL_API_URL
+      || 'https://tildra.fly.dev';
 
     const targetUrl = `${backendApiBaseUrl}/api/history`;
     console.log(`[API Proxy /history] Forwarding request for ${userId} to ${targetUrl}`);

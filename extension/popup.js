@@ -315,29 +315,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const isSummarize = targetTab === summarizeTab;
     const isHistory = targetTab === historyTab;
     const isFollowup = targetTab === followupTab;
-    const isSections = targetTab === sectionsTab;
 
+    // Handle tab states (only for actual tabs, not settings)
     summarizeTab.classList.toggle('active', isSummarize);
     historyTab.classList.toggle('active', isHistory);
     followupTab.classList.toggle('active', isFollowup);
-    sectionsTab.classList.toggle('active', isSections);
     summarizeTab.setAttribute('aria-selected', String(isSummarize));
     historyTab.setAttribute('aria-selected', String(isHistory));
     followupTab.setAttribute('aria-selected', String(isFollowup));
-    sectionsTab.setAttribute('aria-selected', String(isSections));
 
+    // Handle panel visibility
     summarizePanel.hidden = !isSummarize;
     historyPanel.hidden = !isHistory;
     followupPanel.hidden = !isFollowup;
-    sectionsPanel.hidden = !isSections;
+    sectionsPanel.hidden = true; // Settings panel is hidden when switching to tabs
 
-    // Move underline for four tabs
+    // Remove settings button active state when switching to tabs
+    sectionsTab.classList.remove('active');
+    sectionsTab.setAttribute('aria-selected', 'false');
+
+    // Move underline for three tabs
     if (tabUnderline) {
       if (isSummarize) tabUnderline.style.transform = 'translateX(0%)';
       else if (isHistory) tabUnderline.style.transform = 'translateX(100%)';
       else if (isFollowup) tabUnderline.style.transform = 'translateX(200%)';
-      else tabUnderline.style.transform = 'translateX(300%)';
-      tabUnderline.style.width = '25%';
+      tabUnderline.style.width = '33.33%';
     }
 
     if (isHistory) {
@@ -345,18 +347,66 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Settings button toggle function
+  function toggleSettings() {
+    const isSettingsOpen = sectionsPanel.hidden === false;
+    
+    if (isSettingsOpen) {
+      // Close settings - return to last active tab
+      const lastActiveTab = document.querySelector('.tab.active') || summarizeTab;
+      switchTab(lastActiveTab);
+    } else {
+      // Open settings - hide all tab panels and show settings
+      summarizePanel.hidden = true;
+      historyPanel.hidden = true;
+      followupPanel.hidden = true;
+      sectionsPanel.hidden = false;
+
+      // Remove active state from all tabs
+      summarizeTab.classList.remove('active');
+      historyTab.classList.remove('active');
+      followupTab.classList.remove('active');
+      summarizeTab.setAttribute('aria-selected', 'false');
+      historyTab.setAttribute('aria-selected', 'false');
+      followupTab.setAttribute('aria-selected', 'false');
+
+      // Activate settings button
+      sectionsTab.classList.add('active');
+      sectionsTab.setAttribute('aria-selected', 'true');
+    }
+  }
+
   if (summarizeTab && historyTab && followupTab && sectionsTab) {
     summarizeTab.addEventListener('click', () => switchTab(summarizeTab));
     historyTab.addEventListener('click', () => switchTab(historyTab));
     followupTab.addEventListener('click', () => switchTab(followupTab));
-    sectionsTab.addEventListener('click', () => switchTab(sectionsTab));
+    sectionsTab.addEventListener('click', () => toggleSettings());
   }
 
-  summarizeButton.addEventListener('click', () => {
-    if (summarizeButton.getAttribute('aria-busy') === 'true') return; // Prevent multiple clicks
+  // Add this function near the top of the file after other helper functions
+  function isProtectedPage(url) {
+    if (!url) return true;
+    const protectedSchemes = [
+      'chrome://',
+      'chrome-extension://',
+      'chrome-search://',
+      'chrome-devtools://',
+      'moz-extension://',
+      'about:',
+      'edge://',
+      'opera://',
+      'brave://',
+      'file:///'
+    ];
+    return protectedSchemes.some(scheme => url.startsWith(scheme));
+  }
 
+  // Summarize button click handler
+  summarizeButton.addEventListener('click', () => {
+    console.log('Summarize button clicked');
     clearState();
-    showSmartLoading(true); // Use new smart loading instead of old method
+    showSmartLoading(true);
+    updateProgress('analyzing');
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const currentTab = tabs[0];
@@ -365,11 +415,28 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // Check if this is a protected page
+      if (isProtectedPage(currentTab.url)) {
+        displayError("Cannot summarize this page. Please navigate to a regular webpage (news article, blog post, etc.) and try again.");
+        return;
+      }
+
       // Inject Readability.js first
-      chrome.scripting.executeScript({ target: { tabId: currentTab.id }, files: ["Readability.js"] }, () => {
+      chrome.scripting.executeScript({ target: { tabId: currentTab.id }, files: ["readability.js"] }, () => {
         if (chrome.runtime.lastError) {
           console.error("Inject Readability Error:", chrome.runtime.lastError.message);
-          displayError(`Failed to inject script: ${chrome.runtime.lastError.message}`);
+          let errorMsg = chrome.runtime.lastError.message;
+          
+          // Provide user-friendly error messages
+          if (errorMsg.includes("Cannot access a chrome:// URL") || errorMsg.includes("chrome://")) {
+            errorMsg = "Cannot summarize Chrome internal pages. Please try a regular webpage.";
+          } else if (errorMsg.includes("Cannot access contents") || errorMsg.includes("blocked by the page")) {
+            errorMsg = "This page blocks extensions. Please try a different webpage.";
+          } else if (errorMsg.includes("chrome-extension://")) {
+            errorMsg = "Cannot summarize extension pages. Please navigate to a regular webpage.";
+          }
+          
+          displayError(errorMsg);
           return;
         }
 

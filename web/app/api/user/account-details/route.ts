@@ -6,9 +6,8 @@ console.log('[DEBUG] Environment variables:');
 console.log('INTERNAL_API_URL:', process.env.INTERNAL_API_URL);
 console.log('NEXT_PUBLIC_API_BASE_URL:', process.env.NEXT_PUBLIC_API_BASE_URL);
 
-const backendApiBaseUrl = process.env.INTERNAL_API_URL 
-  || process.env.NEXT_PUBLIC_API_BASE_URL 
-  || 'https://snipsummary.fly.dev';
+const backendApiBaseUrl = process.env.INTERNAL_API_URL
+  || 'https://tildra.fly.dev';
 
 console.log('[DEBUG] Final backendApiBaseUrl:', backendApiBaseUrl);
 

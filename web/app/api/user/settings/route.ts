@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 
 // Use INTERNAL_API_URL for server-to-server communication
-// Fallback to public URL or localhost for flexibility
-const backendApiBaseUrl = process.env.INTERNAL_API_URL 
-  || process.env.NEXT_PUBLIC_API_BASE_URL 
-  || 'https://snipsummary.fly.dev';
+const backendApiBaseUrl = process.env.INTERNAL_API_URL
+  || 'https://tildra.fly.dev';
 
 // GET user settings
 export async function GET(request: NextRequest) {

@@ -85,7 +85,7 @@ async def shutdown():
 # --- Clerk JWKS Configuration (Manual Verification) ---
 # Determine this from the 'iss' claim in your JWTs
 # Ensure this matches your Clerk instance's issuer URL
-CLERK_ISSUER = os.getenv("CLERK_ISSUER_URL", "https://actual-marmot-36.clerk.accounts.dev") # Use env var, fallback
+CLERK_ISSUER = os.getenv("CLERK_ISSUER_URL", "https://clerk.tildra.xyz") # CHANGED: Use production Clerk domain
 if not CLERK_ISSUER.startswith("https://"): # Basic validation
     logger.critical("CLERK_ISSUER_URL environment variable must be a valid HTTPS URL.")
     raise ValueError("Invalid CLERK_ISSUER_URL")
@@ -101,7 +101,7 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 PREMIUM_PRICE_ID_MONTHLY = os.getenv("PREMIUM_PRICE_ID_MONTHLY")
 PREMIUM_PRICE_ID_YEARLY = os.getenv("PREMIUM_PRICE_ID_YEARLY")
 # Get your frontend URL for success/cancel redirects
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") # Define FRONTEND_URL here
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.tildra.xyz") # CHANGED: Use production URL instead of localhost
 SUCCESS_URL = f"{FRONTEND_URL}/payment/success" # Define SUCCESS_URL
 CANCEL_URL = f"{FRONTEND_URL}/payment/cancel"   # Define CANCEL_URL
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET") # <-- Load webhook secret
@@ -136,10 +136,10 @@ if not CLERK_WEBHOOK_SECRET:
 # Define allowed origins
 origins = [
     "chrome-extension://jjcdkjjdonfmpenonghicgejhlojldmh", # Your extension's ID
-    "http://localhost:3000",                                # Local development frontend
+    "https://www.tildra.xyz",                               # Production frontend
 ]
-# Add the deployed frontend URL if it exists and is different from localhost
-if FRONTEND_URL and FRONTEND_URL != "http://localhost:3000":
+# Add the deployed frontend URL if it exists and is different from default
+if FRONTEND_URL and FRONTEND_URL != "https://www.tildra.xyz":
     origins.append(FRONTEND_URL)
 
 logger.info(f"Configuring CORS for origins: {origins}")
@@ -381,9 +381,10 @@ def read_root():
 
 # --- Stripe Related Endpoints ---
 
+# Stripe Production Price IDs (use environment variables for flexibility)
 PRICE_IDs = {
-    "monthly": "price_1RTWE7AGvsrc7mtDIbGZqLgm", # Updated from old monthly ID
-    "yearly": "price_1RUX3xAGvsrc7mtDT8Cx3YZM",  # Updated from old yearly ID
+    "monthly": os.getenv("STRIPE_PRICE_ID_MONTHLY", "price_1RTWE7AGvsrc7mtDIbGZqLgm"), # Production monthly price ID
+    "yearly": os.getenv("STRIPE_PRICE_ID_YEARLY", "price_1RUX3xAGvsrc7mtDT8Cx3YZM"),  # Production yearly price ID
 }
 
 class CreateCheckoutSessionRequest(BaseModel):

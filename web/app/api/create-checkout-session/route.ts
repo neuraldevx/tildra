@@ -3,10 +3,10 @@ import { auth } from '@clerk/nextjs/server';
 import type { NextRequest } from 'next/server';
 
 // Use INTERNAL_API_URL for server-to-server communication
-// Fallback to public URL or localhost for flexibility
+// Fallback to production URL for reliability
 const backendApiBaseUrl = process.env.INTERNAL_API_URL 
   || process.env.NEXT_PUBLIC_API_BASE_URL 
-  || 'http://127.0.0.1:8000';
+  || 'https://tildra.fly.dev';
 
 export async function POST(req: NextRequest) {
   try {

@@ -115,8 +115,7 @@ export default function SettingsPage() {
   const handleManageSubscription = async () => {
     setIsLoadingPortal(true)
     try {
-      // TODO: Replace with actual portal link from backend if dynamic
-      window.open("https://billing.stripe.com/p/login/test_dR64hffWb55Ze084gg", "_blank")
+      window.open("https://billing.stripe.com/p/login/3cs7sw2s5dSieR224gg", "_blank")
     } catch (error) {
       console.error('Error opening billing portal:', error)
       toast.error('Failed to open billing portal')

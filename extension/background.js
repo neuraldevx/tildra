@@ -64,6 +64,24 @@ const COOKIE_NAME = '__session';
 // Constants for history storage
 const MAX_HISTORY_ITEMS = 100;
 
+// Helper function to check if URL is protected
+function isProtectedPage(url) {
+  if (!url) return true;
+  const protectedSchemes = [
+    'chrome://',
+    'chrome-extension://',
+    'chrome-search://',
+    'chrome-devtools://',
+    'moz-extension://',
+    'about:',
+    'edge://',
+    'opera://',
+    'brave://',
+    'file:///'
+  ];
+  return protectedSchemes.some(scheme => url.startsWith(scheme));
+}
+
 // Store a summary in history
 function addToSummaryHistory(summaryData, pageInfo = {}) {
   // Get current date/time
@@ -111,6 +129,20 @@ function addToSummaryHistory(summaryData, pageInfo = {}) {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (!tab?.id) return;
 
+  // Check if this is a protected page
+  if (isProtectedPage(tab.url)) {
+    console.log("Context menu clicked on protected page:", tab.url);
+    // Show a notification instead of trying to inject
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'favicon/favicon-96x96.png',
+      title: 'Tildra - Cannot Summarize',
+      message: 'Cannot summarize this page. Please navigate to a regular webpage and try again.',
+      priority: 1
+    });
+    return;
+  }
+
   let payload = null;
   if (info.menuItemId === "summarize-selection" && info.selectionText) {
     payload = info.selectionText;
@@ -138,9 +170,21 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     }, (injectionResults) => {
         if (chrome.runtime.lastError) {
             console.error("Scripting error:", chrome.runtime.lastError.message);
-            chrome.runtime.sendMessage({ // Send error back to popup if open
-                type: "SUMMARIZE_ERROR",
-                payload: { message: "Error accessing page content." }
+            
+            // Show user-friendly error notification
+            let errorMsg = "Cannot access this page for summarization.";
+            if (chrome.runtime.lastError.message.includes("Cannot access a chrome:// URL")) {
+              errorMsg = "Cannot summarize Chrome internal pages.";
+            } else if (chrome.runtime.lastError.message.includes("blocked by the page")) {
+              errorMsg = "This page blocks extensions.";
+            }
+            
+            chrome.notifications.create({
+              type: 'basic',
+              iconUrl: 'favicon/favicon-96x96.png',
+              title: 'Tildra - Error',
+              message: errorMsg,
+              priority: 1
             });
             return;
         }

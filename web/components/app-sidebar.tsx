@@ -67,7 +67,7 @@ export function AppSidebar() {
       try {
         const token = await getToken()
         if (!token) throw new Error("Failed to get session token.")
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://tildra.fly.dev'
         
         // Add timeout for fetch requests
         const controller = new AbortController()
@@ -275,7 +275,7 @@ export function AppSidebar() {
               {/* Quick Actions */}
               <div className="space-y-1">
                 <button
-                  onClick={() => window.open("https://billing.stripe.com/p/login/test_dR64hffWb55Ze084gg", "_blank")}
+                  onClick={() => window.open("https://billing.stripe.com/p/login/3cs7sw2s5dSieR224gg", "_blank")}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                 >
                   <Settings className="h-4 w-4" />

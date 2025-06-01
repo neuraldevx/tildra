@@ -39,11 +39,7 @@ export function PricingSection() {
           throw new Error("Failed to get session token.");
         }
 
-        const baseApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-        if (!baseApiUrl) {
-          console.error("[Pricing Client] NEXT_PUBLIC_API_BASE_URL is not set.");
-          throw new Error("API base URL is not configured.");
-        }
+        const baseApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://tildra.fly.dev'; // CHANGED: Add production fallback
         const apiUrl = `${baseApiUrl}/api/user/status`;
         console.log(`[Pricing Client] Fetching user status from ${apiUrl}`);
 

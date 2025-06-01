@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Tildra: AI Summarizer",
   "version": "1.0.1",
-  "description": "Get instant AI summaries (TL;DR) of any webpage or article.",
+  "description": "Get instant AI summaries (TL;DR) of any webpage or article with advanced AI. Perfect for research, reading, and productivity.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -12,8 +12,8 @@
     "management"
   ],
   "host_permissions": [
-    "<all_urls>",
-    "https://tildra.fly.dev/*"
+    "https://tildra.fly.dev/*",
+    "https://www.tildra.xyz/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -31,13 +31,6 @@
     "48": "favicon/favicon-96x96.png",
     "128": "favicon/web-app-manifest-192x192.png"
   },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["readability.js", "content.js"],
-      "run_at": "document_idle"
-    }
-  ],
   "web_accessible_resources": [
     {
       "resources": ["readability.js"],
