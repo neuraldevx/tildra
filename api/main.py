@@ -460,6 +460,7 @@ async def create_checkout_session(
                 },
             ],
             mode='subscription',
+            allow_promotion_codes=True,
             success_url=SUCCESS_URL + "?session_id={CHECKOUT_SESSION_ID}",
             cancel_url=CANCEL_URL,
             metadata={
@@ -1341,3 +1342,140 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
         except Exception as e:
             logger.error(f"Unexpected error in call_deepseek_api: {e}", exc_info=True)
             return "Error processing article.", ["An unexpected error occurred while summarizing."]
+
+# --- ADD Contact Form Model ---
+class ContactFormRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    email: str = Field(..., min_length=5, max_length=255)
+    subject: str = Field(..., min_length=1, max_length=200)
+    message: str = Field(..., min_length=10, max_length=2000)
+    recipient: str = Field(default="support@tildra.xyz")
+
+# --- ADD Contact Form Endpoint ---
+@app.post("/api/contact")
+async def contact_form(contact_request: ContactFormRequest, background_tasks: BackgroundTasks):
+    """
+    Handle contact form submissions and send email to support
+    """
+    try:
+        # Validate email format
+        import re
+        email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        if not re.match(email_pattern, contact_request.email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        
+        # Send email to support using Brevo
+        await send_contact_form_email(
+            contact_request.name,
+            contact_request.email,
+            contact_request.subject,
+            contact_request.message,
+            contact_request.recipient,
+            background_tasks
+        )
+        
+        logger.info(f"Contact form submission sent from {contact_request.email} to {contact_request.recipient}")
+        
+        return {
+            "success": True,
+            "message": "Your message has been sent successfully. We'll get back to you soon!"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Contact form error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to send message. Please try again later.")
+
+# --- ADD Contact Form Email Function ---
+async def send_contact_form_email(name: str, email: str, subject: str, message: str, recipient: str, background_tasks: BackgroundTasks):
+    """Send contact form submission to support email"""
+    if not BREVO_API_KEY:
+        logger.error("BREVO_API_KEY not configured. Cannot send contact form email.")
+        raise HTTPException(status_code=500, detail="Email service not configured")
+
+    # Prepare email content
+    email_subject = f"Contact Form: {subject}"
+    email_html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Contact Form Submission - Tildra</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+            .content {{ background-color: #ffffff; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; }}
+            .footer {{ margin-top: 20px; padding: 20px; background-color: #f8f9fa; border-radius: 8px; font-size: 12px; color: #666; }}
+            .field {{ margin-bottom: 15px; }}
+            .field-label {{ font-weight: bold; color: #495057; }}
+            .field-value {{ margin-left: 10px; }}
+            .message-content {{ background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #007bff; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h2 style="margin: 0; color: #007bff;">New Contact Form Submission</h2>
+                <p style="margin: 5px 0 0 0; color: #666;">Received from Tildra.xyz</p>
+            </div>
+            
+            <div class="content">
+                <div class="field">
+                    <span class="field-label">From:</span>
+                    <span class="field-value">{name} &lt;{email}&gt;</span>
+                </div>
+                
+                <div class="field">
+                    <span class="field-label">Subject:</span>
+                    <span class="field-value">{subject}</span>
+                </div>
+                
+                <div class="field">
+                    <span class="field-label">Submitted:</span>
+                    <span class="field-value">{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</span>
+                </div>
+                
+                <div class="field">
+                    <span class="field-label">Message:</span>
+                    <div class="message-content">
+                        {message.replace(chr(10), '<br>')}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <p>This email was automatically generated from a contact form submission on Tildra.xyz</p>
+                <p>To reply to this inquiry, send your response directly to: {email}</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    payload = {
+        "sender": {"name": SENDER_NAME, "email": SENDER_EMAIL},
+        "to": [{"email": recipient, "name": "Tildra Support"}],
+        "replyTo": {"email": email, "name": name},
+        "subject": email_subject,
+        "htmlContent": email_html_content,
+    }
+
+    async def send_email():
+        try:
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "api-key": BREVO_API_KEY
+            }
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(BREVO_API_URL, json=payload, headers=headers)
+                response.raise_for_status()
+                logger.info(f"Contact form email sent successfully to {recipient}")
+                
+        except Exception as e:
+            logger.error(f"Failed to send contact form email: {str(e)}")
+
+    background_tasks.add_task(send_email)
