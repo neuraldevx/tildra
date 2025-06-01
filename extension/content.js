@@ -137,7 +137,7 @@ function buildSummaryToPageBlockMap() {
       position: fixed !important;
       top: 0 !important;
       right: 0 !important;
-      width: 320px !important; /* Initial width */
+      width: 380px !important; /* Increased width for better readability */
       height: 100% !important;
       background: var(--overlay-bg, #1f2937) !important; /* Default dark theme */
       color: var(--overlay-text, #f3f4f6) !important;

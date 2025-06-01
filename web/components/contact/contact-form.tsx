@@ -48,6 +48,28 @@ export function ContactForm() {
       return
     }
 
+    // Validate message length (backend requires min 10 characters)
+    if (formData.message.trim().length < 10) {
+      setError('Message must be at least 10 characters long')
+      setIsSubmitting(false)
+      return
+    }
+
+    // Validate name length
+    if (formData.name.trim().length > 100) {
+      setError('Name must be less than 100 characters')
+      setIsSubmitting(false)
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address')
+      setIsSubmitting(false)
+      return
+    }
+
     try {
       const response = await fetch('/api/contact', {
         method: 'POST',
@@ -60,7 +82,13 @@ export function ContactForm() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to send message')
+        // Handle different error types
+        if (response.status === 422) {
+          // Validation error from backend
+          const errorMessage = data.detail || data.error || 'Please check your input and try again'
+          throw new Error(errorMessage)
+        }
+        throw new Error(data.error || data.message || 'Failed to send message')
       }
 
       setIsSubmitted(true)
@@ -68,7 +96,14 @@ export function ContactForm() {
       toast.success('Message sent successfully! We\'ll get back to you soon.')
     } catch (error) {
       console.error('Contact form error:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send message. Please try again.'
+      let errorMessage = 'Failed to send message. Please try again.'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      }
+      
       setError(errorMessage)
       toast.error(errorMessage)
     } finally {
@@ -178,15 +213,20 @@ export function ContactForm() {
                 <Textarea
                   id="message"
                   name="message"
-                  placeholder="Tell us how we can help you..."
+                  placeholder="Tell us how we can help you... (minimum 10 characters)"
                   value={formData.message}
                   onChange={handleChange}
                   required
                   className="min-h-[150px] resize-none input-focus-animate"
                 />
-                <p className="text-xs text-foreground/60">
-                  Please provide as much detail as possible to help us assist you better.
-                </p>
+                <div className="flex justify-between items-center">
+                  <p className="text-xs text-foreground/60">
+                    Please provide as much detail as possible to help us assist you better.
+                  </p>
+                  <p className={`text-xs ${formData.message.length < 10 ? 'text-destructive' : 'text-foreground/60'}`}>
+                    {formData.message.length}/10 minimum
+                  </p>
+                </div>
               </div>
             </motion.form>
           )}

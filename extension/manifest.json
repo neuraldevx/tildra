@@ -13,7 +13,11 @@
   ],
   "host_permissions": [
     "https://tildra.fly.dev/*",
-    "https://www.tildra.xyz/*"
+    "https://www.tildra.xyz/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+    "http://localhost:8080/*",
+    "http://127.0.0.1:8080/*"
   ],
   "background": {
     "service_worker": "background.js"

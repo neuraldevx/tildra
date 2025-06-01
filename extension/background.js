@@ -1,12 +1,12 @@
 console.log("Tildra Background Script Loaded");
 
 // --- Environment Configuration --- START
-let EFFECTIVE_API_URL_BASE = 'https://tildra.fly.dev'; // Default to Production
-let EFFECTIVE_COOKIE_DOMAIN_URL = 'https://www.tildra.xyz'; // Default to Production
-let IS_DEV_MODE = false;
+let EFFECTIVE_API_URL_BASE = 'http://127.0.0.1:8080'; // Change to local backend
+let EFFECTIVE_COOKIE_DOMAIN_URL = 'http://localhost:3000'; // Change to local frontend
+let IS_DEV_MODE = true; // Enable dev mode
 
 chrome.management.getSelf(function(info) {
-  // TEMPORARY: Force production mode for testing
+  // TEMPORARY: Force development mode for testing
   // Uncomment the if/else block below when you want to switch back to auto-detection
   
   /*
@@ -20,8 +20,8 @@ chrome.management.getSelf(function(info) {
   }
   */
   
-  // FORCED PRODUCTION MODE FOR TESTING
-  console.log('[Tildra Background] FORCED PRODUCTION mode for testing.');
+  // FORCED DEVELOPMENT MODE FOR TESTING
+  console.log('[Tildra Background] FORCED DEVELOPMENT mode for testing.');
   console.log(`[Tildra Background] API URL: ${EFFECTIVE_API_URL_BASE}`);
   console.log(`[Tildra Background] Cookie Domain: ${EFFECTIVE_COOKIE_DOMAIN_URL}`);
   

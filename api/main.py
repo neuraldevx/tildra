@@ -8,7 +8,9 @@ import time
 
 # Third-party imports
 from fastapi import FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field # Add Field
 import httpx # Use httpx for async API calls
 # --- Removed google.generativeai import ---
@@ -57,6 +59,12 @@ else:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Validate BREVO_API_KEY at startup
+if not BREVO_API_KEY:
+    logger.warning("BREVO_API_KEY environment variable not set. Email sending will fail.")
+else:
+    logger.info("BREVO_API_KEY configured successfully.")
+
 # Initialize FastAPI app
 app = FastAPI()
 
@@ -85,10 +93,27 @@ async def shutdown():
 # --- Clerk JWKS Configuration (Manual Verification) ---
 # Determine this from the 'iss' claim in your JWTs
 # Ensure this matches your Clerk instance's issuer URL
-CLERK_ISSUER = os.getenv("CLERK_ISSUER_URL", "https://clerk.tildra.xyz") # CHANGED: Use production Clerk domain
-if not CLERK_ISSUER.startswith("https://"): # Basic validation
-    logger.critical("CLERK_ISSUER_URL environment variable must be a valid HTTPS URL.")
-    raise ValueError("Invalid CLERK_ISSUER_URL")
+
+# -- START MODIFICATION: Dynamic Clerk Issuer URL --
+RUN_LOCALLY = os.getenv("RUN_LOCALLY", "false").lower() == "true"
+DEV_CLERK_ISSUER_URL = os.getenv("DEV_CLERK_ISSUER_URL") # e.g., https://your-dev-instance.clerk.accounts.dev
+PROD_CLERK_ISSUER_URL = os.getenv("CLERK_ISSUER_URL", "https://clerk.tildra.xyz") # Default production URL
+
+if RUN_LOCALLY:
+    if not DEV_CLERK_ISSUER_URL:
+        logger.critical("RUN_LOCALLY is true, but DEV_CLERK_ISSUER_URL is not set. Local authentication will fail.")
+        raise ValueError("DEV_CLERK_ISSUER_URL must be set for local development.")
+    CLERK_ISSUER = DEV_CLERK_ISSUER_URL
+    logger.info(f"Running locally. Using DEV Clerk Issuer: {CLERK_ISSUER}")
+else:
+    CLERK_ISSUER = PROD_CLERK_ISSUER_URL
+    logger.info(f"Running in production/staging. Using PROD Clerk Issuer: {CLERK_ISSUER}")
+
+if not CLERK_ISSUER or not CLERK_ISSUER.startswith("https://"): # Basic validation
+    logger.critical(f"Final CLERK_ISSUER ('{CLERK_ISSUER}') is invalid. It must be a valid HTTPS URL.")
+    raise ValueError("Invalid CLERK_ISSUER_URL configuration.")
+# -- END MODIFICATION --
+
 CLERK_JWKS_URL = f"{CLERK_ISSUER}/.well-known/jwks.json"
 
 # JWK Client to fetch and cache Clerk's public keys
@@ -1349,11 +1374,11 @@ class ContactFormRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=255)
     subject: str = Field(..., min_length=1, max_length=200)
     message: str = Field(..., min_length=10, max_length=2000)
-    recipient: str = Field(default="support@tildra.xyz")
+    recipient: str = Field(default="tildra.help@gmail.com")
 
 # --- ADD Contact Form Endpoint ---
 @app.post("/api/contact")
-async def contact_form(contact_request: ContactFormRequest, background_tasks: BackgroundTasks):
+async def contact_form(contact_request: ContactFormRequest):
     """
     Handle contact form submissions and send email to support
     """
@@ -1364,14 +1389,13 @@ async def contact_form(contact_request: ContactFormRequest, background_tasks: Ba
         if not re.match(email_pattern, contact_request.email):
             raise HTTPException(status_code=400, detail="Invalid email format")
         
-        # Send email to support using Brevo
+        # Send email to support using Brevo (synchronously to catch errors)
         await send_contact_form_email(
             contact_request.name,
             contact_request.email,
             contact_request.subject,
             contact_request.message,
-            contact_request.recipient,
-            background_tasks
+            contact_request.recipient
         )
         
         logger.info(f"Contact form submission sent from {contact_request.email} to {contact_request.recipient}")
@@ -1382,13 +1406,48 @@ async def contact_form(contact_request: ContactFormRequest, background_tasks: Ba
         }
         
     except HTTPException:
+        # Re-raise HTTP exceptions (like validation errors)
         raise
     except Exception as e:
-        logger.error(f"Contact form error: {str(e)}")
+        logger.error(f"Error processing contact form: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to send message. Please try again later.")
 
+# Add validation error handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # Convert validation errors to user-friendly messages
+    if request.url.path == "/api/contact":
+        errors = exc.errors()
+        user_friendly_errors = []
+        
+        for error in errors:
+            field = error['loc'][-1] if error['loc'] else 'field'
+            error_type = error['type']
+            
+            if field == 'message' and 'string_too_short' in error_type:
+                user_friendly_errors.append("Message must be at least 10 characters long")
+            elif field == 'email' and 'string_too_short' in error_type:
+                user_friendly_errors.append("Email address is too short")
+            elif field == 'name' and 'string_too_long' in error_type:
+                user_friendly_errors.append("Name must be less than 100 characters")
+            elif field == 'message' and 'string_too_long' in error_type:
+                user_friendly_errors.append("Message must be less than 2000 characters")
+            else:
+                user_friendly_errors.append(f"Invalid {field}: {error['msg']}")
+        
+        return JSONResponse(
+            status_code=422,
+            content={"error": "; ".join(user_friendly_errors)}
+        )
+    
+    # Default validation error response for other endpoints
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()}
+    )
+
 # --- ADD Contact Form Email Function ---
-async def send_contact_form_email(name: str, email: str, subject: str, message: str, recipient: str, background_tasks: BackgroundTasks):
+async def send_contact_form_email(name: str, email: str, subject: str, message: str, recipient: str):
     """Send contact form submission to support email"""
     if not BREVO_API_KEY:
         logger.error("BREVO_API_KEY not configured. Cannot send contact form email.")
@@ -1462,20 +1521,25 @@ async def send_contact_form_email(name: str, email: str, subject: str, message: 
         "htmlContent": email_html_content,
     }
 
-    async def send_email():
-        try:
-            headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "api-key": BREVO_API_KEY
-            }
+    try:
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "api-key": BREVO_API_KEY
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(BREVO_API_URL, json=payload, headers=headers)
+            response.raise_for_status()
+            logger.info(f"Contact form email sent successfully to {recipient}")
+            return True
             
-            async with httpx.AsyncClient() as client:
-                response = await client.post(BREVO_API_URL, json=payload, headers=headers)
-                response.raise_for_status()
-                logger.info(f"Contact form email sent successfully to {recipient}")
-                
-        except Exception as e:
-            logger.error(f"Failed to send contact form email: {str(e)}")
-
-    background_tasks.add_task(send_email)
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error sending contact form email: Status {e.response.status_code} - {e.response.text}")
+        raise HTTPException(status_code=500, detail=f"Email service error: {e.response.status_code}")
+    except httpx.RequestError as e:
+        logger.error(f"Request error sending contact form email: {str(e)}")
+        raise HTTPException(status_code=500, detail="Could not connect to email service")
+    except Exception as e:
+        logger.error(f"Unexpected error sending contact form email: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to send email")
