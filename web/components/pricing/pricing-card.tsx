@@ -1,5 +1,5 @@
 "use client"
-import { Check, X, Minus } from "lucide-react"
+import { Check, X, Minus, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -177,22 +177,23 @@ export function PricingCard({
         ))}
       </ul>
 
-      <Button 
-        asChild={!ctaDisabled && !!ctaLink && !isPrimary}
-        variant={isPrimary ? "default" : "outline"} 
-        className="w-full mt-auto" 
+      <Button
+        asChild={!isPrimary && !!ctaLink}
+        variant={isPrimary ? "default" : "outline"}
+        className="w-full mt-auto"
         disabled={ctaDisabled || isLoading}
         onClick={isPrimary && !ctaDisabled ? handleUpgradeClick : undefined}
         type="button"
       >
-        {isLoading && isPrimary ? (
-            <span>Processing...</span>
-        ) : ctaDisabled || (!ctaLink && !isPrimary) ? (
-          <span>{ctaText}</span>
-        ) : isPrimary ? (
+        {isPrimary || !ctaLink ? (
+          <>
+            {isLoading && isPrimary ? <Loader2 className="mr-2 h-4 w-4 animate-spin inline-flex" /> : null}
             <span>{ctaText}</span>
+          </>
         ) : (
-          <Link href={ctaLink}>{ctaText}</Link>
+          <Link href={ctaLink} className="block w-full text-center">
+            {ctaText}
+          </Link>
         )}
       </Button>
     </div>
