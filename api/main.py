@@ -121,7 +121,7 @@ CLERK_JWKS_URL = f"{CLERK_ISSUER}/.well-known/jwks.json"
 # Add a User-Agent header as recommended practice
 jwks_client = PyJWKClient(CLERK_JWKS_URL, headers={"User-Agent": "TildraAPI/1.0"})
 
-# --- Moved Block: Stripe Configuration --- 
+# --- Moved Block: Stripe Configuration ---
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 PREMIUM_PRICE_ID_MONTHLY = os.getenv("PREMIUM_PRICE_ID_MONTHLY")
 PREMIUM_PRICE_ID_YEARLY = os.getenv("PREMIUM_PRICE_ID_YEARLY")
@@ -150,7 +150,7 @@ if not DEEPSEEK_API_KEY:
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 # -----------------------------------------
 
-# --- ADD Clerk Webhook Secret --- 
+# --- ADD Clerk Webhook Secret ---
 CLERK_WEBHOOK_SECRET = os.getenv("CLERK_WEBHOOK_SIGNING_SECRET")
 if not CLERK_WEBHOOK_SECRET:
     # Log a warning but don't crash the app, as other endpoints might still work
@@ -188,6 +188,16 @@ class SummarizeResponse(BaseModel):
     tldr: str
     key_points: list[str]
 
+class TailorResumeRequest(BaseModel):
+    resume_text: str
+    job_description: str
+    job_title: Optional[str] = None
+    company_name: Optional[str] = None
+    tone: Optional[str] = "professional"
+
+class TailorResumeResponse(BaseModel):
+    tailored_resume: str
+
 # Add model for checkout request
 class CreateCheckoutRequest(BaseModel):
     price_lookup_key: str # e.g., 'monthly' or 'yearly'
@@ -206,18 +216,18 @@ class UserAccountDetailsResponse(BaseModel):
     is_pro: bool
 # --- END ADDED ---
 
-# --- ADDED: Model for User Status Endpoint --- 
+# --- ADDED: Model for User Status Endpoint ---
 class UserStatusResponse(BaseModel):
     is_pro: bool
 # --- END ADDED ---
 
-# --- ADDED: History Endpoint --- 
+# --- ADDED: History Endpoint ---
 from typing import List # Add List import
 
 # Define response model based on Prisma model (adjust if needed)
 class HistoryItemResponse(BaseModel):
     id: str
-    userId: str 
+    userId: str
     url: Optional[str] = None
     title: Optional[str] = None
     tldr: str
@@ -225,7 +235,7 @@ class HistoryItemResponse(BaseModel):
     createdAt: datetime # Ensure this matches schema type
     # updatedAt: datetime # Optionally include
     class Config: # Add Config for ORM mode if returning Prisma model instances directly
-        orm_mode = True 
+        orm_mode = True
 
 # --- Authentication Dependency (Manual JWT Verification) ---
 async def get_authenticated_user_id(request: Request) -> str:
@@ -449,10 +459,10 @@ async def create_checkout_session(
                 if not user_email:
                     logger.error(f"No email found for user {user_clerk_id}. Cannot create Stripe customer.")
                     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not determine user email for Stripe.")
-                
+
                 # Use names from database if available
                 user_name = f"{user.firstName} {user.lastName}".strip() if user.firstName and user.lastName else user_email
-                
+
                 logger.info(f"Creating Stripe customer for Clerk ID: {user_clerk_id}, Email: {user_email}")
                 customer = stripe.Customer.create(
                     email=user_email,
@@ -498,7 +508,7 @@ async def create_checkout_session(
         logger.error(f"Stripe API error during checkout session creation for Clerk ID {user_clerk_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Stripe API error: {str(e)}")
     except HTTPException as e: # Re-raise known HTTPExceptions
-        raise e 
+        raise e
     except Exception as e:
         logger.error(f"Unexpected error in create_checkout_session for Clerk ID {user_clerk_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred. Please try again later.")
@@ -559,12 +569,12 @@ async def stripe_webhook(request: Request):
                 first_item = items_object.data[0]
                 plan = first_item.get('plan')
                 price = first_item.get('price')
-                
+
                 if plan:
                     stripe_price_id = plan.get('id')
                 elif price:
                     stripe_price_id = price.get('id')
-                
+
                 period_end_timestamp = subscription.get('current_period_end')
 
             if not stripe_price_id or not period_end_timestamp:
@@ -592,13 +602,13 @@ async def stripe_webhook(request: Request):
                 "summariesUsed": 0,
                 "usageResetAt": stripe_current_period_end
             }
-            
+
             logger.info(f"UPGRADING USER {user.clerkId} TO PREMIUM")
             updated_user = await prisma.user.update(
                 where={"stripeCustomerId": stripe_customer_id},
                 data=update_data
             )
-            
+
             if updated_user:
                 logger.info(f"SUCCESS: User {user.clerkId} upgraded to plan: {updated_user.plan}, limit: {updated_user.summaryLimit}")
             else:
@@ -696,7 +706,7 @@ async def clerk_webhook(request: Request, background_tasks: BackgroundTasks):
 
     # Verify the webhook signature
     try:
-        # logger.info(f"Attempting to verify webhook with secret: {CLERK_WEBHOOK_SECRET}") 
+        # logger.info(f"Attempting to verify webhook with secret: {CLERK_WEBHOOK_SECRET}")
         wh = Webhook(CLERK_WEBHOOK_SECRET)
         evt = wh.verify(payload, {
             "svix-id": svix_id,
@@ -711,7 +721,7 @@ async def clerk_webhook(request: Request, background_tasks: BackgroundTasks):
         logger.error(f"Unexpected error during webhook verification: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error verifying webhook.")
 
-    # Process the validated event --- 
+    # Process the validated event ---
     event_type = evt.get("type")
     event_data = evt.get("data", {}) # Default to empty dict if 'data' is missing
 
@@ -734,7 +744,7 @@ async def clerk_webhook(request: Request, background_tasks: BackgroundTasks):
                         email_address = verified_email_obj.get("email_address")
                     else:
                         email_address = email_addresses[0].get("email_address")
-            
+
             if not clerk_id or not email_address:
                  logger.error(f"Webhook Error user.created: Missing clerk_id or email. ClerkID: {clerk_id}, Email: {email_address}, EventData: {event_data}")
                  return {"status": "error", "message": "Missing required user data (clerkId or email) in user.created event."}
@@ -759,15 +769,15 @@ async def clerk_webhook(request: Request, background_tasks: BackgroundTasks):
                     "lastName": last_name,
                     "profileImageUrl": image_url,
                     "plan": "free",
-                    "summaryLimit": 10, 
+                    "summaryLimit": 10,
                     "summariesUsed": 0,
                     "totalSummariesMade": 0, # Initialize total summaries
                     "usageResetAt": datetime.now(timezone.utc)
                 }
             )
             logger.info(f"Successfully created user in DB for Clerk ID: {new_user.clerkId}")
-            
-            # --- ADDED: Send welcome email --- 
+
+            # --- ADDED: Send welcome email ---
             if new_user and new_user.email:
                 logger.info(f"Scheduling welcome email for new user: {new_user.email}")
                 # Use the background_tasks instance defined earlier in the endpoint
@@ -775,7 +785,7 @@ async def clerk_webhook(request: Request, background_tasks: BackgroundTasks):
             # --- END ADDED ---
 
             return {"status": "ok", "message": "User created successfully."}
-        
+
         except Exception as e:
             logger.error(f"Webhook Error user.created: Failed to process for Clerk ID {event_data.get('id')}: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to process user.created event.")
@@ -810,7 +820,7 @@ async def clerk_webhook(request: Request, background_tasks: BackgroundTasks):
             }
             if email_address: # Only update email if we successfully determined one
                 update_payload["email"] = email_address
-            
+
             # Remove keys where value is None to avoid overwriting existing data with None if not provided in event
             update_payload_cleaned = {k: v for k, v in update_payload.items() if v is not None}
 
@@ -846,7 +856,7 @@ async def clerk_webhook(request: Request, background_tasks: BackgroundTasks):
                 where={"userId": clerk_id}
             )
             logger.info(f"Deleted {deleted_history.count if hasattr(deleted_history, 'count') else 'unknown'} summary history records for user: {clerk_id}")
-            
+
             # Now delete the user
             deleted_user = await prisma.user.delete(where={"clerkId": clerk_id})
             if deleted_user:
@@ -886,7 +896,7 @@ async def summarize_article(
     try:
         logger.debug(f"Checking database for Clerk ID: {user_clerk_id}")
         user = await prisma.user.find_unique(where={"clerkId": user_clerk_id})
-        
+
         if not user: # Should be caught by AuthenticatedUserIdWithRLS, but good to double check
             logger.error(f"User not found in DB for Clerk ID: {user_clerk_id} in /summarize endpoint.")
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User profile not found.")
@@ -902,10 +912,10 @@ async def summarize_article(
                     where={"clerkId": user_clerk_id},
                     data={"summariesUsed": 0, "usageResetAt": now} # Reset to now for daily
                 )
-                if not user: 
+                if not user:
                      logger.error(f"Failed to update usage for free user Clerk ID: {user_clerk_id} after daily reset.")
                      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update user usage data.")
-        
+
         # For premium users, the reset is handled by webhooks (invoice.payment_succeeded).
         # We just check if their current period has technically ended according to stored usageResetAt.
         # This can be a fallback if a webhook is delayed or missed, but primary reset is webhook-driven.
@@ -935,15 +945,15 @@ async def summarize_article(
     try:
         # Pass summary_length (snake_case) to the API call function
         summary_tldr, key_points_list = await call_deepseek_api(request_data.article_text, request_data.summary_length)
-        
+
         # --- Store summary in history and track usage ---
         if not summary_tldr.startswith("Error:"): # Only proceed if not an error
             background_tasks.add_task(
-                save_summary_to_history, 
-                user_clerk_id=user_clerk_id, 
+                save_summary_to_history,
+                user_clerk_id=user_clerk_id,
                 url=request_data.url,
                 title=request_data.title,
-                tldr=summary_tldr, 
+                tldr=summary_tldr,
                 key_points=key_points_list
             )
             background_tasks.add_task( # Add usage tracking here
@@ -951,7 +961,7 @@ async def summarize_article(
                 user_clerk_id=user_clerk_id
             )
         # -----------------------------
-        
+
         return SummarizeResponse(tldr=summary_tldr, key_points=key_points_list)
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP error calling DeepSeek API: {e.response.status_code} - {e.response.text}")
@@ -962,6 +972,30 @@ async def summarize_article(
     except Exception as e:
         logger.error(f"Unexpected error in summarize_article for user {user_clerk_id[:5]}...: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred. Please try again later.")
+
+# --- Resume tailoring endpoint ---
+@app.post("/tailor-resume", response_model=TailorResumeResponse)
+async def tailor_resume(
+    request_data: TailorResumeRequest,
+    user_clerk_id: AuthenticatedUserIdWithRLS,
+):
+    """Tailor a resume to match a job description."""
+    try:
+        tailored = await call_deepseek_tailor_resume(
+            request_data.resume_text,
+            request_data.job_description,
+            job_title=request_data.job_title,
+            company_name=request_data.company_name,
+            tone=request_data.tone,
+        )
+        if not tailored:
+            raise HTTPException(status_code=500, detail="Failed to generate resume")
+        return TailorResumeResponse(tailored_resume=tailored)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in tailor_resume for user {user_clerk_id[:5]}...: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again later.")
 
 # Health check endpoint
 @app.get("/health")
@@ -1016,7 +1050,7 @@ async def get_user_account_details(user_id: AuthenticatedUserIdWithRLS): # MODIF
         # Return a generic error response, or re-raise for FastAPI's default 500 handling
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching account details.")
 
-# --- ADDED: User Status Endpoint --- 
+# --- ADDED: User Status Endpoint ---
 @app.get("/api/user/status", response_model=UserStatusResponse)
 async def get_user_status(user_id: AuthenticatedUserIdWithRLS): # MODIFIED for RLS
     """Retrieves the pro status for the authenticated user."""
@@ -1026,17 +1060,17 @@ async def get_user_status(user_id: AuthenticatedUserIdWithRLS): # MODIFIED for R
         if not user:
             logger.error(f"User status check failed: User not found in DB for Clerk ID: {user_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found.")
-        
+
         is_pro_status = user.plan == "premium"
         logger.info(f"User {user_id} status check complete. Is Pro: {is_pro_status}")
         return UserStatusResponse(is_pro=is_pro_status)
-        
+
     except Exception as e:
         logger.error(f"Error fetching user status for {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching user status.")
-# --- END ADDED --- 
+# --- END ADDED ---
 
-# --- ADDED: History Endpoint --- 
+# --- ADDED: History Endpoint ---
 @app.get("/api/history", response_model=List[HistoryItemResponse])
 async def get_user_history(user_id: AuthenticatedUserIdWithRLS): # MODIFIED for RLS
     """Retrieves the summary history for the authenticated user."""
@@ -1049,12 +1083,12 @@ async def get_user_history(user_id: AuthenticatedUserIdWithRLS): # MODIFIED for 
         )
         logger.info(f"Found {len(history_items)} history items for user {user_id}")
         # Directly return the list - Pydantic with orm_mode handles conversion
-        return history_items 
+        return history_items
 
     except Exception as e:
         logger.error(f"Error fetching history for {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching summary history.")
-# --- END ADDED --- 
+# --- END ADDED ---
 
 # --- ADDED: Delete Single History Item Endpoint ---
 @app.delete("/api/history/{history_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1102,7 +1136,7 @@ async def delete_all_user_history(user_id: AuthenticatedUserIdWithRLS): # MODIFI
     except Exception as e:
         logger.error(f"Error deleting all history for user {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error clearing history.")
-# --- END ADDED --- 
+# --- END ADDED ---
 
 # --- ADDED: User Settings Models and Endpoints ---
 class UserSettingsResponse(BaseModel):
@@ -1123,18 +1157,18 @@ async def get_user_settings(user_id: AuthenticatedUserIdWithRLS):
         user = await prisma.user.find_unique(
             where={"clerkId": user_id}
         )
-        
+
         if not user:
             logger.error(f"User not found in DB for Clerk ID: {user_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found.")
-        
+
         # Return settings with defaults if None
         return UserSettingsResponse(
             emailNotifications=user.emailNotifications if user.emailNotifications is not None else True,
             summaryNotifications=user.summaryNotifications if user.summaryNotifications is not None else True,
             marketingEmails=user.marketingEmails if user.marketingEmails is not None else False,
         )
-        
+
     except Exception as e:
         logger.error(f"Error fetching user settings for {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching user settings.")
@@ -1157,7 +1191,7 @@ async def update_user_settings(
                 "updatedAt": datetime.now(timezone.utc),
             }
         )
-        
+
         # Fetch the updated user data to return
         updated_user = await prisma.user.find_unique(where={"clerkId": user_id})
 
@@ -1171,7 +1205,7 @@ async def update_user_settings(
             summaryNotifications=updated_user.summaryNotifications if updated_user.summaryNotifications is not None else True,
             marketingEmails=updated_user.marketingEmails if updated_user.marketingEmails is not None else False,
         )
-        
+
     except Exception as e:
         logger.error(f"Error updating user settings for {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error updating user settings.")
@@ -1188,7 +1222,7 @@ async def send_welcome_email(user_email: str, user_first_name: Optional[str], ba
     # frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000") # Not needed if HTML is in Brevo
 
     # --- MODIFIED FOR TEMPLATE ID ---
-    template_id = 2 
+    template_id = 2
     # Prepare params for Brevo template. Template uses {{params.userName}}
     params_payload = {"userName": first_name_greeting}
 
@@ -1231,7 +1265,7 @@ async def send_welcome_email(user_email: str, user_first_name: Optional[str], ba
                 logger.error(f"[Welcome Email Task] Request error sending welcome email to {user_email}: {e}", exc_info=True)
             except Exception as e:
                 logger.error(f"[Welcome Email Task] Unexpected error sending welcome email to {user_email}: {e}", exc_info=True)
-    
+
     logger.info(f"[Welcome Email] About to add welcome email task for {user_email} to background.") # ADDED
     background_tasks.add_task(task)
     logger.info(f"[Welcome Email] Successfully added welcome email task for {user_email} to background.") # ADDED
@@ -1247,10 +1281,10 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
         "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
         "Content-Type": "application/json",
     }
-    
+
     # Truncate article to avoid huge payloads
     truncated_article = article_text[:15000]
-    
+
     # Configure parameters based on summary_length_param
     if summary_length_param == "brief":
         system_prompt = (
@@ -1267,7 +1301,7 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
         )
         max_tokens = 300
         temperature = 0.3
-        
+
     elif summary_length_param == "detailed":
         system_prompt = (
             "You are a comprehensive summarization AI. Always respond in JSON format only. "
@@ -1283,7 +1317,7 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
         )
         max_tokens = 2000
         temperature = 0.8
-        
+
     else:  # standard (or if summary_length_param is None/unexpected)
         system_prompt = (
             "You are a balanced summarization AI. Always respond in JSON format only. "
@@ -1316,7 +1350,7 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
             logger.debug(f"Calling DeepSeek API with payload: {json.dumps(payload, indent=2)}")
             response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=90.0) # Increased timeout
             response.raise_for_status()  # Raise an exception for bad status codes
-            
+
             response_data = response.json()
             logger.debug(f"Raw DeepSeek response: {response_data}")
 
@@ -1342,7 +1376,7 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
             if tldr is None or key_points is None:
                 logger.error(f"DeepSeek API response missing 'tldr' or 'key_points': {response_data}")
                 raise ValueError("DeepSeek API response is missing 'tldr' or 'key_points'.")
-            
+
             if not isinstance(tldr, str) or not isinstance(key_points, list):
                 logger.error(f"DeepSeek API 'tldr' is not a string or 'key_points' is not a list: {response_data}")
                 raise ValueError("'tldr' must be a string and 'key_points' must be a list.")
@@ -1368,6 +1402,66 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
             logger.error(f"Unexpected error in call_deepseek_api: {e}", exc_info=True)
             return "Error processing article.", ["An unexpected error occurred while summarizing."]
 
+# --- New helper for resume tailoring ---
+async def call_deepseek_tailor_resume(
+    resume_text: str,
+    job_description: str,
+    job_title: str | None = None,
+    company_name: str | None = None,
+    tone: str | None = "professional",
+) -> str:
+    if not DEEPSEEK_API_KEY:
+        logger.error("DeepSeek API key is not configured.")
+        return "Error: API key not set."
+
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    # Truncate to avoid large payloads
+    resume_short = resume_text[:8000]
+    jd_short = job_description[:8000]
+
+    system_prompt = (
+        "You are an expert career coach who rewrites resumes to match specific job descriptions."
+        " Always respond in JSON with a single key 'tailored_resume'."
+    )
+
+    user_prompt = (
+        f"Job Title: {job_title or 'Unknown'}\n"
+        f"Company: {company_name or 'Unknown'}\n"
+        f"Desired tone: {tone}.\n"
+        "Rewrite the resume so it aligns with the job description. "
+        "Keep bullet formatting and highlight relevant skills.\n\n"
+        f"Resume:\n{resume_short}\n\nJob Description:\n{jd_short}"
+    )
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_tokens": 2000,
+        "temperature": 0.6,
+        "response_format": {"type": "json_object"},
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=90.0)
+            response.raise_for_status()
+
+            data = response.json()
+            message = data.get("choices", [{}])[0].get("message", {}).get("content")
+            if not message:
+                raise ValueError("No content returned from API")
+            return json.loads(message).get("tailored_resume", "")
+        except Exception as e:
+            logger.error(f"Error tailoring resume: {e}", exc_info=True)
+            return ""
+
 # --- ADD Contact Form Model ---
 class ContactFormRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -1388,7 +1482,7 @@ async def contact_form(contact_request: ContactFormRequest):
         email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
         if not re.match(email_pattern, contact_request.email):
             raise HTTPException(status_code=400, detail="Invalid email format")
-        
+
         # Send email to support using Brevo (synchronously to catch errors)
         await send_contact_form_email(
             contact_request.name,
@@ -1397,14 +1491,14 @@ async def contact_form(contact_request: ContactFormRequest):
             contact_request.message,
             contact_request.recipient
         )
-        
+
         logger.info(f"Contact form submission sent from {contact_request.email} to {contact_request.recipient}")
-        
+
         return {
             "success": True,
             "message": "Your message has been sent successfully. We'll get back to you soon!"
         }
-        
+
     except HTTPException:
         # Re-raise HTTP exceptions (like validation errors)
         raise
@@ -1419,11 +1513,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     if request.url.path == "/api/contact":
         errors = exc.errors()
         user_friendly_errors = []
-        
+
         for error in errors:
             field = error['loc'][-1] if error['loc'] else 'field'
             error_type = error['type']
-            
+
             if field == 'message' and 'string_too_short' in error_type:
                 user_friendly_errors.append("Message must be at least 10 characters long")
             elif field == 'email' and 'string_too_short' in error_type:
@@ -1434,12 +1528,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                 user_friendly_errors.append("Message must be less than 2000 characters")
             else:
                 user_friendly_errors.append(f"Invalid {field}: {error['msg']}")
-        
+
         return JSONResponse(
             status_code=422,
             content={"error": "; ".join(user_friendly_errors)}
         )
-    
+
     # Default validation error response for other endpoints
     return JSONResponse(
         status_code=422,
@@ -1479,23 +1573,23 @@ async def send_contact_form_email(name: str, email: str, subject: str, message: 
                 <h2 style="margin: 0; color: #007bff;">New Contact Form Submission</h2>
                 <p style="margin: 5px 0 0 0; color: #666;">Received from Tildra.xyz</p>
             </div>
-            
+
             <div class="content">
                 <div class="field">
                     <span class="field-label">From:</span>
                     <span class="field-value">{name} &lt;{email}&gt;</span>
                 </div>
-                
+
                 <div class="field">
                     <span class="field-label">Subject:</span>
                     <span class="field-value">{subject}</span>
                 </div>
-                
+
                 <div class="field">
                     <span class="field-label">Submitted:</span>
                     <span class="field-value">{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</span>
                 </div>
-                
+
                 <div class="field">
                     <span class="field-label">Message:</span>
                     <div class="message-content">
@@ -1503,7 +1597,7 @@ async def send_contact_form_email(name: str, email: str, subject: str, message: 
                     </div>
                 </div>
             </div>
-            
+
             <div class="footer">
                 <p>This email was automatically generated from a contact form submission on Tildra.xyz</p>
                 <p>To reply to this inquiry, send your response directly to: {email}</p>
@@ -1527,13 +1621,13 @@ async def send_contact_form_email(name: str, email: str, subject: str, message: 
             "Content-Type": "application/json",
             "api-key": BREVO_API_KEY
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.post(BREVO_API_URL, json=payload, headers=headers)
             response.raise_for_status()
             logger.info(f"Contact form email sent successfully to {recipient}")
             return True
-            
+
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP error sending contact form email: Status {e.response.status_code} - {e.response.text}")
         raise HTTPException(status_code=500, detail=f"Email service error: {e.response.status_code}")
