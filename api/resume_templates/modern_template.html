@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ name }} - Resume</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            font-size: 10pt; /* Common print size */
+        }
+        .container {
+            width: 8.5in; /* Standard US Letter width */
+            min-height: 11in; /* Standard US Letter height */
+            margin: 0 auto; /* Center on page for viewing, print margins handled by @page */
+            background-color: #fff;
+            padding: 0.5in; /* Typical print margin */
+            box-sizing: border-box;
+        }
+        h1, h2, h3 {
+            color: #333;
+            margin-bottom: 0.2em;
+        }
+        h1 {
+            font-size: 22pt;
+            text-align: center;
+            margin-bottom: 0.1in;
+        }
+        h2 {
+            font-size: 14pt;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 0.1in;
+            margin-top: 0.3in;
+        }
+        h3 {
+            font-size: 12pt;
+            font-weight: bold;
+        }
+        .contact-info {
+            text-align: center;
+            margin-bottom: 0.3in;
+            font-size: 9pt;
+        }
+        .contact-info p {
+            margin: 0.05in 0;
+        }
+        .section {
+            margin-bottom: 0.3in;
+        }
+        .job, .education-entry, .project {
+            margin-bottom: 0.2in;
+        }
+        .job-title, .degree {
+            font-weight: bold;
+            font-size: 11pt;
+        }
+        .company, .institution, .project-name {
+            font-style: italic;
+            color: #555;
+        }
+        .dates {
+            float: right;
+            font-size: 9pt;
+            color: #666;
+        }
+        ul {
+            padding-left: 0.2in;
+            list-style-type: disc;
+            margin-top: 0.05in;
+        }
+        li {
+            margin-bottom: 0.05in;
+        }
+        .skills ul {
+            list-style: none;
+            padding: 0;
+        }
+        .skills li {
+            display: inline-block;
+            background-color: #e0e0e0;
+            color: #333;
+            padding: 3px 8px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            border-radius: 3px;
+            font-size: 9pt;
+        }
+
+        @page {
+            size: letter; /* or A4 */
+            margin: 0.5in; /* Adjust print margins as needed */
+        }
+
+        @media print {
+            body {
+                background-color: #fff; /* Ensure background is white for printing */
+                font-size: 10pt; /* Ensure font size is consistent for print */
+            }
+            .container {
+                width: auto; /* Let it fill the page width within print margins */
+                margin: 0;
+                padding: 0; /* Padding is handled by @page margin */
+                box-shadow: none; /* Remove shadow for print */
+            }
+            .dates { /* Ensure float behaves as expected in print */
+                float: right;
+            }
+            /* Add any other print-specific overrides here */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ name }}</h1>
+            <div class="contact-info">
+                <p>{{ email }} | {{ phone }} | {{ website }}</p>
+                <p>{{ address }}</p>
+            </div>
+        </header>
+
+        <div class="section summary">
+            <h2>Summary</h2>
+            <p>{{ summary }}</p>
+        </div>
+
+        <div class="section experience">
+            <h2>Experience</h2>
+            {% for job in experience %}
+            <div class="job">
+                <span class="dates">{{ job.startDate }} – {{ job.endDate }}</span>
+                <h3 class="job-title">{{ job.title }}</h3>
+                <p class="company">{{ job.company }} | {{ job.location }}</p>
+                <ul>
+                    {% for bullet in job.bullets %}
+                    <li>{{ bullet }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="section education">
+            <h2>Education</h2>
+            {% for edu in education %}
+            <div class="education-entry">
+                <span class="dates">{{ edu.startDate }} – {{ edu.endDate }}</span>
+                <h3 class="degree">{{ edu.degree }}</h3>
+                <p class="institution">{{ edu.institution }} | {{ edu.location }}</p>
+                {% if edu.details %}
+                <p>{{ edu.details }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="section skills">
+            <h2>Skills</h2>
+            <ul>
+                {% for skill in skills %}
+                <li>{{ skill }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        {% if projects %}
+        <div class="section projects">
+            <h2>Projects</h2>
+            {% for project in projects %}
+            <div class="project">
+                 <span class="dates">{{ project.date }}</span>
+                <h3 class="project-name">{{ project.name }}</h3>
+                {% if project.technologies %}
+                    <p><em>Technologies: {{ project.technologies | join(', ') }}</em></p>
+                {% endif %}
+                <ul>
+                    {% for bullet in project.bullets %}
+                    <li>{{ bullet }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html> 

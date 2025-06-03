@@ -27,6 +27,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const overlayTextPicker = document.getElementById('overlay-text-picker');
   const enableHighlightingToggle = document.getElementById('enable-highlighting-toggle');
 
+  // --- NEW Job Copilot UI Elements ---
+  const jobCopilotDisplayArea = document.getElementById('job-copilot-display-area');
+  const jobCopilotStatus = document.getElementById('job-copilot-status');
+  const jobCopilotDetailsDiv = document.getElementById('job-copilot-details');
+  const jobTitleDisplay = document.getElementById('job-title-display');
+  const jobCompanyDisplay = document.getElementById('job-company-display');
+  const jobSourceDisplay = document.getElementById('job-source-display');
+  const jobDescriptionSnippet = document.getElementById('job-description-snippet');
+  // --- END NEW Job Copilot UI Elements ---
+
   // --- New summary enhancement elements ---
   const summaryLengthSelect = document.getElementById('summary-length');
   const loadingProgress = document.getElementById('loading-progress');
@@ -719,31 +729,68 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Initial Load --- 
   // Check user status and update UI accordingly
   async function initializePopup() {
-    // Fetch config from background script first
-    chrome.runtime.sendMessage({ action: 'getConfig' }, (configResponse) => {
-      if (chrome.runtime.lastError) {
-        console.error("[Tildra Popup] Error fetching config from background:", chrome.runtime.lastError.message);
-        // Proceed with default prod values, or handle error more gracefully
-      } else if (configResponse) {
-        console.log("[Tildra Popup] Received config from background:", configResponse);
-        BG_CONFIG = configResponse;
-      }
+    // Fetch and apply settings first
+    loadSettings();
 
-      // Check for first-time user and show onboarding immediately
-      chrome.storage.local.get(['hasSeenOnboarding'], (result) => {
-        console.log("[Tildra Popup] Checking onboarding status:", result);
-        
-        if (!result.hasSeenOnboarding) {
-          // First time user - show onboarding immediately
-          console.log("[Tildra Popup] First time user detected, showing onboarding");
-          showOnboarding();
-        } else {
-          // Returning user - proceed with normal initialization
-          console.log("[Tildra Popup] Returning user detected, proceeding with normal flow");
-          updateProStatusUI();
+    // Fetch config from background script
+    chrome.runtime.sendMessage({ action: "getBgConfig" }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error("[Tildra Popup] Error getting BG config:", chrome.runtime.lastError.message);
+            // Proceed with default BG_CONFIG
+        } else if (response && response.config) {
+            BG_CONFIG = response.config;
+            console.log("[Tildra Popup] Received BG_CONFIG:", BG_CONFIG);
         }
-      });
+        // After config is potentially updated, update UI that might depend on it (e.g. pro status)
+        updateProStatusUI(); 
     });
+    
+    // --- NEW: Fetch Job Details for current tab ---
+    if (jobCopilotDisplayArea) jobCopilotDisplayArea.style.display = 'block'; // Show status initially
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0] && tabs[0].id) {
+            const currentTabId = tabs[0].id;
+            console.log(`[Tildra Popup] Querying job details for current tab ID: ${currentTabId}`);
+            chrome.runtime.sendMessage(
+                { action: "GET_CURRENT_TAB_JOB_DETAILS", tabId: currentTabId },
+                (response) => {
+                    if (chrome.runtime.lastError) {
+                        console.error("[Tildra Popup] Error getting job details:", chrome.runtime.lastError.message);
+                        showJobDetectionStatus('Error fetching job details.');
+                        return;
+                    }
+                    if (response) {
+                        console.log("[Tildra Popup] Response from GET_CURRENT_TAB_JOB_DETAILS:", response);
+                        if (response.status === "SUCCESS" && response.data) {
+                            displayJobDetails(response.data);
+                        } else if (response.status === "NOT_FOUND") {
+                            showJobDetectionStatus('No job details detected on this page.');
+                        } else {
+                            showJobDetectionStatus('Could not retrieve job details at this time.');
+                        }
+                    } else {
+                        console.warn("[Tildra Popup] No response received for GET_CURRENT_TAB_JOB_DETAILS.");
+                        showJobDetectionStatus('No response from background script for job details.');
+                    }
+                }
+            );
+        } else {
+            console.warn("[Tildra Popup] Could not get active tab ID to fetch job details.");
+            if (jobCopilotDisplayArea) showJobDetectionStatus('Cannot determine current tab.');
+        }
+    });
+    // --- END NEW Fetch Job Details ---
+
+    // Load history and update pro status
+    loadHistorySummaries();
+    // updateProStatusUI(); // Called after BG_CONFIG is fetched
+    checkAndShowOnboarding();
+
+    if (summarizeButton) {
+      summarizeButton.onclick = () => {
+        // ... (rest of existing initializePopup and other functions: saveSettings, loadSettings, applyTheme, etc.) ...
+      };
+    }
   }
 
   // Onboarding functionality
@@ -1087,4 +1134,32 @@ document.addEventListener('DOMContentLoaded', () => {
   window.showOnboarding = function() {
     showOnboarding();
   };
+
+  // --- NEW Function to display job details ---
+  function displayJobDetails(jobData) {
+    if (!jobCopilotDisplayArea || !jobCopilotStatus || !jobCopilotDetailsDiv || !jobTitleDisplay || !jobCompanyDisplay || !jobSourceDisplay || !jobDescriptionSnippet) {
+        console.warn("[Tildra Popup] One or more Job Copilot UI elements are missing. Cannot display job details.");
+        return;
+    }
+
+    jobCopilotDisplayArea.style.display = 'block'; // Show the area
+    jobCopilotStatus.style.display = 'none'; // Hide the 'Detecting...' status
+    jobCopilotDetailsDiv.style.display = 'block';
+
+    jobTitleDisplay.textContent = jobData.jobTitle || 'N/A';
+    jobCompanyDisplay.textContent = jobData.companyName || 'N/A';
+    jobSourceDisplay.textContent = jobData.source || 'N/A';
+    jobDescriptionSnippet.textContent = jobData.jobDescription ? jobData.jobDescription.substring(0, 250) + '...' : 'Not available';
+    
+    console.log("[Tildra Popup] Displayed job details:", jobData);
+  }
+
+  function showJobDetectionStatus(message) {
+    if (!jobCopilotDisplayArea || !jobCopilotStatus || !jobCopilotDetailsDiv) return;
+    jobCopilotDisplayArea.style.display = 'block';
+    jobCopilotStatus.textContent = message;
+    jobCopilotStatus.style.display = 'block';
+    jobCopilotDetailsDiv.style.display = 'none';
+  }
+  // --- END NEW Function ---
 });

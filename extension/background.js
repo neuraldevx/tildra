@@ -60,6 +60,9 @@ const COOKIE_NAME = '__session';
 // Constants for history storage
 const MAX_HISTORY_ITEMS = 100;
 
+// --- In-memory store for job details detected on tabs ---
+let activeJobDetailsByTabId = {};
+
 // Helper function to check if URL is protected
 function isProtectedPage(url) {
   if (!url) return true;
@@ -201,6 +204,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 // Unified message listener for Tildra extension
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  console.log("[Tildra Background] Received message:", msg, "from sender:", sender);
+
   // Notification request
   if (msg.action === 'showSummaryNotification' && msg.summary) {
     chrome.notifications.create({
@@ -328,112 +333,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Backend summarization request
   if (msg.action === 'summarizeAPI') {
-    const textContent = msg.textContent;
-    const token = msg.token;
-    const url = msg.url;
-    const title = msg.title;
-    const summaryLength = msg.summaryLength || 'standard'; // Ensure a default if not provided
-
-    if (!token) {
-      console.error('Tildra (background): No token provided in summarizeAPI message.');
-      sendResponse({ success: false, error: 'Authentication token missing' });
-      return true;
+    const tabId = sender.tab ? sender.tab.id : msg.tabId; // Get tabId from sender or message
+    if (!tabId) {
+        console.error("[Tildra Background] summarizeAPI: tabId is missing.");
+        sendResponse({ success: false, error: "Tab ID missing for summarization request." });
+        return false;
     }
-
-    // Construct payload including URL and Title
-    const requestPayload = {
-      article_text: textContent,
-      url: url,       // Include URL
-      title: title,   // Include Title
-      summaryLength: summaryLength // Add summaryLength to the payload
-    };
-
-    fetch(`${EFFECTIVE_API_URL_BASE}/summarize`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      // Use the full payload
-      body: JSON.stringify(requestPayload)
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`API error ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        // Store summary in history
-        chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-          if (tabs && tabs[0]) {
-            addToSummaryHistory(data, {
-              title: tabs[0].title,
-              url: tabs[0].url
-            });
-          } else {
-            addToSummaryHistory(data);
-          }
+    handleSummarizationRequest(msg, tabId) // Pass the whole message which should contain textContent, token, url, title
+        .then(summaryData => {
+            sendResponse({ success: true, summaryData: summaryData });
+        })
+        .catch(error => {
+            console.error("[Tildra Background] Error in summarizeAPI:", error);
+            sendResponse({ success: false, error: error.message || 'Summarization API call failed' });
         });
-        
-        sendResponse({ success: true, summaryData: data });
-      })
-      .catch(async error => { // Catch network errors or the rejected Error object
-        let errorMessage = 'Failed to fetch summary: Unknown error'; // Default message
-        let isExpiredToken = false;
-        let isUsageLimit = false; // Flag for usage limit
-        let isPremiumUser = false; // Flag for premium user status
-
-        console.warn('[Tildra Background] API call failed:', error);
-
-        if (error instanceof Error && error.message.startsWith('API error')) {
-          // Extract status code from the error message (e.g., "API error 429")
-          const match = error.message.match(/API error (\d+)/);
-          const status = match ? parseInt(match[1], 10) : null;
-
-          if (status === 429) {
-            // Check if user is premium to provide appropriate message
-            try {
-              const userStatus = await fetchFromApi(USER_STATUS_API_URL);
-              isPremiumUser = userStatus.is_pro;
-              
-              if (isPremiumUser) {
-                errorMessage = "You've used all 500 summaries in your current premium plan! Your limit will reset at the start of your next billing cycle. Need more summaries? Contact support for additional options.";
-              } else {
-                errorMessage = "You've reached your daily free summary limit (10 per day). Upgrade to Premium for 500 summaries per month!";
-              }
-            } catch (statusError) {
-              console.warn('[Tildra Background] Failed to fetch user status, using default message:', statusError);
-              errorMessage = "You've reached your summary limit. Please try again later or upgrade your plan.";
-            }
-            
-            isUsageLimit = true;
-            console.warn('[Tildra Background] API Usage Limit Reached (429)');
-          } else if (status === 401 || status === 403) {
-            // Attempt to determine if it's an expired token - this might need refinement
-            // depending on the exact error message from your 401/403 responses.
-            // For now, assume any 401/403 might mean expired session.
-            errorMessage = "Authentication failed. Please log in again on tildra.xyz.";
-            isExpiredToken = true; 
-            console.warn(`[Tildra Background] API Authentication Error (${status})`);
-          } else {
-            // Generic API error with status if available
-            errorMessage = status ? `API error (${status})` : error.message;
-          }
-        } else if (error instanceof Error) { // Handle network errors or other JS errors
-          errorMessage = `Network or script error: ${error.message}`;
-        } else { // Handle unexpected error types
-          errorMessage = `Unexpected error occurred: ${String(error)}`;
-        }
-        
-        console.error('[Tildra Background] Summarization error:', errorMessage);
-        sendResponse({ 
-            success: false, 
-            error: errorMessage, 
-            isExpiredToken: isExpiredToken,
-            isUsageLimit: isUsageLimit, // Include the flag in the response
-            isPremiumUser: isPremiumUser // Include premium status for UI decisions
-        }); 
-      });
-    return true; // Indicate async response expected
+    return true; // Indicates asynchronous response for summarizeAPI
   }
 
   if (msg.action === 'getConfig') {
@@ -443,6 +357,50 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       isDevMode: IS_DEV_MODE
     });
     return false; // Synchronous response
+  }
+
+  // --- NEW JOB COPILOT MESSAGE HANDLERS ---
+  if (msg.type === "JOB_PAGE_DETECTED") {
+    console.log("[Tildra Background] JOB_PAGE_DETECTED:", msg.data, "Tab ID:", tabId);
+    if (sender.tab && sender.tab.id) {
+      activeJobDetailsByTabId[sender.tab.id] = {
+        ...msg.data,
+        timestamp: Date.now()
+      };
+      chrome.action.setBadgeText({ text: "JOB", tabId: sender.tab.id });
+      chrome.action.setBadgeBackgroundColor({ color: "#007BFF", tabId: sender.tab.id }); // Blue for detected job
+      sendResponse({ status: "JOB_DATA_RECEIVED", tabId: sender.tab.id });
+    } else {
+      console.warn("[Tildra Background] JOB_PAGE_DETECTED but no sender.tab.id found.");
+      sendResponse({ status: "ERROR", message: "Missing tab ID for JOB_PAGE_DETECTED." });
+    }
+    return true; // Indicate async if any further async operations were here (not in this simple case)
+  }
+
+  if (msg.type === "GENERIC_APPLICATION_FORM_DETECTED") {
+    console.log("[Tildra Background] GENERIC_APPLICATION_FORM_DETECTED on URL:", msg.data.pageUrl, "Tab ID:", sender.tab.id);
+    if (sender.tab && sender.tab.id) {
+      // Optionally store this or just change badge
+      // For now, just a different badge to distinguish
+      chrome.action.setBadgeText({ text: "FORM", tabId: sender.tab.id });
+      chrome.action.setBadgeBackgroundColor({ color: "#FFA500", tabId: sender.tab.id }); // Orange for generic form
+      sendResponse({ status: "FORM_DATA_RECEIVED", tabId: sender.tab.id });
+    } else {
+        sendResponse({ status: "ERROR", message: "Missing tab ID for GENERIC_APPLICATION_FORM_DETECTED." });
+    }
+    return true;
+  }
+
+  if (msg.action === "GET_CURRENT_TAB_JOB_DETAILS") {
+    const tabId = msg.tabId || (sender.tab ? sender.tab.id : null);
+    if (tabId && activeJobDetailsByTabId[tabId]) {
+      console.log("[Tildra Background] Sending job details for tab:", tabId, activeJobDetailsByTabId[tabId]);
+      sendResponse({ status: "SUCCESS", data: activeJobDetailsByTabId[tabId] });
+    } else {
+      console.log("[Tildra Background] No job details found for tab:", tabId);
+      sendResponse({ status: "NOT_FOUND" });
+    }
+    return true; // Indicate async if data retrieval was async (not in this simple case)
   }
 
   return false; // unknown message
@@ -517,11 +475,7 @@ async function fetchFromApi(url, method = 'GET', body = null) {
 
   try {
     const response = await fetch(url, options);
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      console.error(`API Error ${response.status}:`, errorData);
-      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`API error ${response.status}`);
     return await response.json();
   } catch (error) {
     console.error('Fetch API error:', error);
@@ -580,5 +534,27 @@ async function handleSummarizationRequest(payload, tabId) {
     throw error; // Reject the promise for the original caller
   }
 }
+
+// --- Tab Management for cleaning up job details and badges ---
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Clear job details if the user navigates away from the page where job was detected
+  // or if the page reloads and is no longer a job page.
+  // A simple check is if the URL changes significantly or on status "complete".
+  if (activeJobDetailsByTabId[tabId]) {
+    if (changeInfo.url || (changeInfo.status === 'complete' && tab.url !== activeJobDetailsByTabId[tabId].pageUrl)) {
+      console.log(`[Tildra Background] Tab ${tabId} updated (URL or status changed). Clearing job details and badge. New URL: ${tab.url}`);
+      delete activeJobDetailsByTabId[tabId];
+      chrome.action.setBadgeText({ text: "", tabId: tabId });
+    }
+  }
+});
+
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  if (activeJobDetailsByTabId[tabId]) {
+    console.log(`[Tildra Background] Tab ${tabId} removed. Clearing job details and badge.`);
+    delete activeJobDetailsByTabId[tabId];
+    // Badge automatically cleared by Chrome when tab is removed, but good to clear data.
+  }
+});
 
 console.log("Tildra Background Script Finished Loading"); 

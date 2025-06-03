@@ -6,13 +6,14 @@ import json # For parsing DeepSeek response
 from datetime import datetime, timezone, timedelta # For usage reset logic
 import stripe
 import time
+import tempfile # ADDED for temporary PDF file
 
 # Third-party imports
 from fastapi import FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field # Add Field
+from fastapi.responses import JSONResponse, FileResponse # MODIFIED: Added FileResponse
+from pydantic import BaseModel, Field, EmailStr, HttpUrl # MODIFIED: Added EmailStr, HttpUrl
 import httpx # Use httpx for async API calls
 # --- Removed google.generativeai import ---
 # --- Start Edit: Manual JWT Verification Imports ---
@@ -21,6 +22,11 @@ from jwt import PyJWKClient # For fetching JWKS keys
 # --- End Edit ---
 from typing import Annotated, Optional, Dict, Any, List # Add Any and List
 from dotenv import load_dotenv
+
+# --- ADD Jinja2 and Playwright ---\
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from playwright.async_api import async_playwright
+# --- END ADD ---
 
 # --- Prisma Client Import ---
 from prisma import Prisma
@@ -1533,3 +1539,142 @@ async def send_contact_form_email(name: str, email: str, subject: str, message: 
     except Exception as e:
         logger.error(f"Unexpected error sending contact form email: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to send email")
+
+# --- ADDED: Jinja2 Environment Setup ---
+# Assuming this main.py is in an 'api' subdirectory. Templates are in 'api/resume_templates/'
+template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resume_templates")
+jinja_env = Environment(
+    loader=FileSystemLoader(template_dir),
+    autoescape=select_autoescape(['html', 'xml'])
+)
+# --- END ADDED ---
+
+# --- Resume Models for PDF Generation (NEW) ---
+class ResumeContactInfo(BaseModel):
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    website: Optional[str] = None # Changed from HttpUrl to str for flexibility, validation can be UI-side
+    address: Optional[str] = None
+
+class ResumeJob(BaseModel):
+    title: str
+    company: str
+    location: Optional[str] = None
+    startDate: str
+    endDate: str # Can be "Present"
+    bullets: List[str]
+
+class ResumeEducation(BaseModel):
+    degree: str
+    institution: str
+    location: Optional[str] = None
+    startDate: str
+    endDate: str
+    details: Optional[str] = None
+
+class ResumeProject(BaseModel):
+    name: str
+    date: Optional[str] = None
+    technologies: Optional[List[str]] = None
+    bullets: List[str]
+
+class ResumeDataRequest(BaseModel): # Renamed to avoid conflict if ResumeData is a Prisma model
+    name: str
+    contact: ResumeContactInfo
+    summary: Optional[str] = None
+    experience: List[ResumeJob]
+    education: List[ResumeEducation]
+    skills: Optional[List[str]] = None
+    projects: Optional[List[ResumeProject]] = None
+    template_name: Optional[str] = Field(default="modern_template.html", description="The filename of the HTML template to use (e.g., 'modern_template.html')")
+
+# --- END Resume Models ---
+
+# --- ADDED: Resume PDF Generation Endpoint (NEW) ---
+@app.post("/api/resume/generate-pdf")
+async def generate_resume_pdf(
+    resume_data: ResumeDataRequest,
+    user_id: AuthenticatedUserIdWithRLS, # For consistency and future use
+    # background_tasks: BackgroundTasks # Potentially for cleanup if not using tempfile context manager
+):
+    logger.info(f"Received PDF generation request for user {user_id} with template: {resume_data.template_name}")
+
+    try:
+        # 1. Load the Jinja2 template
+        template = jinja_env.get_template(resume_data.template_name)
+    except Exception as e: # Catch Jinja2 specific TemplateNotFound if preferred
+        logger.error(f"Resume template '{resume_data.template_name}' not found. Error: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Resume template '{resume_data.template_name}' not found.")
+
+    # 2. Render the HTML with resume data
+    # Pydantic models can be directly passed to Jinja2 if .model_dump() is called or accessed like attributes
+    rendered_html = template.render(resume_data.model_dump()) # Pass the dict representation
+
+    # 3. Use Playwright to convert HTML to PDF
+    # Note: Launching a browser per request is not optimal for high-load scenarios.
+    # Consider managing browser instances (e.g., pool, global instance per worker) in production.
+    async with async_playwright() as p:
+        browser = None # Initialize to ensure it's defined in finally block if launch fails
+        try:
+            browser = await p.chromium.launch(
+                args=['--no-sandbox', '--disable-setuid-sandbox'] # Common args for Docker/CI
+            )
+            page = await browser.new_page()
+            
+            # Using a temporary file to serve the HTML to Playwright to handle local resources (CSS, images) if any
+            # and to ensure content is properly encoded.
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".html", mode="w", encoding="utf-8") as temp_html_file:
+                temp_html_file.write(rendered_html)
+                temp_html_file_path = temp_html_file.name
+            
+            await page.goto(f"file://{temp_html_file_path}", wait_until="networkidle") # networkidle or domcontentloaded
+            
+            # Define PDF options for better print quality
+            pdf_options = {
+                "format": "Letter", # or "A4"
+                "print_background": True,
+                "margin": {
+                    "top": "0.5in",
+                    "bottom": "0.5in",
+                    "left": "0.5in",
+                    "right": "0.5in"
+                }
+            }
+            pdf_bytes = await page.pdf(pdf_options)
+
+        except Exception as e:
+            logger.error(f"Playwright PDF generation failed for user {user_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to generate PDF resume.")
+        finally:
+            if browser:
+                await browser.close()
+            if 'temp_html_file_path' in locals() and os.path.exists(temp_html_file_path):
+                 os.unlink(temp_html_file_path) # Clean up the temporary HTML file
+
+    # 4. Save PDF to a temporary file to be sent via FileResponse
+    # FileResponse needs a file path. We'll use a temporary file.
+    # tempfile.NamedTemporaryFile is a good way to handle this.
+    # It will be deleted automatically when closed if delete=True (default).
+    # We use delete=False and clean up manually because FileResponse needs the file to exist when it reads it.
+    # An alternative is StreamingResponse with BytesIO, but FileResponse is often simpler for actual files.
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+        tmp_pdf.write(pdf_bytes)
+        temp_pdf_path = tmp_pdf.name
+
+    # Use BackgroundTasks to clean up the temp PDF file after the response is sent.
+    # background_tasks.add_task(os.unlink, temp_pdf_path)
+    # For simplicity in this step, we'll return and expect the OS to clean up /tmp or handle manual cleanup.
+    # A better approach for robust cleanup with FileResponse is a custom response class or explicit cleanup.
+    # For now, returning the path and letting it be. Or, even better, use StreamingResponse.
+
+    # Let's use StreamingResponse with BytesIO for cleaner handling without manual temp file cleanup issues for the PDF.
+    import io
+    return FileResponse(
+        path=temp_pdf_path,
+        filename=f"{resume_data.name.replace(' ', '_')}_Resume.pdf",
+        media_type='application/pdf',
+        background=BackgroundTasks([lambda: os.unlink(temp_pdf_path)]) # Ensure cleanup
+    )
+
+# --- END ADDED ---

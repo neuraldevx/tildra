@@ -54,6 +54,22 @@
         <main class="panels">
             <!-- Summarize Panel -->
             <section id="panel-summarize" class="panel active" role="tabpanel" aria-labelledby="summarize-tab">
+                <!-- NEW: Job Copilot Detection Display -->
+                <div id="job-copilot-display-area" class="job-copilot-info" style="margin-bottom: 15px; padding: 10px; border: 1px solid var(--border-color, #e0e0e0); border-radius: 6px; display: none;">
+                    <h4 style="margin-top: 0; margin-bottom: 8px; font-size: 1em; font-weight: 600;">Job Copilot</h4>
+                    <div id="job-copilot-status" style="font-style: italic; color: var(--text-muted, #555);">Detecting job details...</div>
+                    <div id="job-copilot-details" style="display:none; margin-top: 8px;">
+                        <p style="margin: 3px 0; font-size: 0.9em;"><strong>Title:</strong> <span id="job-title-display"></span></p>
+                        <p style="margin: 3px 0; font-size: 0.9em;"><strong>Company:</strong> <span id="job-company-display"></span></p>
+                        <p style="margin: 3px 0; font-size: 0.9em;"><strong>Source:</strong> <span id="job-source-display"></span></p>
+                        <details style="margin-top: 5px;">
+                            <summary style="font-size: 0.85em; cursor: pointer;">Description Snippet</summary>
+                            <p id="job-description-snippet" style="font-size: 0.8em; max-height: 100px; overflow-y: auto; background-color: var(--background-alt, #f9f9f9); padding: 5px; border-radius: 4px; margin-top: 3px;"></p>
+                        </details>
+                    </div>
+                </div>
+                <!-- END: Job Copilot Detection Display -->
+
                 <details class="accordion" open>
                   <summary class="accordion-header" tabindex="0" aria-expanded="true">
                     <span class="accordion-title">Summarize Controls</span>

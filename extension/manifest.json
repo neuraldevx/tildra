@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Tildra: AI Summarizer",
-  "version": "1.1.0",
-  "description": "Get instant AI summaries (TL;DR) of any webpage or article with advanced AI. Perfect for research, reading, and productivity.",
+  "name": "Tildra: AI Summarizer & Job Copilot",
+  "version": "1.2.0",
+  "description": "Instantly summarize webpages or tailor your resume and auto-fill job applications with AI. Your smart job hunting copilot.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -16,8 +16,14 @@
     "https://www.tildra.xyz/*",
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*",
-    "http://localhost:8080/*",
-    "http://127.0.0.1:8080/*"
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
+    "*://*.linkedin.com/*",
+    "*://*.indeed.com/*",
+    "*://*.glassdoor.com/*",
+    "*://boards.greenhouse.io/*",
+    "*://*.lever.co/*",
+    "*://jobs.ashbyhq.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -35,6 +41,23 @@
     "48": "favicon/favicon-96x96.png",
     "128": "favicon/web-app-manifest-192x192.png"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.linkedin.com/jobs/view/*",
+        "*://*.linkedin.com/jobs/collections/*",
+        "*://*.indeed.com/viewjob*",
+        "*://*.indeed.com/jobs*",
+        "*://*.glassdoor.com/Job/*",
+        "*://boards.greenhouse.io/*",
+        "*://*.lever.co/*",
+        "*://jobs.ashbyhq.com/*"
+      ],
+      "js": ["content.js"],
+      "css": [],
+      "run_at": "document_idle"
+    }
+  ],
   "web_accessible_resources": [
     {
       "resources": ["readability.js"],
