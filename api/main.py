@@ -225,7 +225,16 @@ class HistoryItemResponse(BaseModel):
     createdAt: datetime # Ensure this matches schema type
     # updatedAt: datetime # Optionally include
     class Config: # Add Config for ORM mode if returning Prisma model instances directly
-        orm_mode = True 
+        orm_mode = True
+
+# --- NEW: Resume Tailoring Models ---
+class TailorResumeRequest(BaseModel):
+    resume_text: str
+    job_description: str
+    output_format: Optional[str] = Field(default="plain", alias="outputFormat")
+
+class TailorResumeResponse(BaseModel):
+    tailored_resume: str
 
 # --- Authentication Dependency (Manual JWT Verification) ---
 async def get_authenticated_user_id(request: Request) -> str:
@@ -963,6 +972,21 @@ async def summarize_article(
         logger.error(f"Unexpected error in summarize_article for user {user_clerk_id[:5]}...: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred. Please try again later.")
 
+# --- New Resume Tailoring Endpoint ---
+@app.post("/tailor_resume", response_model=TailorResumeResponse)
+async def tailor_resume(
+    request_data: TailorResumeRequest,
+    user_clerk_id: AuthenticatedUserIdWithRLS
+):
+    """Return a basic tailored resume based on job description."""
+    logger.info(f"Received tailor_resume request for user: {user_clerk_id[:5]}...")
+    tailored = await generate_tailored_resume(
+        request_data.resume_text,
+        request_data.job_description,
+        request_data.output_format
+    )
+    return TailorResumeResponse(tailored_resume=tailored)
+
 # Health check endpoint
 @app.get("/health")
 def health_check():
@@ -1367,6 +1391,17 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
         except Exception as e:
             logger.error(f"Unexpected error in call_deepseek_api: {e}", exc_info=True)
             return "Error processing article.", ["An unexpected error occurred while summarizing."]
+
+# --- Helper function to generate a tailored resume (placeholder) ---
+async def generate_tailored_resume(resume_text: str, job_description: str, output_format: str = "plain") -> str:
+    """Create a very basic tailored resume using job description keywords."""
+    try:
+        keywords = job_description.split()[:5]
+        notes = "Matched keywords: " + ", ".join(keywords)
+        return f"{resume_text}\n\n{notes}"
+    except Exception as e:
+        logger.error(f"Error generating tailored resume: {e}")
+        return resume_text
 
 # --- ADD Contact Form Model ---
 class ContactFormRequest(BaseModel):
