@@ -12,6 +12,7 @@ Tildra is a Chrome extension + web app that gives you instant, AI-generated summ
 *   **Web App:** Paste URLs or text for summarization.
 *   **Customizable:** Choose summary length and model preferences (future).
 *   **History:** Access your past summaries (future).
+*   **Resume Tailoring:** Generate a job-specific resume by providing a job description.
 
 ## Tech Stack
 
@@ -59,12 +60,12 @@ Contributions welcome! Please open an issue or PR.
 - Hosting: Vercel
 
 ## 🧪 Getting Started
-1. Clone the repo  
+1. Clone the repo
    `git clone https://github.com/your-username/snip-summary`
-2. Install dependencies  
+2. Install dependencies
    `cd app && npm install`
 3. Add your environment variables (OpenAI key, Supabase keys)
-4. Run locally  
+4. Run locally
    `npm run dev`
 
 Extension is inside `/extension/` — load as unpacked in Chrome DevTools.
