@@ -12,6 +12,7 @@ Tildra is a Chrome extension + web app that gives you instant, AI-generated summ
 *   **Web App:** Paste URLs or text for summarization.
 *   **Customizable:** Choose summary length and model preferences (future).
 *   **History:** Access your past summaries (future).
+*   **Resume Tailoring (MVP):** Adapt your resume to any job description via a new API endpoint.
 
 ## Tech Stack
 
@@ -50,6 +51,7 @@ Contributions welcome! Please open an issue or PR.
 - 🔐 Google login via Supabase
 - 🚀 Built with React (Next.js), Supabase, OpenAI API
 - ⚡️ Freemium: 10 free summaries/day, upgrade for more
+- ✨ Resume Tailoring endpoint to generate job-specific resumes
 
 ## 🛠 Tech Stack
 - Frontend: React (Next.js)
