@@ -729,11 +729,20 @@ document.addEventListener('DOMContentLoaded', () => {
         BG_CONFIG = configResponse;
       }
 
-      // Now proceed with original initializePopup logic that might use BG_CONFIG
-      updateProStatusUI(); // Renamed the original logic
-      
-      // Check if user needs onboarding
-      checkAndShowOnboarding();
+      // Check for first-time user and show onboarding immediately
+      chrome.storage.local.get(['hasSeenOnboarding'], (result) => {
+        console.log("[Tildra Popup] Checking onboarding status:", result);
+        
+        if (!result.hasSeenOnboarding) {
+          // First time user - show onboarding immediately
+          console.log("[Tildra Popup] First time user detected, showing onboarding");
+          showOnboarding();
+        } else {
+          // Returning user - proceed with normal initialization
+          console.log("[Tildra Popup] Returning user detected, proceeding with normal flow");
+          updateProStatusUI();
+        }
+      });
     });
   }
 
@@ -744,49 +753,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showOnboarding();
       }
     });
-  }
-
-  function showOnboarding() {
-    const onboardingModal = document.getElementById('onboarding-modal');
-    if (onboardingModal) {
-      onboardingModal.style.display = 'flex';
-      showOnboardingStep(1);
-      
-      // Add click-outside-to-close functionality
-      onboardingModal.addEventListener('click', (e) => {
-        if (e.target === onboardingModal) {
-          hideOnboarding();
-        }
-      });
-      
-      // Add keyboard navigation
-      const handleKeydown = (e) => {
-        if (e.key === 'Escape') {
-          hideOnboarding();
-          document.removeEventListener('keydown', handleKeydown);
-        }
-      };
-      
-      document.addEventListener('keydown', handleKeydown);
-      
-      // Store the handler so we can remove it later
-      onboardingModal._keydownHandler = handleKeydown;
-    }
-  }
-
-  function hideOnboarding() {
-    const onboardingModal = document.getElementById('onboarding-modal');
-    if (onboardingModal) {
-      onboardingModal.style.display = 'none';
-      
-      // Remove keyboard event listener
-      if (onboardingModal._keydownHandler) {
-        document.removeEventListener('keydown', onboardingModal._keydownHandler);
-        delete onboardingModal._keydownHandler;
-      }
-    }
-    // Mark onboarding as completed
-    chrome.storage.local.set({ hasSeenOnboarding: true });
   }
 
   function showOnboardingStep(stepNumber) {
@@ -805,12 +771,68 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function showOnboarding() {
+    const onboardingPanel = document.getElementById('panel-onboarding');
+    
+    if (onboardingPanel) {
+      // Hide all other panels
+      document.querySelectorAll('.panel').forEach(panel => {
+        panel.hidden = true;
+      });
+      
+      // Show onboarding panel
+      onboardingPanel.hidden = false;
+      onboardingPanel.classList.add('active');
+      
+      // Show first step
+      showOnboardingStep(1);
+      
+      // Hide main interface elements by adding class to body
+      document.body.classList.add('onboarding-mode');
+      
+      // Deactivate all tabs
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+        tab.setAttribute('aria-selected', 'false');
+      });
+    }
+  }
+
+  function hideOnboarding() {
+    const onboardingPanel = document.getElementById('panel-onboarding');
+    
+    if (onboardingPanel) {
+      onboardingPanel.hidden = true;
+      onboardingPanel.classList.remove('active');
+      
+      // Show main interface elements again
+      document.body.classList.remove('onboarding-mode');
+    }
+    
+    // Mark onboarding as completed
+    chrome.storage.local.set({ hasSeenOnboarding: true }, () => {
+      console.log("[Tildra Popup] Onboarding completed and marked as seen");
+      
+      // Switch to the summarize tab
+      switchTab(summarizeTab);
+      
+      // Now initialize the main interface for the first time
+      updateProStatusUI();
+      
+      // Add a subtle highlight to guide user to the main button
+      setTimeout(() => {
+        highlightSummarizeButton();
+      }, 300);
+    });
+  }
+
   // Onboarding event listeners
   const onboardingNext1 = document.getElementById('onboarding-next-1');
   const onboardingNext2 = document.getElementById('onboarding-next-2');
   const onboardingBack2 = document.getElementById('onboarding-back-2');
   const onboardingBack3 = document.getElementById('onboarding-back-3');
   const onboardingFinish = document.getElementById('onboarding-finish');
+  const showTutorialButton = document.getElementById('show-tutorial-button');
 
   if (onboardingNext1) {
     onboardingNext1.addEventListener('click', () => showOnboardingStep(2));
@@ -831,18 +853,28 @@ document.addEventListener('DOMContentLoaded', () => {
   if (onboardingFinish) {
     onboardingFinish.addEventListener('click', () => {
       hideOnboarding();
-      // Optionally highlight the summarize button or show a tooltip
-      highlightSummarizeButton();
+    });
+  }
+
+  // Show Tutorial Button (for settings)
+  if (showTutorialButton) {
+    showTutorialButton.addEventListener('click', () => {
+      showOnboarding();
     });
   }
 
   function highlightSummarizeButton() {
     const summarizeButton = document.getElementById('summarize-button');
     if (summarizeButton) {
-      summarizeButton.style.animation = 'pulseGlow 2s ease-in-out 3';
+      // Add a gentle pulsing animation to draw attention
+      summarizeButton.classList.add('welcome-highlight');
+      
+      // Remove the highlight after a few seconds
       setTimeout(() => {
-        summarizeButton.style.animation = '';
-      }, 6000);
+        if (summarizeButton) {
+          summarizeButton.classList.remove('welcome-highlight');
+        }
+      }, 4000);
     }
   }
 
@@ -1022,13 +1054,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
-  // --- Show Tutorial Button ---
-  const showTutorialButton = document.getElementById('show-tutorial-button');
-  if (showTutorialButton) {
-    showTutorialButton.addEventListener('click', () => {
-      showOnboarding();
-    });
-  }
   // --- Focus Ring for Accessibility ---
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
@@ -1053,7 +1078,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Developer function to reset onboarding (for testing)
   window.resetOnboarding = function() {
     chrome.storage.local.remove(['hasSeenOnboarding', 'hasSeenFirstSummary'], () => {
-      console.log('Onboarding state reset. Reload the extension to see onboarding again.');
+      console.log('Onboarding state reset. Close and reopen the extension to see onboarding again.');
+      console.log('You can also call showOnboarding() directly to test the modal.');
     });
+  };
+
+  // Developer function to manually show onboarding (for testing)
+  window.showOnboarding = function() {
+    showOnboarding();
   };
 });

@@ -234,19 +234,40 @@ export default function DashboardPage() {
         console.log("[Dashboard] Auth token retrieved.");
 
         const headers = { Authorization: `Bearer ${token}` };
-        let fetchedBackendHistory: HistoryItem[] = [];
-        let fetchedExtensionHistory: HistoryItem[] = [];
 
-        // 1. Fetch history from backend database (Primary Source)
+        // Fetch history from multiple sources
+        let allHistoryData: HistoryItem[] = [];
+
+        // 1. Try to get history from Chrome extension first
+        try {
+          console.log("[Dashboard] Attempting getExtensionStorageDirectly()...");
+          let extensionHistory = await getExtensionStorageDirectly();
+          console.log("[Dashboard] Raw from getExtensionStorageDirectly():", JSON.parse(JSON.stringify(extensionHistory)));
+          if (extensionHistory.length === 0) {
+            console.log("[Dashboard] getExtensionStorageDirectly() returned empty, trying getExtensionHistory()...");
+            // Fallback: try messaging the extension
+            extensionHistory = await getExtensionHistory();
+            console.log("[Dashboard] Raw from getExtensionHistory():", JSON.parse(JSON.stringify(extensionHistory)));
+          }
+          console.log('[Dashboard] Extension history (after potential fallback):', JSON.parse(JSON.stringify(extensionHistory)));
+          allHistoryData = [...extensionHistory];
+          console.log("[Dashboard] allHistoryData after extension fetch:", JSON.parse(JSON.stringify(allHistoryData)));
+        } catch (extError) {
+          console.error('Extension storage not available or error:', extError);
+        }
+
+        // 2. Also fetch history from backend database
         try {
           console.log("[Dashboard] Fetching backend history from /api/history...");
-          const historyRes = await fetch(`/api/history`, { headers, cache: 'no-store' });
+          const historyRes = await fetch(`/api/history`, { headers });
           console.log("[Dashboard] Backend history response status:", historyRes.status);
 
           if (historyRes.ok) {
-            const backendHistoryData = await historyRes.json();
-            console.log('[Dashboard] Raw backend history response JSON:', JSON.parse(JSON.stringify(backendHistoryData)));
-            fetchedBackendHistory = backendHistoryData.map((item: any) => ({
+            const backendHistory = await historyRes.json();
+            console.log('[Dashboard] Raw backend history response JSON:', JSON.parse(JSON.stringify(backendHistory)));
+            
+            // Convert backend format to match HistoryItem interface
+            const convertedBackendHistory: HistoryItem[] = backendHistory.map((item: any) => ({
               id: item.id,
               userId: item.userId,
               url: item.url,
@@ -255,97 +276,86 @@ export default function DashboardPage() {
               keyPoints: item.keyPoints || [],
               createdAt: item.createdAt,
             }));
-            console.log('[Dashboard] Converted backend history:', JSON.parse(JSON.stringify(fetchedBackendHistory)));
+            console.log('[Dashboard] Converted backend history:', JSON.parse(JSON.stringify(convertedBackendHistory)));
+            
+            // Merge with extension history, avoiding duplicates
+            const mergedHistory = [...allHistoryData]; // Start with current allHistoryData (from extension)
+            console.log('[Dashboard] mergedHistory before backend items added:', JSON.parse(JSON.stringify(mergedHistory)));
+            
+            convertedBackendHistory.forEach(backendItem => {
+              // Check if this item already exists in extension history (by URL and title similarity)
+              const existsInExtension = allHistoryData.some(extItem => 
+                extItem.url === backendItem.url && 
+                extItem.title === backendItem.title &&
+                Math.abs(new Date(extItem.createdAt || extItem.timestamp || '').getTime() - 
+                         new Date(backendItem.createdAt).getTime()) < 60000 // Within 1 minute
+              );
+              
+              if (!existsInExtension) {
+                mergedHistory.push(backendItem);
+                console.log("[Dashboard] Added backendItem to mergedHistory:", JSON.parse(JSON.stringify(backendItem)));
+              } else {
+                console.log("[Dashboard] Skipped backendItem (duplicate found in extension data):", JSON.parse(JSON.stringify(backendItem)));
+              }
+            });
+            console.log('[Dashboard] mergedHistory after backend items processed:', JSON.parse(JSON.stringify(mergedHistory)));
+            
+            // Sort by creation date (newest first)
+            allHistoryData = mergedHistory.sort((a, b) => {
+              const dateA = new Date(a.createdAt || a.timestamp || '').getTime();
+              const dateB = new Date(b.createdAt || b.timestamp || '').getTime();
+              return dateB - dateA;
+            });
+            
+            console.log('[Dashboard] Final allHistoryData after merge and sort:', JSON.parse(JSON.stringify(allHistoryData)));
           } else {
             console.warn('Failed to fetch backend history:', historyRes.status, historyRes.statusText);
             const errorText = await historyRes.text();
             console.warn('Backend history error response body:', errorText);
-            // Potentially set an error state here if backend history is crucial and fails
-            setError("Failed to load summary history from server.");
           }
         } catch (backendError) {
           console.error('Error fetching or processing backend history:', backendError);
-          setError("Error fetching summary history.");
+          // Don't fail the entire operation if backend history fails, but log it
         }
 
-        // 2. Attempt to get history from Chrome extension (Secondary Source / Fallback)
-        // This can be useful if there are summaries not yet synced to backend
-        if (typeof window !== 'undefined') { // Ensure this runs only on client-side
-            try {
-              console.log("[Dashboard] Attempting to get extension history (direct then message)...");
-              let extensionHistory = await getExtensionStorageDirectly();
-              if (extensionHistory.length === 0) {
-                extensionHistory = await getExtensionHistory();
-              }
-              console.log('[Dashboard] Extension history fetched:', JSON.parse(JSON.stringify(extensionHistory)));
-              fetchedExtensionHistory = extensionHistory.map((item: any) => ({ // Ensure consistent mapping
-                id: item.id, // Extension might have its own ID format
-                title: item.title,
-                url: item.url,
-                tldr: item.summary || item.tldr,
-                keyPoints: item.keyPoints || item.key_points || [],
-                createdAt: item.timestamp || item.createdAt,
-              }));
-            } catch (extError) {
-              console.warn('Extension storage not available or error fetching from it:', extError);
+        console.log("[Dashboard] Setting history state with:", JSON.parse(JSON.stringify(allHistoryData)));
+        setHistory(allHistoryData);
+
+        // Add fallback mock data if no history found, for debugging
+        if (allHistoryData.length === 0) {
+          console.log("[Dashboard] No history found from any source, adding mock data for debugging...");
+          const mockData: HistoryItem[] = [
+            {
+              id: 'mock-1',
+              title: 'Sample Article: AI in 2024',
+              url: 'https://example.com/ai-article',
+              tldr: 'This is a sample summary about AI developments in 2024. Shows how the dashboard would look with real data.',
+              keyPoints: [
+                'AI technology is advancing rapidly',
+                'New breakthroughs in machine learning',
+                'Impact on various industries',
+                'Future implications for society'
+              ],
+              createdAt: new Date().toISOString(),
+              timestamp: new Date().toISOString()
+            },
+            {
+              id: 'mock-2', 
+              title: 'Understanding Web Development',
+              url: 'https://example.com/web-dev',
+              tldr: 'A comprehensive guide to modern web development practices and technologies.',
+              keyPoints: [
+                'React and Next.js fundamentals',
+                'Backend API development',
+                'Database integration',
+                'Deployment strategies'
+              ],
+              createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+              timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
             }
+          ];
+          setHistory(mockData);
         }
-        
-        // 3. Merge and de-duplicate histories
-        // Prioritize backend data. Use a Map to handle de-duplication based on 'id' from backend,
-        // or a combination of url/title/timestamp for extension items if they don't have a backend ID.
-        const combinedHistoryMap = new Map<string, HistoryItem>();
-
-        // Add backend history first (these are considered canonical)
-        fetchedBackendHistory.forEach(item => combinedHistoryMap.set(item.id, item));
-
-        // Add extension history, avoiding duplicates of what's already from backend
-        // A more robust de-duplication might be needed if extension items can exist without a backend ID
-        // but represent the same summary. For now, we assume backend IDs are authoritative.
-        fetchedExtensionHistory.forEach(extItem => {
-          // A simple check: if an item with a similar URL and creation time (within a window)
-          // already exists from the backend, we might skip the extension one, or mark it.
-          // For now, if the extension item has an ID that matches a backend ID, it's already handled.
-          // If it has a different ID (or no ID that matches backend), add it.
-          // This part needs careful consideration based on how extension IDs relate to backend IDs.
-          // Let's assume for now that extension items might not have a backend-synced `id` field that matches.
-          // We can use a composite key for extension items if they lack a backend ID.
-          const extKey = `ext-${extItem.url}-${new Date(extItem.createdAt).getTime()}`;
-          let isLikelyDuplicate = false;
-          if (extItem.url && extItem.createdAt) {
-            for (const backendItem of fetchedBackendHistory) {
-              if (backendItem.url === extItem.url && 
-                  Math.abs(new Date(backendItem.createdAt).getTime() - new Date(extItem.createdAt).getTime()) < 60000 * 5 // 5 min window
-              ) {
-                isLikelyDuplicate = true;
-                break;
-              }
-            }
-          }
-
-          if (!isLikelyDuplicate && !combinedHistoryMap.has(extItem.id)) { // if extItem.id is not a backend id
-             // If extItem.id is unique (i.e. not from backend), or if we decide to add it based on other criteria
-             // For simplicity, we check if an item with this extension ID is already there.
-             // This assumes extension IDs are somewhat stable for items not yet in backend.
-            if(!combinedHistoryMap.has(extItem.id)) { // Check if this specific extension ID is already added
-                 combinedHistoryMap.set(extItem.id || extKey, extItem); // Use extKey if id is not reliable
-            }
-          } else if (isLikelyDuplicate) {
-            console.log("[Dashboard] Skipped likely duplicate extension item:", extItem.title);
-          }
-        });
-
-        let finalHistory = Array.from(combinedHistoryMap.values());
-        
-        // Sort by creation date (newest first)
-        finalHistory.sort((a, b) => {
-          const dateA = new Date(a.createdAt || a.timestamp || 0).getTime();
-          const dateB = new Date(b.createdAt || b.timestamp || 0).getTime();
-          return dateB - dateA;
-        });
-            
-        console.log('[Dashboard] Final combined, de-duplicated, and sorted history:', JSON.parse(JSON.stringify(finalHistory)));
-        setHistory(finalHistory);
 
         // Fetch account details from the backend
         console.log("[Dashboard] Fetching account details...");
@@ -386,102 +396,73 @@ export default function DashboardPage() {
 
   const handleDeleteSummary = async (summaryId: string) => {
     if (!confirm('Are you sure you want to delete this summary?')) return;
-    setError(null); // Clear previous errors
     try {
       const token = await getToken();
-      if (!token) throw new Error("Authentication token not available.");
       const headers = { Authorization: `Bearer ${token}` };
       
-      let backendDeleteSuccess = false;
-      let extensionDeleteSuccess = false;
-
-      // Attempt to delete from backend
-      const backendRes = await fetch(`/api/history/${summaryId}`, { method: 'DELETE', headers });
-      if (backendRes.ok) {
-        console.log(`[Dashboard] Summary ${summaryId} deleted from backend.`);
-        backendDeleteSuccess = true;
-      } else {
-        const errorText = await backendRes.text();
-        console.error(`[Dashboard] Failed to delete summary ${summaryId} from backend:`, backendRes.status, errorText);
-        // Do not throw error yet, try deleting from extension if applicable
+      // Delete from both extension storage and backend
+      const [extensionSuccess, backendResult] = await Promise.allSettled([
+        deleteFromExtensionStorage(summaryId),
+        fetch(`/api/history/${summaryId}`, { method: 'DELETE', headers })
+      ]);
+      
+      let success = false;
+      
+      // Check extension deletion result
+      if (extensionSuccess.status === 'fulfilled' && extensionSuccess.value) {
+        success = true;
       }
       
-      // Attempt to delete from extension storage if applicable
-      // Check if this summaryId might have come from extension or if it's a backend-only ID
-      const summaryToDelete = history.find(s => s.id === summaryId);
-      // A more robust check might be needed if IDs are not universally unique
-      // For now, we assume deleteFromExtensionStorage can handle non-existent IDs gracefully.
-      if (typeof window !== 'undefined') {
-        console.log(`[Dashboard] Attempting to delete summary ${summaryId} from extension.`);
-        extensionDeleteSuccess = await deleteFromExtensionStorage(summaryId);
-        if (extensionDeleteSuccess) {
-          console.log(`[Dashboard] Summary ${summaryId} reported as deleted from extension.`);
-        } else {
-          console.warn(`[Dashboard] Summary ${summaryId} not deleted from extension (or not found).`);
-        }
+      // Check backend deletion result
+      if (backendResult.status === 'fulfilled' && backendResult.value.ok) {
+        success = true;
       }
       
-      if (backendDeleteSuccess || extensionDeleteSuccess) {
+      if (success) {
         setHistory(prevHistory => prevHistory.filter(item => item.id !== summaryId));
-        console.log(`[Dashboard] Summary ${summaryId} removed from UI history state.`);
       } else {
-        // If neither deletion was successful (and backend failed specifically)
-        const errorMsg = `Failed to delete summary. Backend status: ${backendRes.status}. Extension delete: ${extensionDeleteSuccess}.`;
-        setError(errorMsg);
-        throw new Error(errorMsg);
+        throw new Error('Failed to delete summary from storage');
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while deleting.';
-      setError(errorMessage);
-      console.error("[Dashboard] handleDeleteSummary error:", err);
+      if (err instanceof Error) setError(err.message);
+      else setError('An unknown error occurred while deleting.');
+      console.error(err);
     }
   };
 
   const handleClearAllSummaries = async () => {
     if (!confirm('Are you sure you want to delete ALL your summaries? This action cannot be undone.')) return;
-    setError(null); // Clear previous errors
     try {
       const token = await getToken();
-      if (!token) throw new Error("Authentication token not available.");
       const headers = { Authorization: `Bearer ${token}` };
       
-      let backendClearSuccess = false;
-      let extensionClearSuccess = false;
-
-      // Attempt to clear from backend
-      const backendRes = await fetch(`/api/history`, { method: 'DELETE', headers });
-      if (backendRes.ok) {
-        console.log("[Dashboard] All summaries cleared from backend.");
-        backendClearSuccess = true;
-      } else {
-        const errorText = await backendRes.text();
-        console.error('[Dashboard] Failed to clear all summaries from backend:', backendRes.status, errorText);
-        // Do not throw error yet
+      // Clear from both extension storage and backend
+      const [extensionSuccess, backendResult] = await Promise.allSettled([
+        clearAllFromExtensionStorage(),
+        fetch(`/api/history`, { method: 'DELETE', headers })
+      ]);
+      
+      let success = false;
+      
+      // Check extension clear result
+      if (extensionSuccess.status === 'fulfilled' && extensionSuccess.value) {
+        success = true;
       }
       
-      // Attempt to clear from extension storage
-      if (typeof window !== 'undefined') {
-        console.log("[Dashboard] Attempting to clear all summaries from extension.");
-        extensionClearSuccess = await clearAllFromExtensionStorage();
-        if (extensionClearSuccess) {
-          console.log("[Dashboard] All summaries reported as cleared from extension.");
-        } else {
-          console.warn("[Dashboard] Failed to clear all summaries from extension (or no action taken).");
-        }
+      // Check backend clear result
+      if (backendResult.status === 'fulfilled' && backendResult.value.ok) {
+        success = true;
       }
       
-      if (backendClearSuccess || extensionClearSuccess) { // If at least one source confirmed clearance
+      if (success) {
         setHistory([]);
-        console.log("[Dashboard] History state cleared in UI.");
       } else {
-        const errorMsg = `Failed to clear all summaries. Backend status: ${backendRes.status}. Extension clear: ${extensionClearSuccess}.`;
-        setError(errorMsg);
-        throw new Error(errorMsg);
+        throw new Error('Failed to clear summary history');
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while clearing history.';
-      setError(errorMessage);
-      console.error("[Dashboard] handleClearAllSummaries error:", err);
+      if (err instanceof Error) setError(err.message);
+      else setError('An unknown error occurred while clearing history.');
+      console.error(err);
     }
   };
 

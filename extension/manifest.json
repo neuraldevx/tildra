@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tildra: AI Summarizer",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Get instant AI summaries (TL;DR) of any webpage or article with advanced AI. Perfect for research, reading, and productivity.",
   "permissions": [
     "activeTab",

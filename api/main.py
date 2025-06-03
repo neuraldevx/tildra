@@ -93,27 +93,10 @@ async def shutdown():
 # --- Clerk JWKS Configuration (Manual Verification) ---
 # Determine this from the 'iss' claim in your JWTs
 # Ensure this matches your Clerk instance's issuer URL
-
-# -- START MODIFICATION: Dynamic Clerk Issuer URL --
-RUN_LOCALLY = os.getenv("RUN_LOCALLY", "false").lower() == "true"
-DEV_CLERK_ISSUER_URL = os.getenv("DEV_CLERK_ISSUER_URL") # e.g., https://your-dev-instance.clerk.accounts.dev
-PROD_CLERK_ISSUER_URL = os.getenv("CLERK_ISSUER_URL", "https://clerk.tildra.xyz") # Default production URL
-
-if RUN_LOCALLY:
-    if not DEV_CLERK_ISSUER_URL:
-        logger.critical("RUN_LOCALLY is true, but DEV_CLERK_ISSUER_URL is not set. Local authentication will fail.")
-        raise ValueError("DEV_CLERK_ISSUER_URL must be set for local development.")
-    CLERK_ISSUER = DEV_CLERK_ISSUER_URL
-    logger.info(f"Running locally. Using DEV Clerk Issuer: {CLERK_ISSUER}")
-else:
-    CLERK_ISSUER = PROD_CLERK_ISSUER_URL
-    logger.info(f"Running in production/staging. Using PROD Clerk Issuer: {CLERK_ISSUER}")
-
-if not CLERK_ISSUER or not CLERK_ISSUER.startswith("https://"): # Basic validation
-    logger.critical(f"Final CLERK_ISSUER ('{CLERK_ISSUER}') is invalid. It must be a valid HTTPS URL.")
-    raise ValueError("Invalid CLERK_ISSUER_URL configuration.")
-# -- END MODIFICATION --
-
+CLERK_ISSUER = os.getenv("CLERK_ISSUER_URL", "https://clerk.tildra.xyz") # CHANGED: Use production Clerk domain
+if not CLERK_ISSUER.startswith("https://"): # Basic validation
+    logger.critical("CLERK_ISSUER_URL environment variable must be a valid HTTPS URL.")
+    raise ValueError("Invalid CLERK_ISSUER_URL")
 CLERK_JWKS_URL = f"{CLERK_ISSUER}/.well-known/jwks.json"
 
 # JWK Client to fetch and cache Clerk's public keys
@@ -1241,7 +1224,8 @@ async def send_welcome_email(user_email: str, user_first_name: Optional[str], ba
 async def call_deepseek_api(article_text: str, summary_length_param: str = "standard") -> tuple[str, list[str]]:
     if not DEEPSEEK_API_KEY:
         logger.error("DeepSeek API key is not configured.")
-        return "Error: DeepSeek API key not set.", ["Please configure the API key on the server."]
+        # RAISE an exception instead of returning an error tuple
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Summarization service is not configured (API key missing).")
 
     headers = {
         "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
@@ -1351,22 +1335,27 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error from DeepSeek API: Status {e.response.status_code} - {e.response.text}", exc_info=True)
-            # Return a user-friendly error message tuple
-            error_message = f"Summarization service returned an error: {e.response.status_code}."
-            if e.response.status_code == 429:
-                error_message = "Summarization service is temporarily busy (rate limit). Please try again shortly."
+            detail = f"Summarization service returned an error: {e.response.status_code}."
+            if e.response.status_code == 401 or e.response.status_code == 403: # Unauthorized or Forbidden from DeepSeek
+                 detail = "Summarization service authentication failed. Please check API key."
+            elif e.response.status_code == 429:
+                detail = "Summarization service is temporarily busy (rate limit). Please try again shortly."
             elif e.response.status_code >= 500:
-                error_message = "Summarization service is currently unavailable. Please try again later."
-            return "Error processing article.", [error_message]
+                detail = "Summarization service is currently unavailable. Please try again later."
+            # RAISE an exception instead of returning an error tuple
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
         except httpx.RequestError as e:
             logger.error(f"Request error calling DeepSeek API: {e}", exc_info=True)
-            return "Error processing article.", ["Could not connect to the summarization service. Please check your connection or try again later."]
+            # RAISE an exception instead of returning an error tuple
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not connect to the summarization service.")
         except (json.JSONDecodeError, ValueError) as e: # Catch parsing/validation errors
             logger.error(f"Error parsing or validating DeepSeek API response: {e}", exc_info=True)
-            return "Error processing article.", ["Received an invalid response from the summarization service."]
+            # RAISE an exception instead of returning an error tuple
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Received an invalid response from the summarization service.")
         except Exception as e:
-            logger.error(f"Unexpected error in call_deepseek_api: {e}", exc_info=True)
-            return "Error processing article.", ["An unexpected error occurred while summarizing."]
+            logger.error(f"Unexpected error in call_deepseek_api during DeepSeek interaction: {e}", exc_info=True)
+            # RAISE an exception instead of returning an error tuple
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="An unexpected error occurred while communicating with the summarization service.")
 
 # --- ADD Contact Form Model ---
 class ContactFormRequest(BaseModel):
