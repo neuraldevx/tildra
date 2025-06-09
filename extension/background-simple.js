@@ -72,7 +72,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === 'getJobDetails') {
         const tabId = msg.tabId;
         const jobDetails = activeJobDetailsByTabId[tabId] || null;
-        sendResponse({ jobDetails });
+        console.log(`[Tildra Background] Popup requested job details for tab ${tabId}:`, jobDetails);
+        sendResponse({ 
+            success: !!jobDetails, 
+            jobDetails: jobDetails 
+        });
         return true;
     }
     

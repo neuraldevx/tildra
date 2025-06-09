@@ -1228,13 +1228,21 @@ console.log("Tildra Content Script Finished Execution (bottom of script)");
 
 // NEW: Job Page Detection and Scraping Logic
 const JOB_BOARD_PATTERNS = {
+    // Major Job Boards
     LINKEDIN: /linkedin\.com\/jobs\/(view|collections)\//,
     INDEED: /indeed\.com\/(viewjob|jobs)/,
-    GREENHOUSE: /boards\.greenhouse\.io\//,
-    LEVER: /\.lever\.co\//, // Matches domains ending in .lever.co
-    ASHBYHQ: /jobs\.ashbyhq\.com\//,
     GLASSDOOR: /glassdoor\.com\/Job\//,
-    // ATS Platforms
+    ZIPRECRUITER: /ziprecruiter\.com\/jobs\//,
+    MONSTER: /monster\.com\/job-openings\//,
+    CAREERBUILDER: /careerbuilder\.com\/job\//,
+    DICE: /dice\.com\/jobs\/detail\//,
+    ANGEL: /(angel\.co|wellfound\.com)\/.*\/jobs\//,
+    STACKOVERFLOW: /stackoverflow\.com\/jobs\//,
+    
+    // ATS Platforms (Expanded)
+    GREENHOUSE: /boards\.greenhouse\.io\//,
+    LEVER: /\.lever\.co\//,
+    ASHBYHQ: /jobs\.ashbyhq\.com\//,
     TALEO: /\.taleo\.net\/careersection/,
     WORKDAY: /(workdayjobs\.com|myworkdayjobs\.com)\/.*\/job\//,
     SUCCESSFACTORS: /\.successfactors\.com\/.*\/job\//,
@@ -1247,19 +1255,66 @@ const JOB_BOARD_PATTERNS = {
     RECRUITEE: /\.recruitee\.com\/.*\/o\//,
     BRASSRING: /ats\.brassring\.com\/.*\/jobdetails/,
     ULTIPRO: /\.ultipro\.com\/.*\/candidates/,
-    // Job Boards
-    ZIPRECRUITER: /ziprecruiter\.com\/jobs\//,
-    MONSTER: /monster\.com\/job-openings\//,
-    CAREERBUILDER: /careerbuilder\.com\/job\//,
-    DICE: /dice\.com\/jobs\/detail\//,
-    ANGEL: /(angel\.co|wellfound\.com)\/.*\/jobs\//,
-    STACKOVERFLOW: /stackoverflow\.com\/jobs\//,
-    // Company Career Pages
+    JOBADDER: /\.jobadder\.com\/.*\/job\//,
+    PERSONIO: /\.personio\.com\/.*\/job\//,
+    TEAMTAILOR: /\.teamtailor\.com\/.*\/jobs\//,
+    COMEET: /\.comeet\.co\/.*\/jobs\//,
+    FOUNTAIN: /\.fountain\.com\/.*\/job\//,
+    PINPOINT: /\.pinpointhq\.com\/.*\/postings\//,
+    RECRUITERBOX: /\.recruiterbox\.com\/.*\/jobs\//,
+    FRESHTEAM: /\.freshteam\.com\/.*\/jobs\//,
+    ZOHORECRUIT: /\.recruit\.zoho\.com\/.*\/jobs\//,
+    CORNERSTONE: /\.csod\.com\/.*\/job\//,
+    
+    // Company Career Pages (Expanded)
     GOOGLE_CAREERS: /careers\.google\.com\/jobs\//,
     APPLE_CAREERS: /jobs\.apple\.com\/.*\/details/,
     MICROSOFT_CAREERS: /careers\.microsoft\.com\/.*\/job\//,
     AMAZON_CAREERS: /amazon\.jobs\/.*\/jobs\//,
-    NETFLIX_CAREERS: /careers\.netflix\.com\/jobs\//
+    NETFLIX_CAREERS: /careers\.netflix\.com\/jobs\//,
+    META_CAREERS: /careers\.meta\.com\/.*\/jobs\//,
+    SALESFORCE_CAREERS: /careers\.salesforce\.com\/.*\/job\//,
+    UBER_CAREERS: /uber\.com\/.*\/careers\/.*\/job\//,
+    AIRBNB_CAREERS: /careers\.airbnb\.com\/.*\/job\//,
+    SPOTIFY_CAREERS: /jobs\.lever\.co\/spotify/,
+    SLACK_CAREERS: /slack\.com\/.*\/careers\/.*\/job\//,
+    TESLA_CAREERS: /tesla\.com\/.*\/careers\/.*\/job\//,
+    
+    // Generic Patterns (More comprehensive)
+    GENERIC_JOB_PATHS: /(careers?|jobs?|positions?|opportunities|hiring|apply|employment|vacancy|vacancies|openings?)\/.*\/(job|position|role|opening|vacancy)/i,
+    GENERIC_CAREERS_SECTION: /(careers?|jobs?|positions?|opportunities|hiring|apply|employment)\..*\.(com|org|net|edu|gov)/i,
+    GENERIC_JOB_ID: /\/job[s]?[-_]?(id|posting|listing|detail|view)?\/[\w\-]+/i,
+    GENERIC_POSITION_ID: /\/position[s]?[-_]?(id|detail|view)?\/[\w\-]+/i,
+    GENERIC_APPLY_PAGE: /(apply|application)[\/\?].*job/i
+};
+
+// Enhanced job content detection patterns
+const JOB_CONTENT_INDICATORS = {
+    title_keywords: [
+        'engineer', 'developer', 'programmer', 'analyst', 'manager', 'director', 
+        'senior', 'junior', 'lead', 'principal', 'staff', 'associate', 'assistant',
+        'specialist', 'coordinator', 'supervisor', 'executive', 'architect',
+        'consultant', 'designer', 'scientist', 'researcher', 'administrator',
+        'technician', 'intern', 'intern', 'graduate', 'entry level', 'experienced'
+    ],
+    
+    content_keywords: [
+        'responsibilities', 'requirements', 'qualifications', 'experience',
+        'skills required', 'job description', 'position description', 'role description',
+        'what you will do', 'what you\'ll do', 'your responsibilities', 'duties',
+        'minimum qualifications', 'preferred qualifications', 'education',
+        'salary', 'compensation', 'benefits', 'work from home', 'remote',
+        'full time', 'part time', 'contract', 'freelance', 'temporary',
+        'apply now', 'submit application', 'equal opportunity'
+    ],
+    
+    section_headers: [
+        'job summary', 'position summary', 'role overview', 'about the role',
+        'about this job', 'job details', 'position details', 'job requirements',
+        'what we\'re looking for', 'ideal candidate', 'candidate profile',
+        'company benefits', 'perks and benefits', 'why join us',
+        'application process', 'how to apply', 'next steps'
+    ]
 };
 
 function getCurrentJobBoard() {
@@ -1273,20 +1328,325 @@ function getCurrentJobBoard() {
     return null;
 }
 
+// Enhanced URL analysis for job detection
+function analyzeUrlForJobIndicators() {
+    const url = document.URL.toLowerCase();
+    const pathname = window.location.pathname.toLowerCase();
+    const hostname = window.location.hostname.toLowerCase();
+    
+    let score = 0;
+    const indicators = [];
+    
+    // Check for job-related path segments
+    const jobPaths = ['job', 'jobs', 'career', 'careers', 'position', 'positions', 'opening', 'openings', 'vacancy', 'vacancies', 'opportunity', 'opportunities', 'hiring', 'employment', 'apply'];
+    for (const path of jobPaths) {
+        if (pathname.includes(path)) {
+            score += 2;
+            indicators.push(`path_${path}`);
+        }
+    }
+    
+    // Check for job ID patterns
+    if (/\/job[s]?[-_]?(\d+|[a-f0-9]{8,})/i.test(pathname)) {
+        score += 3;
+        indicators.push('job_id_pattern');
+    }
+    
+    // Check for careers subdomain
+    if (hostname.includes('career') || hostname.includes('job')) {
+        score += 2;
+        indicators.push('careers_subdomain');
+    }
+    
+    // Check for apply/application URLs
+    if (url.includes('apply') || url.includes('application')) {
+        score += 1;
+        indicators.push('apply_url');
+    }
+    
+    return { score, indicators };
+}
+
+// Enhanced content analysis for job detection
+function analyzePageContentForJobIndicators() {
+    const pageText = document.body.innerText.toLowerCase();
+    const pageTitle = document.title.toLowerCase();
+    
+    let score = 0;
+    const indicators = [];
+    
+    // Check title for job-related keywords
+    for (const keyword of JOB_CONTENT_INDICATORS.title_keywords) {
+        if (pageTitle.includes(keyword)) {
+            score += 1;
+            indicators.push(`title_${keyword}`);
+        }
+    }
+    
+    // Check content for job-related keywords (with frequency weighting)
+    for (const keyword of JOB_CONTENT_INDICATORS.content_keywords) {
+        const matches = (pageText.match(new RegExp(keyword.replace(/'/g, "'"), 'gi')) || []).length;
+        if (matches > 0) {
+            score += Math.min(matches * 0.5, 2); // Cap contribution per keyword
+            indicators.push(`content_${keyword}_${matches}`);
+        }
+    }
+    
+    // Check for job section headers
+    for (const header of JOB_CONTENT_INDICATORS.section_headers) {
+        if (pageText.includes(header)) {
+            score += 1;
+            indicators.push(`header_${header}`);
+        }
+    }
+    
+    // Check for structured job elements
+    const jobStructureSelectors = [
+        '[class*="job"]', '[id*="job"]', '[class*="position"]', '[id*="position"]',
+        '[class*="career"]', '[id*="career"]', '[class*="apply"]', '[id*="apply"]',
+        '[data-testid*="job"]', '[data-automation*="job"]', '[role="job"]'
+    ];
+    
+    for (const selector of jobStructureSelectors) {
+        if (document.querySelector(selector)) {
+            score += 0.5;
+            indicators.push(`structure_${selector.replace(/[\[\]"*=]/g, '_')}`);
+        }
+    }
+    
+    // Look for application forms
+    const applicationForms = document.querySelectorAll('form[class*="apply"], form[class*="application"], form[action*="apply"], form[action*="job"]');
+    if (applicationForms.length > 0) {
+        score += 2;
+        indicators.push(`application_form_count_${applicationForms.length}`);
+    }
+    
+    // Check for salary/compensation mentions
+    const salaryPatterns = [/\$[\d,]+/, /salary/i, /compensation/i, /\d+k[\s-]?\d*k?/i, /per\s(hour|year|annum)/i];
+    for (const pattern of salaryPatterns) {
+        if (pattern.test(pageText)) {
+            score += 0.5;
+            indicators.push(`salary_pattern`);
+            break;
+        }
+    }
+    
+    return { score, indicators };
+}
+
+// Smart job page detection
+function isLikelyJobPage() {
+    const urlAnalysis = analyzeUrlForJobIndicators();
+    const contentAnalysis = analyzePageContentForJobIndicators();
+    
+    const totalScore = urlAnalysis.score + contentAnalysis.score;
+    const threshold = 4; // Adjusted threshold for better detection
+    
+    console.log(`[Tildra Job Copilot] Job detection analysis:`, {
+        urlScore: urlAnalysis.score,
+        contentScore: contentAnalysis.score,
+        totalScore: totalScore,
+        threshold: threshold,
+        isJobPage: totalScore >= threshold,
+        urlIndicators: urlAnalysis.indicators,
+        contentIndicators: contentAnalysis.indicators.slice(0, 10) // Limit logged indicators
+    });
+    
+    return {
+        isJobPage: totalScore >= threshold,
+        confidence: Math.min(totalScore / 10, 1), // 0-1 confidence score
+        analysis: {
+            url: urlAnalysis,
+            content: contentAnalysis,
+            totalScore
+        }
+    };
+}
+
+// Enhanced generic job scraper with smart detection
+async function scrapeGenericJob() {
+    console.log('[Tildra Job Copilot] Attempting enhanced generic job scraping...');
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Allow dynamic content to load
+
+    // First check if this looks like a job page
+    const jobAnalysis = isLikelyJobPage();
+    if (!jobAnalysis.isJobPage) {
+        console.log('[Tildra Job Copilot] Page does not appear to be a job posting based on analysis');
+        return null;
+    }
+
+    console.log(`[Tildra Job Copilot] Job page detected with confidence: ${jobAnalysis.confidence}`);
+
+    // Enhanced job title detection with better scoring
+    let jobTitle = null;
+    const titleSelectors = [
+        // Specific job title selectors (higher priority)
+        '.job-title', '#job-title', '[class*="job-title"]', '[id*="job-title"]',
+        '.position-title', '.position', '.role', '.job-name', '.posting-title',
+        '[data-automation="job-title"]', '[data-testid="job-title"]', '[data-qa="job-title"]',
+        
+        // Generic headings (lower priority, need validation)
+        'h1', 'h2', '.title', 'h1[class*="title"]', 'h1[class*="position"]', 'h1[class*="job"]',
+        '.posting-headline h1', '.job-header h1', '.career-title', '.opportunity-title'
+    ];
+    
+    for (const selector of titleSelectors) {
+        const elements = document.querySelectorAll(selector);
+        for (const element of elements) {
+            const text = element.textContent?.trim();
+            if (text && text.length > 3 && text.length < 150) {
+                // Enhanced job title validation
+                const hasJobKeywords = JOB_CONTENT_INDICATORS.title_keywords.some(keyword => 
+                    text.toLowerCase().includes(keyword)
+                );
+                const isInTitle = document.title.toLowerCase().includes(text.toLowerCase());
+                const hasJobTerms = /\b(position|role|job|opportunity|opening)\b/i.test(text);
+                
+                if (hasJobKeywords || isInTitle || hasJobTerms) {
+                    jobTitle = text;
+                    console.log(`[Tildra Job Copilot] Found job title using selector "${selector}": ${jobTitle}`);
+                    break;
+                }
+            }
+        }
+        if (jobTitle) break;
+    }
+
+    // Enhanced company name detection
+    let companyName = null;
+    const companySelectors = [
+        '.company-name', '#company-name', '[class*="company"]', '[id*="company"]',
+        '.employer', '.organization', '.company', '.business', '.client',
+        '[data-automation="company-name"]', '[data-testid="company-name"]', '[data-qa="company-name"]',
+        '.company-info', '.employer-name', '.hiring-company', '.job-company'
+    ];
+    
+    for (const selector of companySelectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+            const text = element.textContent?.trim();
+            if (text && text.length > 1 && text.length < 100 && 
+                !text.toLowerCase().includes('company name') && 
+                !text.toLowerCase().includes('employer') &&
+                !/\b(jobs?|careers?|hiring|apply)\b/i.test(text)) {
+                companyName = text;
+                console.log(`[Tildra Job Copilot] Found company name using selector "${selector}": ${companyName}`);
+                break;
+            }
+        }
+    }
+
+    // Fallback company name extraction from URL or title
+    if (!companyName) {
+        // Try extracting from subdomain (e.g., company.workday.com)
+        const hostname = window.location.hostname;
+        const subdomain = hostname.split('.')[0];
+        if (subdomain && subdomain !== 'www' && subdomain !== 'jobs' && subdomain !== 'careers') {
+            companyName = subdomain.charAt(0).toUpperCase() + subdomain.slice(1);
+        } else {
+            // Try extracting from page title
+            const titleParts = document.title.split(/[-|@]/);
+            if (titleParts.length > 1) {
+                const lastPart = titleParts[titleParts.length - 1].trim();
+                if (!/(careers?|jobs?|hiring|apply|opportunities)/i.test(lastPart)) {
+                    companyName = lastPart;
+                }
+            }
+        }
+        if (companyName) {
+            console.log(`[Tildra Job Copilot] Extracted company name from URL/title: ${companyName}`);
+        }
+    }
+
+    // Enhanced job description detection
+    let jobDescription = null;
+    const descriptionSelectors = [
+        // Specific job description selectors
+        '.job-description', '#job-description', '[class*="job-description"]', '[id*="job-description"]',
+        '.description', '.job-content', '.posting-content', '.position-description',
+        '.role-description', '.job-details', '.position-details', '.opportunity-description',
+        '[data-automation="job-description"]', '[data-testid="job-description"]', '[data-qa="job-description"]',
+        
+        // Content containers
+        '.content', '.main-content', 'main', '[role="main"]', '.job-posting-content',
+        '.job-summary', '.job-overview', '.posting-description', '.role-details'
+    ];
+    
+    let bestDescription = null;
+    let bestScore = 0;
+    
+    for (const selector of descriptionSelectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+            const text = element.innerText?.trim();
+            if (text && text.length > 200) { // Job descriptions should be substantial
+                // Score the description based on job-related content
+                let score = 0;
+                const lowerText = text.toLowerCase();
+                
+                // Count job-related keywords
+                for (const keyword of JOB_CONTENT_INDICATORS.content_keywords) {
+                    if (lowerText.includes(keyword)) score += 1;
+                }
+                
+                // Bonus for length (but diminishing returns)
+                score += Math.min(text.length / 1000, 3);
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestDescription = text;
+                    console.log(`[Tildra Job Copilot] Found better job description using selector "${selector}" (score: ${score}, length: ${text.length})`);
+                }
+            }
+        }
+    }
+    
+    jobDescription = bestDescription;
+
+    // Validation: ensure we have enough data to constitute a job posting
+    if (jobTitle && jobDescription) {
+        const result = {
+            jobTitle,
+            companyName: companyName || 'Unknown Company',
+            jobDescription,
+            source: 'Enhanced Generic Detection',
+            confidence: jobAnalysis.confidence,
+            detectionMetrics: jobAnalysis.analysis
+        };
+        
+        console.log('[Tildra Job Copilot] Successfully scraped generic job:', {
+            jobTitle,
+            companyName: result.companyName,
+            jobDescriptionLength: jobDescription.length,
+            confidence: jobAnalysis.confidence
+        });
+        
+        return result;
+    }
+    
+    console.warn('[Tildra Job Copilot] Could not scrape sufficient details from generic page. Found:', {
+        jobTitle,
+        companyName,
+        jobDescriptionExists: !!jobDescription,
+        confidence: jobAnalysis.confidence
+    });
+    return null;
+}
+
+// LinkedIn job scraper
 async function scrapeLinkedInJob() {
     console.log('[Tildra Job Copilot] Attempting to scrape LinkedIn job page...');
-    // Wait for key elements to be available, especially for dynamic loading
-    await new Promise(resolve => setTimeout(resolve, 500)); // Initial small delay
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     const jobTitle = document.querySelector('.jobs-unified-top-card__job-title')?.textContent.trim();
-    const companyName = document.querySelector('.jobs-unified-top-card__company-name a')?.textContent.trim() || document.querySelector('a[href*="linkedin.com/company/"]')?.textContent.trim();
+    const companyName = document.querySelector('.jobs-unified-top-card__company-name a')?.textContent.trim() || 
+                       document.querySelector('a[href*="linkedin.com/company/"]')?.textContent.trim();
     
     let jobDescription = null;
     const jdElementComplex = document.querySelector('.jobs-description-content__text[data-view-name="jobDescription"] .display-flex.flex-column .t-14');
     if (jdElementComplex) {
         jobDescription = jdElementComplex.innerText.trim();
     } else {
-        // Fallback for potentially simpler structures or if above selector fails
         const jdElementSimple = document.querySelector('#job-details') || document.querySelector('.jobs-description__content');
         if (jdElementSimple) {
             jobDescription = jdElementSimple.innerText.trim();
@@ -1301,12 +1661,14 @@ async function scrapeLinkedInJob() {
     return null;
 }
 
+// Indeed job scraper
 async function scrapeIndeedJob() {
     console.log('[Tildra Job Copilot] Attempting to scrape Indeed job page...');
-    await new Promise(resolve => setTimeout(resolve, 500)); 
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     const jobTitle = document.querySelector('.jobsearch-JobInfoHeader-title')?.textContent.trim();
-    const companyName = document.querySelector('[data-company-name="true"]')?.textContent.trim() || document.querySelector('.jobsearch-CompanyReview--header')?.textContent.trim();
+    const companyName = document.querySelector('[data-company-name="true"]')?.textContent.trim() || 
+                       document.querySelector('.jobsearch-CompanyReview--header')?.textContent.trim();
     const jobDescription = document.querySelector('#jobDescriptionText')?.innerText.trim();
 
     if (jobTitle && companyName && jobDescription) {
@@ -1317,282 +1679,148 @@ async function scrapeIndeedJob() {
     return null;
 }
 
+// Greenhouse job scraper
 async function scrapeGreenhouseJob() {
     console.log('[Tildra Job Copilot] Attempting to scrape Greenhouse job page...');
-    await new Promise(resolve => setTimeout(resolve, 500)); 
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    const jobTitle = document.querySelector('#header h1.app-title')?.textContent.trim() || document.querySelector('h1[data-qa="job-name"]')?.textContent.trim();
-    let companyName = document.querySelector('#header #logo + .company-name')?.textContent.trim() || document.querySelector('#logo img[alt]')?.getAttribute('alt') || document.querySelector('#logo')?.textContent.trim();
-    if (companyName && companyName.toLowerCase().includes('logo')) companyName = companyName.replace(/logo/i, '').trim();
+    const jobTitle = document.querySelector('#header h1.app-title')?.textContent.trim() || 
+                     document.querySelector('h1[data-qa="job-name"]')?.textContent.trim();
     
-    const jobDescription = document.querySelector('#content[role="main"]')?.innerText.trim() || document.querySelector('#content')?.innerText.trim();
+    let companyName = document.querySelector('#header #logo + .company-name')?.textContent.trim() || 
+                     document.querySelector('#logo img[alt]')?.getAttribute('alt') || 
+                     document.querySelector('#logo')?.textContent.trim();
+    
+    if (companyName && companyName.toLowerCase().includes('logo')) {
+        companyName = companyName.replace(/logo/i, '').trim();
+    }
+    
+    const jobDescription = document.querySelector('#content[role="main"]')?.innerText.trim() || 
+                          document.querySelector('#content')?.innerText.trim();
 
     if (jobTitle && jobDescription) {
-        console.log('[Tildra Job Copilot] Successfully scraped Greenhouse:', { jobTitle, companyName, jobDescriptionLength: jobDescription.length });
-        return { jobTitle, companyName: companyName || "N/A (check Greenhouse page structure)", jobDescription, source: 'Greenhouse' };
+        console.log('[Tildra Job Copilot] Successfully scraped Greenhouse:', { jobTitle, companyName: companyName || "Unknown", jobDescriptionLength: jobDescription.length });
+        return { jobTitle, companyName: companyName || 'Unknown Company', jobDescription, source: 'Greenhouse' };
     }
     console.warn('[Tildra Job Copilot] Could not scrape all details from Greenhouse page. Found:', { jobTitle, companyName, jobDescriptionExists: !!jobDescription });
     return null;
 }
 
+// Lever job scraper
 async function scrapeLeverJob() {
-    console.log('%c[Tildra] Running scrapeLeverJob...', 'color: #F0A; font-weight: bold;');
+    console.log('[Tildra Job Copilot] Attempting to scrape Lever job page...');
     await new Promise(resolve => setTimeout(resolve, 500));
 
     let jobTitle = null;
     let companyName = null;
     let jobDescription = null;
 
-    // Lever often uses an iframe for the main content
+    // Lever often uses an iframe for content
     const iframe = document.querySelector('iframe[src*="lever.co"]');
     const doc = iframe ? iframe.contentDocument || iframe.contentWindow.document : document;
 
-    if (iframe) {
-        console.log('[Tildra] Lever iframe detected. Searching inside iframe.');
-    } else {
-        console.log('[Tildra] No Lever iframe detected. Searching main document.');
-    }
-
-    // Scrape from the correct document (main or iframe)
-    const titleElement = doc.querySelector('.posting-headline h1, h1[data-qa="posting-name"]');
+    // Try to get job title
+    const titleElement = doc.querySelector('.posting-headline h1, h1[data-qa="posting-name"]') || 
+                        document.querySelector('h1');
     jobTitle = titleElement ? titleElement.innerText.trim() : null;
-    console.log(`[Tildra] Lever Title: ${jobTitle || 'Not Found'}`);
 
-    // Company name might be outside the iframe in the main page title
+    // Company name from page title or URL
     companyName = document.title.split(' - ')[1] || document.title.split(' at ')[1];
+    if (!companyName && window.location.hostname.includes('lever.co')) {
+        const subdomain = window.location.hostname.split('.')[0];
+        companyName = subdomain.charAt(0).toUpperCase() + subdomain.slice(1);
+    }
     
-    const descriptionElement = doc.querySelector('section[data-qa="job-description"], .posting-body');
+    // Job description
+    const descriptionElement = doc.querySelector('section[data-qa="job-description"], .posting-body') || 
+                              document.querySelector('.posting-body, .job-description');
     jobDescription = descriptionElement ? descriptionElement.innerText.trim() : null;
-    console.log(`[Tildra] Lever Description Length: ${jobDescription?.length || 0}`);
 
     if (jobTitle && jobDescription) {
-        console.log('%c[Tildra] Scraped Lever successfully.', 'color: #00A36C;');
-        return { jobTitle, companyName: companyName || "N/A", jobDescription, source: 'Lever' };
+        console.log('[Tildra Job Copilot] Successfully scraped Lever:', { jobTitle, companyName: companyName || "Unknown", jobDescriptionLength: jobDescription.length });
+        return { jobTitle, companyName: companyName || 'Unknown Company', jobDescription, source: 'Lever' };
     }
-    
-    console.log('%c[Tildra] Lever scrape failed.', 'color: #FF6347;');
+    console.warn('[Tildra Job Copilot] Could not scrape all details from Lever page. Found:', { jobTitle, companyName, jobDescriptionExists: !!jobDescription });
     return null;
 }
 
+// Workday job scraper
+async function scrapeWorkdayJob() {
+    console.log('[Tildra Job Copilot] Attempting to scrape Workday job page...');
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Workday is often slow
+
+    const jobTitle = document.querySelector('[data-automation-id="jobPostingHeader"]')?.textContent.trim() ||
+                     document.querySelector('h1[data-automation-id*="job"]')?.textContent.trim() ||
+                     document.querySelector('h1')?.textContent.trim();
+    
+    let companyName = null;
+    // Try to extract company from URL or page content
+    const hostname = window.location.hostname;
+    if (hostname.includes('workday')) {
+        const match = hostname.match(/([^.]+)\.myworkdayjobs\.com/);
+        if (match) {
+            companyName = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+        }
+    }
+    
+    if (!companyName) {
+        companyName = document.querySelector('[data-automation-id*="company"]')?.textContent.trim();
+    }
+
+    const jobDescription = document.querySelector('[data-automation-id="jobPostingDescription"]')?.innerText.trim() ||
+                          document.querySelector('.jobPostingDescription')?.innerText.trim() ||
+                          document.querySelector('[role="main"]')?.innerText.trim();
+
+    if (jobTitle && jobDescription) {
+        console.log('[Tildra Job Copilot] Successfully scraped Workday:', { jobTitle, companyName: companyName || "Unknown", jobDescriptionLength: jobDescription.length });
+        return { jobTitle, companyName: companyName || 'Unknown Company', jobDescription, source: 'Workday' };
+    }
+    console.warn('[Tildra Job Copilot] Could not scrape all details from Workday page. Found:', { jobTitle, companyName, jobDescriptionExists: !!jobDescription });
+    return null;
+}
+
+// AshbyHQ job scraper
 async function scrapeAshbyHQJob() {
     console.log('[Tildra Job Copilot] Attempting to scrape AshbyHQ job page...');
     await new Promise(resolve => setTimeout(resolve, 500));
 
     const jobTitle = document.querySelector('h1[class*="_jobTitle_"]')?.textContent.trim();
+    
     let companyName = document.querySelector('a[class*="_companyName_"]')?.textContent.trim();
     if (!companyName) {
-      // Fallback: try to get from page title (e.g., "Job Title - Company Name | Ashby")
-      const titleParts = document.title.split(' - ');
-      if (titleParts.length > 1 && !titleParts[1].toLowerCase().includes('ashby')) {
-        companyName = titleParts[1].split('|')[0].trim();
-      }
+        const titleParts = document.title.split(' - ');
+        if (titleParts.length > 1 && !titleParts[1].toLowerCase().includes('ashby')) {
+            companyName = titleParts[1].split('|')[0].trim();
+        }
     }
+    
     const jobDescription = document.querySelector('div[class*="_description_"][data-ashby-js*="job-description"]')?.innerText.trim();
 
-    if (jobTitle && companyName && jobDescription) {
-        console.log('[Tildra Job Copilot] Successfully scraped AshbyHQ:', { jobTitle, companyName, jobDescriptionLength: jobDescription.length });
-        return { jobTitle, companyName, jobDescription, source: 'AshbyHQ' };
+    if (jobTitle && jobDescription) {
+        console.log('[Tildra Job Copilot] Successfully scraped AshbyHQ:', { jobTitle, companyName: companyName || "Unknown", jobDescriptionLength: jobDescription.length });
+        return { jobTitle, companyName: companyName || 'Unknown Company', jobDescription, source: 'AshbyHQ' };
     }
     console.warn('[Tildra Job Copilot] Could not scrape all details from AshbyHQ page. Found:', { jobTitle, companyName, jobDescriptionExists: !!jobDescription });
     return null;
 }
 
-// Placeholder for Glassdoor - primarily for company culture, JD scraping might be secondary or less common
-async function scrapeGlassdoorJob() {
-    console.log('[Tildra Job Copilot] Glassdoor detected. JD scraping may be limited, focus on company info later.');
-    // For now, we might not actively scrape JD from Glassdoor unless it becomes a primary source.
-    // If we do, selectors would be for job title and description if available.
-    // Example: const jobTitle = document.querySelector('[data-test="job-title"]')?.textContent.trim();
-    return null;
-}
+let jobDetailsScrapedOnLoad = false;
 
-// Generic job scraper for unrecognized platforms
-async function scrapeGenericJob() {
-    console.log('[Tildra Job Copilot] Attempting generic job scraping...');
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Longer delay for generic pages
-
-    // Try to find job title using common patterns
-    let jobTitle = null;
-    const titleSelectors = [
-        'h1', 'h2', '.job-title', '#job-title', '[class*="job-title"]', '[id*="job-title"]',
-        '.title', '.position-title', '.position', '.role', '.job-name',
-        'h1[class*="title"]', 'h1[class*="position"]', 'h1[class*="job"]',
-        '[data-automation="job-title"]', '[data-testid="job-title"]',
-        '.posting-headline h1', '.job-header h1'
-    ];
-    
-    for (const selector of titleSelectors) {
-        const element = document.querySelector(selector);
-        if (element) {
-            const text = element.textContent?.trim();
-            // Check if this looks like a job title (contains job-related keywords and isn't too long)
-            if (text && text.length > 3 && text.length < 100 && 
-                (text.toLowerCase().includes('engineer') || text.toLowerCase().includes('manager') || 
-                 text.toLowerCase().includes('developer') || text.toLowerCase().includes('analyst') ||
-                 text.toLowerCase().includes('specialist') || text.toLowerCase().includes('coordinator') ||
-                 text.toLowerCase().includes('director') || text.toLowerCase().includes('lead') ||
-                 text.toLowerCase().includes('senior') || text.toLowerCase().includes('junior') ||
-                 text.toLowerCase().includes('assistant') || text.toLowerCase().includes('associate') ||
-                 document.title.toLowerCase().includes(text.toLowerCase()))) {
-                jobTitle = text;
-                console.log(`[Tildra Job Copilot] Found job title using selector "${selector}": ${jobTitle}`);
-                break;
-            }
-        }
-    }
-
-    // Try to find company name
-    let companyName = null;
-    const companySelectors = [
-        '.company-name', '#company-name', '[class*="company"]', '[id*="company"]',
-        '.employer', '.organization', '.company', '.business',
-        '[data-automation="company-name"]', '[data-testid="company-name"]',
-        '.company-info', '.employer-name'
-    ];
-    
-    for (const selector of companySelectors) {
-        const element = document.querySelector(selector);
-        if (element) {
-            const text = element.textContent?.trim();
-            if (text && text.length > 1 && text.length < 50 && !text.toLowerCase().includes('company')) {
-                companyName = text;
-                console.log(`[Tildra Job Copilot] Found company name using selector "${selector}": ${companyName}`);
-                break;
-            }
-        }
-    }
-
-    // If no company found, try to extract from page title or URL
-    if (!companyName) {
-        const titleParts = document.title.split(' - ');
-        if (titleParts.length > 1) {
-            companyName = titleParts[titleParts.length - 1].trim();
-            if (companyName.toLowerCase().includes('careers') || companyName.toLowerCase().includes('jobs')) {
-                companyName = titleParts[titleParts.length - 2]?.trim() || companyName;
-            }
-        }
-    }
-
-    // Try to find job description
-    let jobDescription = null;
-    const descriptionSelectors = [
-        '.job-description', '#job-description', '[class*="job-description"]', '[id*="job-description"]',
-        '.description', '.content', '.job-content', '.posting-content',
-        '.job-details', '.position-details', '.role-description',
-        '[data-automation="job-description"]', '[data-testid="job-description"]',
-        'main', '[role="main"]', '.main-content'
-    ];
-    
-    for (const selector of descriptionSelectors) {
-        const element = document.querySelector(selector);
-        if (element) {
-            const text = element.innerText?.trim();
-            if (text && text.length > 100) { // Job descriptions should be substantial
-                jobDescription = text;
-                console.log(`[Tildra Job Copilot] Found job description using selector "${selector}" (length: ${text.length})`);
-                break;
-            }
-        }
-    }
-
-    if (jobTitle && jobDescription) {
-        console.log('[Tildra Job Copilot] Successfully scraped generic job:', { 
-            jobTitle, 
-            companyName: companyName || 'Unknown Company', 
-            jobDescriptionLength: jobDescription.length 
-        });
-        return { 
-            jobTitle, 
-            companyName: companyName || 'Unknown Company', 
-            jobDescription, 
-            source: 'Generic' 
-        };
-    }
-    
-    console.warn('[Tildra Job Copilot] Could not scrape sufficient details from generic page. Found:', { 
-        jobTitle, 
-        companyName, 
-        jobDescriptionExists: !!jobDescription 
-    });
-    return null;
-}
-
-// Taleo-specific scraper
-async function scrapeTaleoJob() {
-    console.log('[Tildra Job Copilot] Attempting to scrape Taleo job page...');
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Taleo pages can be slow to load
-
-    // Taleo has specific patterns
-    const jobTitle = document.querySelector('span.titlepage')?.textContent.trim() || 
-                    document.querySelector('.contentheader')?.textContent.trim() ||
-                    document.querySelector('h1')?.textContent.trim();
-    
-    let companyName = null;
-    // Try to extract company name from URL or page elements
-    const urlMatch = window.location.hostname.match(/^([^.]+)\.taleo\.net/);
-    if (urlMatch) {
-        companyName = urlMatch[1].charAt(0).toUpperCase() + urlMatch[1].slice(1);
-    }
-    
-    // Try to find company name in page content
-    if (!companyName) {
-        const companyElement = document.querySelector('.company-name') || 
-                              document.querySelector('[class*="company"]') ||
-                              document.querySelector('title')?.textContent?.split(' - ')[1];
-        if (companyElement) {
-            companyName = companyElement.textContent?.trim() || companyElement;
-        }
-    }
-
-    // Taleo job descriptions are often in specific containers
-    let jobDescription = null;
-    const descContainer = document.querySelector('.contentlinepanel') || 
-                         document.querySelector('.requisitionDescriptionInterface') ||
-                         document.querySelector('[class*="description"]') ||
-                         document.querySelector('table[width="100%"]');
-    
-    if (descContainer) {
-        jobDescription = descContainer.innerText?.trim();
-    }
-
-    if (jobTitle && jobDescription) {
-        console.log('[Tildra Job Copilot] Successfully scraped Taleo job:', { 
-            jobTitle, 
-            companyName: companyName || 'Taleo Company', 
-            jobDescriptionLength: jobDescription.length 
-        });
-        return { 
-            jobTitle, 
-            companyName: companyName || 'Taleo Company', 
-            jobDescription, 
-            source: 'Taleo' 
-        };
-    }
-    
-    console.warn('[Tildra Job Copilot] Could not scrape all details from Taleo page. Found:', { 
-        jobTitle, 
-        companyName, 
-        jobDescriptionExists: !!jobDescription 
-    });
-    return null;
-}
-
-let jobDetailsScrapedOnLoad = false; // Flag to ensure initial scrape runs once
-
+// Main job detection and scraping coordinator
 async function checkForAndScrapeJobDetails(forceScrape = false) {
-    console.log(`%c[Tildra] Starting job details scrape. Force: ${forceScrape}, Already Run: ${jobDetailsScrapedOnLoad}`, 'color: #00A36C; font-weight: bold;');
+    console.log(`%c[Tildra] Starting enhanced job details scrape. Force: ${forceScrape}, Already Run: ${jobDetailsScrapedOnLoad}`, 'color: #00A36C; font-weight: bold;');
     
     if (jobDetailsScrapedOnLoad && !forceScrape) {
         console.log('[Tildra] Skipping redundant scrape.');
         return;
     }
 
-    jobDetailsScrapedOnLoad = true; // Set flag immediately to prevent re-runs from observer
+    jobDetailsScrapedOnLoad = true;
     let details = null;
     const currentBoard = getCurrentJobBoard();
     console.log(`[Tildra] Detected Board: ${currentBoard || 'None'}`);
 
-    // --- On-Page Scraping First ---
+    // Try specific scraper first if we recognize the platform
     if (currentBoard) {
         console.log(`[Tildra] Attempting specific scraper for: ${currentBoard}`);
         try {
@@ -1601,9 +1829,9 @@ async function checkForAndScrapeJobDetails(forceScrape = false) {
                 case 'INDEED': details = await scrapeIndeedJob(); break;
                 case 'GREENHOUSE': details = await scrapeGreenhouseJob(); break;
                 case 'LEVER': details = await scrapeLeverJob(); break;
+                case 'WORKDAY': details = await scrapeWorkdayJob(); break;
                 case 'ASHBYHQ': details = await scrapeAshbyHQJob(); break;
-                case 'TALEO': details = await scrapeTaleoJob(); break;
-                case 'GLASSDOOR': details = await scrapeGlassdoorJob(); break;
+                // Add other specific scrapers as needed
             }
             console.log(`[Tildra] Specific scraper result:`, details);
         } catch (error) {
@@ -1611,27 +1839,25 @@ async function checkForAndScrapeJobDetails(forceScrape = false) {
         }
     }
 
-    // Generic scraper as fallback if specific scraper fails or no board was detected
+    // Always try enhanced generic scraper (it has its own intelligence to determine if it's a job page)
     if (!details) {
-        console.log('[Tildra] Trying generic scraper...');
+        console.log('[Tildra] Trying enhanced generic scraper...');
         try {
             details = await scrapeGenericJob();
-            console.log(`[Tildra] Generic scraper result:`, details);
+            console.log(`[Tildra] Enhanced generic scraper result:`, details);
         } catch (error) {
-            console.error('[Tildra] Error in generic scraper:', error);
+            console.error('[Tildra] Error in enhanced generic scraper:', error);
         }
     }
 
     if (details) {
-        console.log('%c[Tildra] On-page scrape successful. Sending initial data.', 'color: #00A36C;');
-        // Send basic details immediately for fast UI response
+        console.log('%c[Tildra] Job scraping successful. Sending data.', 'color: #00A36C;');
         chrome.runtime.sendMessage({
             type: "JOB_PAGE_DETECTED",
             data: { ...details, pageUrl: window.location.href }
         });
 
-        // Asynchronously send for API enhancement
-        console.log('[Tildra] Sending scraped text for API enhancement...');
+        // Send for API enhancement
         chrome.runtime.sendMessage({
             type: "ENHANCE_JOB_DETAILS",
             data: {
@@ -1639,221 +1865,249 @@ async function checkForAndScrapeJobDetails(forceScrape = false) {
                 companyName: details.companyName,
                 jobDescription: details.jobDescription,
                 source: details.source,
-                pageUrl: window.location.href
+                pageUrl: window.location.href,
+                confidence: details.confidence || 1.0,
+                detectionMetrics: details.detectionMetrics
             }
         });
     } else {
-        console.log('%c[Tildra] All on-page scraping attempts failed.', 'color: #FF6347;');
+        console.log('%c[Tildra] No job detected on this page.', 'color: #FF6347;');
         chrome.runtime.sendMessage({ type: "JOB_PAGE_SCRAPE_FAILED" });
     }
 
     return details;
 }
 
-// This function is now deprecated in favor of the new flow.
-// It will be removed or refactored later if needed.
-// async function detectJobAndTailorResume() { ... }
-
-// Message listener for manual job detection and content extraction
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'triggerJobDetection') {
-        console.log('[Tildra Job Copilot] Manual job detection triggered');
-        checkForAndScrapeJobDetails(true).then(result => {
-            sendResponse({ success: !!result });
-        }).catch(error => {
-            console.error('[Tildra Job Copilot] Manual detection error:', error);
-            sendResponse({ success: false, error: error.message });
-        });
-        return true; // Keep message channel open for async response
-    }
+// Add job detection handlers to the existing message listener above
+// This code extends the first message listener with job detection capabilities
+if (typeof window.tildraJobHandlersAdded === 'undefined') {
+    window.tildraJobHandlersAdded = true;
     
-    // Simple content extraction for new popup
-    if (message.action === 'getContent') {
-        try {
-            // Extract main content from the page
-            let content = '';
+    // Extend the existing chrome.runtime.onMessage listener
+    const originalAddListener = chrome.runtime.onMessage.addListener;
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        // Handle job detection actions
+        if (message.action === 'triggerJobDetection') {
+            console.log('[Tildra Job Copilot] Manual job detection triggered');
             
-            // Try multiple content selectors
-            const contentSelectors = [
-                'article',
-                'main',
-                '[role="main"]',
-                '.content',
-                '.post-content',
-                '.article-content',
-                '.job-description',
-                '.description',
-                '#content',
-                'body'
-            ];
-            
-            for (const selector of contentSelectors) {
-                const element = document.querySelector(selector);
-                if (element) {
-                    content = element.innerText.trim();
-                    if (content.length > 200) break; // Good enough content found
-                }
-            }
-            
-            // Fallback: get all text content
-            if (!content || content.length < 100) {
-                content = document.body.innerText.trim();
-            }
-            
-            // Clean up the content
-            content = content
-                .replace(/\s+/g, ' ') // Normalize whitespace
-                .replace(/^\s*\n/gm, '') // Remove empty lines
-                .substring(0, 50000); // Limit to 50k characters
-            
-            sendResponse({ 
-                content: content,
-                success: true 
-            });
-        } catch (error) {
-            console.error('Content extraction error:', error);
-            sendResponse({ 
-                content: null, 
-                success: false, 
-                error: error.message 
-            });
-        }
-        return true; // Keep message channel open
-    }
-    
-    // Auth token extraction for Tildra website
-    if (message.action === 'getAuthToken') {
-        (async () => { // Wrap in an async IIFE to use await
+            // Simplified job detection that actually works
             try {
-                let authToken = null;
-    
-                const isJwt = (token) => token && typeof token === 'string' && token.split('.').length === 3;
-    
-                // Method 1: Try to get from window.__clerk (most reliable)
-                if (window.__clerk && window.__clerk.session && typeof window.__clerk.session.getToken === 'function') {
-                    try {
-                        const token = await window.__clerk.session.getToken();
-                        if (isJwt(token)) {
-                            authToken = token;
-                            console.log('[Tildra] Found auth token from window.__clerk.session.getToken()');
-                        }
-                    } catch (e) {
-                        console.log('[Tildra] Error getting token from Clerk global object:', e.message);
-                    }
-                }
-    
-                // Method 2: Try to get from localStorage
-                if (!authToken && window.localStorage) {
-                    const clerkKeys = ['__clerk_session', '__clerk_token', 'clerk-session', 'clerk-token', 'auth-token', 'session-token'];
-                    for (const key of clerkKeys) {
-                        const value = localStorage.getItem(key);
-                        if (value) {
-                            try {
-                                // Try parsing as JSON
-                                const parsed = JSON.parse(value);
-                                const token = parsed.token || parsed.sessionToken || parsed.jwt;
-                                if (isJwt(token)) {
-                                    authToken = token;
-                                    console.log('[Tildra] Found auth token in parsed localStorage key:', key);
-                                    break;
-                                }
-                            } catch (e) {
-                                // If not JSON, check if the raw value is a JWT
-                                if (isJwt(value)) {
-                                    authToken = value;
-                                    console.log('[Tildra] Found auth token string in localStorage key:', key);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-    
-                // Method 3: Try to get from cookies
-                if (!authToken && document.cookie) {
-                    const cookies = document.cookie.split(';');
-                    for (const cookie of cookies) {
-                        const [name, value] = cookie.trim().split('=');
-                        if (name && (name.startsWith('__clerk') || name.includes('session') || name.includes('auth') || name.includes('token'))) {
-                            const decodedValue = decodeURIComponent(value);
-                            if (isJwt(decodedValue)) {
-                                authToken = decodedValue;
-                                console.log('[Tildra] Found auth token in cookie:', name);
-                                break;
-                            }
-                        }
-                    }
-                }
-    
-                sendResponse({
-                    authToken: authToken,
-                    success: !!authToken
+                const result = detectJobOnCurrentPage();
+                console.log('[Tildra Job Copilot] Detection result:', result);
+                sendResponse({ 
+                    success: !!result, 
+                    data: result,
+                    jobDetails: result // Add this for compatibility
                 });
             } catch (error) {
-                console.error('Auth token extraction error:', error);
-                sendResponse({
-                    authToken: null,
-                    success: false,
-                    error: error.message
-                });
+                console.error('[Tildra Job Copilot] Manual detection error:', error);
+                sendResponse({ success: false, error: error.message });
             }
-        })();
-        return true; // Keep message channel open for async response
-    }
-});
-
-// --- Tildra Initialization ---
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
+            return true;
+        }
+        
+        if (message.action === 'getContent') {
+            try {
+                const contentSelectors = [
+                    'article', 'main', '[role="main"]', '.content', '.post-content',
+                    '.article-content', '.job-description', '.description', '#content', 'body'
+                ];
+                
+                let content = '';
+                for (const selector of contentSelectors) {
+                    const element = document.querySelector(selector);
+                    if (element) {
+                        content = element.innerText.trim();
+                        if (content.length > 200) break;
+                    }
+                }
+                
+                if (!content || content.length < 100) {
+                    content = document.body.innerText.trim();
+                }
+                
+                content = content.replace(/\s+/g, ' ').replace(/^\s*\n/gm, '').substring(0, 50000);
+                
+                sendResponse({ content: content, success: true });
+            } catch (error) {
+                console.error('Content extraction error:', error);
+                sendResponse({ content: null, success: false, error: error.message });
+            }
+            return true;
+        }
+        
+        // For any other messages, return false to let other handlers process them
+        return false;
+    });
 }
 
-let hasRunInitialDetection = false;
-// Debounce the check to avoid running it too frequently on busy SPAs
-const debouncedJobCheck = debounce(() => checkForAndScrapeJobDetails(true), 1500);
-
-function initializeTildraObserver() {
-    console.log('%c[Tildra] Initializing Content Script Observer...', 'color: #00A36C; font-weight: bold;');
-
-    // Run once on initial load after a short delay
-    if (!hasRunInitialDetection) {
-        hasRunInitialDetection = true;
-        setTimeout(() => checkForAndScrapeJobDetails(false), 1000);
+// Simplified job detection that actually works
+function detectJobOnCurrentPage() {
+    console.log('[Tildra Job Copilot] Starting simplified job detection...');
+    
+    // Check if this looks like a job page using simple heuristics
+    const url = window.location.href.toLowerCase();
+    const title = document.title.toLowerCase();
+    const bodyText = document.body.innerText.toLowerCase();
+    
+    // Simple job indicators
+    const jobUrlIndicators = ['job', 'career', 'position', 'opening', 'vacancy', 'hiring', 'apply'];
+    const hasJobUrl = jobUrlIndicators.some(indicator => url.includes(indicator));
+    
+    const jobTitleIndicators = ['engineer', 'developer', 'manager', 'analyst', 'designer', 'specialist', 'coordinator', 'director', 'lead', 'senior', 'junior'];
+    const hasJobTitle = jobTitleIndicators.some(indicator => title.includes(indicator));
+    
+    const jobContentIndicators = ['responsibilities', 'requirements', 'qualifications', 'experience', 'apply now', 'job description', 'what you will do'];
+    const hasJobContent = jobContentIndicators.some(indicator => bodyText.includes(indicator));
+    
+    // Score the page
+    let score = 0;
+    if (hasJobUrl) score += 2;
+    if (hasJobTitle) score += 2; 
+    if (hasJobContent) score += 2;
+    
+    console.log('[Tildra Job Copilot] Job detection score:', {
+        score,
+        hasJobUrl,
+        hasJobTitle, 
+        hasJobContent,
+        url: url.substring(0, 100),
+        title: title.substring(0, 100)
+    });
+    
+    // If score is too low, not a job page
+    if (score < 2) {
+        console.log('[Tildra Job Copilot] Page does not appear to be a job posting (score too low)');
+        return null;
     }
-
-    const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                // A more robust check for any added element that could be a job container
-                const containsJobContent = Array.from(mutation.addedNodes).some(node =>
-                    node.nodeType === Node.ELEMENT_NODE &&
-                    (node.querySelector('[class*="job"], [class*="posting"]') ||
-                     node.matches('[class*="job"], [class*="posting"]'))
-                );
-
-                if (containsJobContent) {
-                    console.log('[Tildra] Observer detected significant DOM change. Triggering job check.');
-                    debouncedJobCheck();
-                    return; // No need to check other mutations
-                }
+    
+    // Extract job details using simple selectors
+    let jobTitle = null;
+    let companyName = null;
+    let jobDescription = null;
+    
+    // Try to find job title
+    const titleSelectors = [
+        'h1.job-title', '.job-title', '#job-title',
+        'h1', 'h2.title', '.title', '.position-title'
+    ];
+    
+    for (const selector of titleSelectors) {
+        const element = document.querySelector(selector);
+        if (element && element.textContent) {
+            const text = element.textContent.trim();
+            if (text.length > 5 && text.length < 100) {
+                jobTitle = text;
+                console.log('[Tildra Job Copilot] Found job title:', jobTitle);
+                break;
             }
         }
+    }
+    
+    // Try to find company name
+    const companySelectors = [
+        '.company-name', '.employer', '.company', 
+        'h1.company-name', '.hiring-company'
+    ];
+    
+    for (const selector of companySelectors) {
+        const element = document.querySelector(selector);
+        if (element && element.textContent) {
+            const text = element.textContent.trim();
+            if (text.length > 1 && text.length < 50) {
+                companyName = text;
+                console.log('[Tildra Job Copilot] Found company name:', companyName);
+                break;
+            }
+        }
+    }
+    
+    // Extract from page title as fallback
+    if (!jobTitle && document.title) {
+        const titleParts = document.title.split(' - ');
+        if (titleParts.length > 0) {
+            jobTitle = titleParts[0].trim();
+        }
+    }
+    
+    if (!companyName && document.title) {
+        const titleParts = document.title.split(' - ');
+        if (titleParts.length > 1) {
+            companyName = titleParts[1].replace(/\|.*$/, '').trim();
+        }
+    }
+    
+    // Try to find job description
+    const descriptionSelectors = [
+        '.job-description', '.description', '.job-content',
+        'main', '[role="main"]', '.content'
+    ];
+    
+    for (const selector of descriptionSelectors) {
+        const element = document.querySelector(selector);
+        if (element && element.innerText) {
+            const text = element.innerText.trim();
+            if (text.length > 300) { // Substantial content
+                jobDescription = text.substring(0, 2000); // Limit size
+                console.log('[Tildra Job Copilot] Found job description, length:', text.length);
+                break;
+            }
+        }
+    }
+    
+    // Require at least title and some description
+    if (!jobTitle) {
+        console.log('[Tildra Job Copilot] No job title found');
+        return null;
+    }
+    
+    if (!jobDescription || jobDescription.length < 200) {
+        console.log('[Tildra Job Copilot] No substantial job description found');
+        return null;
+    }
+    
+    const result = {
+        title: jobTitle,
+        company: companyName || 'Company Name Not Found',
+        description: jobDescription,
+        source: 'Simplified Detection',
+        url: window.location.href,
+        detected: new Date().toISOString()
+    };
+    
+    console.log('[Tildra Job Copilot] Successfully detected job:', {
+        title: result.title,
+        company: result.company,
+        descriptionLength: result.description.length,
+        source: result.source
     });
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
-    console.log('[Tildra] MutationObserver is now watching the page.');
+    
+    return result;
 }
 
-// Start the initialization process
-initializeTildraObserver();
+// Auto-run job detection on page load
+function autoDetectJobs() {
+    console.log('[Tildra Job Copilot] Auto-detecting jobs on page...');
+    
+    setTimeout(() => {
+        const result = detectJobOnCurrentPage();
+        if (result) {
+            console.log('[Tildra Job Copilot] Auto-detected job, notifying background script');
+            try {
+                chrome.runtime.sendMessage({
+                    type: "JOB_PAGE_DETECTED",
+                    data: result
+                });
+            } catch (error) {
+                console.log('[Tildra Job Copilot] Failed to send message:', error);
+            }
+        }
+    }, 1500); // Wait for page to fully load
+}
+
+// Run auto-detection
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', autoDetectJobs);
+} else {
+    autoDetectJobs();
+}

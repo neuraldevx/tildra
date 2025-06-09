@@ -1,0 +1,147 @@
+%------------------------
+% Jacob Christensen Resume Template
+%------------------------
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage{ragged2e}
+\usepackage{etoolbox}
+\usepackage{tikz}
+\input{glyphtounicode}
+
+% font options
+\usepackage{times}
+\usepackage[T1]{fontenc}
+
+\pagestyle{fancy}
+\fancyhf{}  % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.75in}
+\addtolength{\textheight}{1.2in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+\setlength{\footskip}{5pt}
+
+% sections formatting
+\titleformat{\section}{
+\vspace{-2pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule\vspace{-5pt}]
+
+% ensure that generated pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+% custom commands
+\newcommand{\cvitem}[1]{
+\item\small{
+{#1\vspace{-2pt}}
+}
+}
+
+\newcommand{\cvheading}[4]{
+\vspace{-2pt}\item
+\begin{tabular*}{\textwidth}[t]{l@{\extracolsep{\fill}}r}
+\textbf{#1} & #2 \\
+\small#3 & \small #4 \\
+\end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\cvheadingstart}{\begin{itemize}[leftmargin=0in, label={}]}
+\newcommand{\cvheadingend}{\end{itemize}}
+\newcommand{\cvitemstart}{\begin{itemize}[label=\textopenbullet]\justifying}
+\newcommand{\cvitemend}{\end{itemize}\vspace{-5pt}}
+
+\begin{document}
+
+% contact information
+\begin{center}
+\textbf{\LARGE\scshape [CANDIDATE_NAME]} \\
+\vspace{1pt}\small
+[PHONE_NUMBER] $\ \diamond\ $ \href{mailto:[EMAIL_ADDRESS]}{[EMAIL_ADDRESS]} $\ \diamond\ $
+\href{[WEBSITE_URL]}{[WEBSITE_URL]} $\ \diamond\ $
+\href{[LINKEDIN_URL]}{[LINKEDIN_URL]}
+\end{center}
+
+\section{Education}
+\cvheadingstart
+\cvheading{[UNIVERSITY_NAME]}{[LOCATION]}{[DEGREE]}{[GRADUATION_DATE]}
+\cvitemstart
+\cvitem{[EDUCATION_DETAILS]}
+\cvitemend
+\cvheadingend
+
+\section{Professional Experience}
+\cvheadingstart
+\cvheading{[COMPANY_1]}{[LOCATION_1]}{[POSITION_1]}{[DATES_1]}
+\cvitemstart
+\cvitem{[EXPERIENCE_BULLET_1]}
+\cvitem{[EXPERIENCE_BULLET_2]}
+\cvitem{[EXPERIENCE_BULLET_3]}
+\cvitem{[EXPERIENCE_BULLET_4]}
+\cvitem{[EXPERIENCE_BULLET_5]}
+\cvitem{[EXPERIENCE_BULLET_6]}
+\cvitemend
+
+\cvheading{[COMPANY_2]}{[LOCATION_2]}{[POSITION_2]}{[DATES_2]}
+\cvitemstart
+\cvitem{[EXPERIENCE_BULLET_7]}
+\cvitem{[EXPERIENCE_BULLET_8]}
+\cvitem{[EXPERIENCE_BULLET_9]}
+\cvitem{[EXPERIENCE_BULLET_10]}
+\cvitem{[EXPERIENCE_BULLET_11]}
+\cvitemend
+\cvheadingend
+
+\section{Capstone \& Projects}
+\cvheadingstart
+\cvheading{[PROJECT_1_NAME]}{[PROJECT_1_ORG]}{[PROJECT_1_TECH]}{[PROJECT_1_DATE]}
+\cvitemstart
+\cvitem{[PROJECT_1_BULLET_1]}
+\cvitem{[PROJECT_1_BULLET_2]}
+\cvitem{[PROJECT_1_BULLET_3]}
+\cvitem{[PROJECT_1_BULLET_4]}
+\cvitemend
+
+\cvheading{[PROJECT_2_NAME]}{[PROJECT_2_ORG]}{[PROJECT_2_TECH]}{[PROJECT_2_DATE]}
+\cvitemstart
+\cvitem{[PROJECT_2_BULLET_1]}
+\cvitem{[PROJECT_2_BULLET_2]}
+\cvitem{[PROJECT_2_BULLET_3]}
+\cvitem{[PROJECT_2_BULLET_4]}
+\cvitemend
+\cvheadingend
+
+\section{Technical Skills}
+\cvheadingstart
+\item
+\cvitemstart
+\cvitem{\textbf{Languages:} [PROGRAMMING_LANGUAGES]}
+\cvitem{\textbf{Libraries/ML:} [LIBRARIES_AND_ML]}
+\cvitem{\textbf{Platforms/Cloud:} [PLATFORMS_AND_CLOUD]}
+\cvitem{\textbf{Visualization/BI:} [VISUALIZATION_AND_BI]}
+\cvitem{\textbf{Practices:} [PRACTICES_AND_METHODOLOGIES]}
+\cvitemend
+\cvheadingend
+
+\end{document} 

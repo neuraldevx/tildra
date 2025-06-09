@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Senior Software Engineer - TechCorp | Job Portal</title>
+</head>
+<body>
+    <header>
+        <h1 class="company-name">TechCorp Inc.</h1>
+        <nav>
+            <a href="/jobs">All Jobs</a>
+            <a href="/careers">Careers</a>
+            <a href="/about">About</a>
+        </nav>
+    </header>
+
+    <main>
+        <div class="job-header">
+            <h1 class="job-title">Senior Software Engineer</h1>
+            <div class="company-info">
+                <span class="employer">TechCorp Inc.</span>
+                <span class="location">San Francisco, CA</span>
+            </div>
+        </div>
+
+        <section class="job-details">
+            <div class="job-description">
+                <h2>About the Role</h2>
+                <p>We are looking for a senior software engineer to join our growing team. This position offers exciting opportunities to work on cutting-edge technology and make a significant impact on our product development.</p>
+                
+                <h3>Responsibilities</h3>
+                <ul>
+                    <li>Design and develop scalable software solutions</li>
+                    <li>Collaborate with cross-functional teams</li>
+                    <li>Mentor junior engineers</li>
+                    <li>Participate in code reviews and architectural decisions</li>
+                    <li>Ensure high code quality and performance standards</li>
+                </ul>
+
+                <h3>Requirements</h3>
+                <ul>
+                    <li>5+ years of experience in software development</li>
+                    <li>Strong proficiency in Python, JavaScript, or Java</li>
+                    <li>Experience with cloud platforms (AWS, GCP, or Azure)</li>
+                    <li>Bachelor's degree in Computer Science or related field</li>
+                    <li>Excellent problem-solving and communication skills</li>
+                </ul>
+
+                <h3>Preferred Qualifications</h3>
+                <ul>
+                    <li>Experience with microservices architecture</li>
+                    <li>Knowledge of containerization (Docker, Kubernetes)</li>
+                    <li>Previous experience in a lead or senior role</li>
+                    <li>Familiarity with agile development methodologies</li>
+                </ul>
+
+                <h3>What We Offer</h3>
+                <ul>
+                    <li>Competitive salary ranging from $140,000 - $180,000</li>
+                    <li>Comprehensive health, dental, and vision insurance</li>
+                    <li>401(k) with company matching</li>
+                    <li>Flexible work from home options</li>
+                    <li>Professional development opportunities</li>
+                    <li>Stock options and performance bonuses</li>
+                </ul>
+
+                <h3>Company Culture</h3>
+                <p>At TechCorp, we believe in fostering innovation and creativity. Our team works in a collaborative environment where every voice is heard and valued. We offer flexible schedules, encourage continuous learning, and support work-life balance.</p>
+
+                <h3>Equal Opportunity</h3>
+                <p>TechCorp is an equal opportunity employer committed to diversity and inclusion. We welcome applications from candidates of all backgrounds.</p>
+            </div>
+        </section>
+
+        <div class="application-section">
+            <form class="apply-form" action="/apply" method="post">
+                <h3>Apply Now</h3>
+                <p>Ready to join our team? Submit your application below.</p>
+                <input type="hidden" name="job_id" value="SE_2024_001">
+                <button type="submit" class="apply-btn">Submit Application</button>
+            </form>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 TechCorp Inc. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Test script to simulate job detection
+        window.addEventListener('load', function() {
+            console.log('Test page loaded - simulating job posting page');
+            
+            // Simulate our job detection
+            setTimeout(function() {
+                console.log('Testing job detection...');
+                
+                // Test URL analysis
+                console.log('Current URL:', window.location.href);
+                console.log('Page title:', document.title);
+                
+                // Test content detection
+                const jobTitle = document.querySelector('.job-title')?.textContent;
+                const companyName = document.querySelector('.company-name, .employer')?.textContent;
+                const jobDescription = document.querySelector('.job-description')?.innerText;
+                
+                console.log('Detected content:', {
+                    jobTitle: jobTitle,
+                    companyName: companyName,
+                    jobDescriptionLength: jobDescription?.length || 0
+                });
+                
+                // Check for job-related keywords
+                const pageText = document.body.innerText.toLowerCase();
+                const hasJobKeywords = [
+                    'responsibilities', 'requirements', 'qualifications', 'experience',
+                    'salary', 'apply now', 'equal opportunity', 'benefits'
+                ].some(keyword => pageText.includes(keyword));
+                
+                console.log('Has job keywords:', hasJobKeywords);
+                
+                // Check for application form
+                const hasApplicationForm = !!document.querySelector('.apply-form, form[action*="apply"]');
+                console.log('Has application form:', hasApplicationForm);
+                
+                console.log('✅ This should be detected as a job posting!');
+            }, 1000);
+        });
+    </script>
+</body>
+</html> 
