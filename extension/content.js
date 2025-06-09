@@ -1720,6 +1720,86 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         return true; // Keep message channel open
     }
+    
+    // Auth token extraction for Tildra website
+    if (message.action === 'getAuthToken') {
+        (async () => { // Wrap in an async IIFE to use await
+            try {
+                let authToken = null;
+    
+                const isJwt = (token) => token && typeof token === 'string' && token.split('.').length === 3;
+    
+                // Method 1: Try to get from window.__clerk (most reliable)
+                if (window.__clerk && window.__clerk.session && typeof window.__clerk.session.getToken === 'function') {
+                    try {
+                        const token = await window.__clerk.session.getToken();
+                        if (isJwt(token)) {
+                            authToken = token;
+                            console.log('[Tildra] Found auth token from window.__clerk.session.getToken()');
+                        }
+                    } catch (e) {
+                        console.log('[Tildra] Error getting token from Clerk global object:', e.message);
+                    }
+                }
+    
+                // Method 2: Try to get from localStorage
+                if (!authToken && window.localStorage) {
+                    const clerkKeys = ['__clerk_session', '__clerk_token', 'clerk-session', 'clerk-token', 'auth-token', 'session-token'];
+                    for (const key of clerkKeys) {
+                        const value = localStorage.getItem(key);
+                        if (value) {
+                            try {
+                                // Try parsing as JSON
+                                const parsed = JSON.parse(value);
+                                const token = parsed.token || parsed.sessionToken || parsed.jwt;
+                                if (isJwt(token)) {
+                                    authToken = token;
+                                    console.log('[Tildra] Found auth token in parsed localStorage key:', key);
+                                    break;
+                                }
+                            } catch (e) {
+                                // If not JSON, check if the raw value is a JWT
+                                if (isJwt(value)) {
+                                    authToken = value;
+                                    console.log('[Tildra] Found auth token string in localStorage key:', key);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+    
+                // Method 3: Try to get from cookies
+                if (!authToken && document.cookie) {
+                    const cookies = document.cookie.split(';');
+                    for (const cookie of cookies) {
+                        const [name, value] = cookie.trim().split('=');
+                        if (name && (name.startsWith('__clerk') || name.includes('session') || name.includes('auth') || name.includes('token'))) {
+                            const decodedValue = decodeURIComponent(value);
+                            if (isJwt(decodedValue)) {
+                                authToken = decodedValue;
+                                console.log('[Tildra] Found auth token in cookie:', name);
+                                break;
+                            }
+                        }
+                    }
+                }
+    
+                sendResponse({
+                    authToken: authToken,
+                    success: !!authToken
+                });
+            } catch (error) {
+                console.error('Auth token extraction error:', error);
+                sendResponse({
+                    authToken: null,
+                    success: false,
+                    error: error.message
+                });
+            }
+        })();
+        return true; // Keep message channel open for async response
+    }
 });
 
 // --- Tildra Initialization ---
