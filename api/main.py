@@ -34,7 +34,11 @@ from prisma import Prisma
 from svix.webhooks import Webhook, WebhookVerificationError # Corrected import
 from prisma.errors import UniqueViolationError # Import DB constraint exception for webhook handler
 # --- END ADD ---
-# --------------------------
+
+# --- Job Copilot Services ---
+from services.job_detection import job_detector, JobPosting
+from services.resume_tailoring import ResumeTailoringService, ResumeData, ResumeSection, TailoredResume
+# --- END Job Copilot Services ---
 
 # --- ADD Brevo Configuration ---
 BREVO_API_KEY = os.getenv("BREVO_API_KEY")
@@ -1678,3 +1682,447 @@ async def generate_resume_pdf(
     )
 
 # --- END ADDED ---
+
+# --- Job Copilot Endpoints ---
+
+class JobDetectionRequest(BaseModel):
+    url: str
+    page_content: Optional[str] = None
+
+class JobDetectionResponse(BaseModel):
+    job_detected: bool
+    job_posting: Optional[Dict[str, Any]] = None
+    message: str
+
+@app.post("/api/job/detect", response_model=JobDetectionResponse)
+async def detect_job_posting(
+    request_data: JobDetectionRequest,
+    user_id: AuthenticatedUserIdWithRLS
+):
+    """
+    Detect if a URL contains a job posting and extract information
+    """
+    logger.info(f"Job detection request for URL: {request_data.url}")
+    
+    try:
+        job_posting = job_detector.detect_job_page(request_data.url, request_data.page_content)
+        
+        if job_posting:
+            return JobDetectionResponse(
+                job_detected=True,
+                job_posting={
+                    "title": job_posting.title,
+                    "company": job_posting.company,
+                    "location": job_posting.location,
+                    "description": job_posting.description[:500],  # Truncate for response
+                    "skills": job_posting.skills,
+                    "requirements": job_posting.requirements,
+                    "source_platform": job_posting.source_platform,
+                    "url": job_posting.url
+                },
+                message=f"Job detected: {job_posting.title} at {job_posting.company}"
+            )
+        else:
+            return JobDetectionResponse(
+                job_detected=False,
+                message="No job posting detected on this page"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in job detection: {e}")
+        raise HTTPException(status_code=500, detail="Failed to analyze page for job content")
+
+class ResumeUploadRequest(BaseModel):
+    resume_text: str
+    name: str
+    contact: Dict[str, str]
+
+class ResumeStorageResponse(BaseModel):
+    resume_id: str
+    message: str
+
+@app.post("/api/resume/store", response_model=ResumeStorageResponse)
+async def store_base_resume(
+    request_data: ResumeUploadRequest,
+    user_id: AuthenticatedUserIdWithRLS
+):
+    """
+    Store a user's base resume for future tailoring
+    """
+    logger.info(f"Storing base resume for user: {user_id}")
+    
+    try:
+        # Parse resume text into structured format (basic implementation)
+        # In a full implementation, you'd use NLP to extract sections
+        resume_data = ResumeData(
+            name=request_data.name,
+            contact=request_data.contact,
+            summary="",  # Would be extracted from resume_text
+            experience=[],  # Would be extracted from resume_text
+            education=[],  # Would be extracted from resume_text
+            skills=[]  # Would be extracted from resume_text
+        )
+        
+        # Store in database (implement resume storage schema)
+        # For now, return success
+        resume_id = f"resume_{user_id}_{int(time.time())}"
+        
+        return ResumeStorageResponse(
+            resume_id=resume_id,
+            message="Resume stored successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error storing resume: {e}")
+        raise HTTPException(status_code=500, detail="Failed to store resume")
+
+class ResumeTailoringRequest(BaseModel):
+    resume_id: Optional[str] = None
+    resume_data: Optional[Dict[str, Any]] = None
+    job_posting: Dict[str, Any]
+
+class ResumeTailoringResponse(BaseModel):
+    tailored_resume: Dict[str, Any]
+    optimization_score: float
+    keyword_matches: List[str]
+    suggested_improvements: List[str]
+    tailoring_notes: str
+
+@app.post("/api/resume/tailor", response_model=ResumeTailoringResponse)
+async def tailor_resume(
+    request_data: ResumeTailoringRequest,
+    user_id: AuthenticatedUserIdWithRLS
+):
+    """
+    Tailor a resume to match a specific job posting
+    """
+    logger.info(f"Resume tailoring request for user: {user_id}")
+    
+    try:
+        # Initialize resume tailoring service
+        tailoring_service = ResumeTailoringService(DEEPSEEK_API_KEY)
+        
+        # Create job posting object
+        job_data = request_data.job_posting
+        job_posting = JobPosting(
+            title=job_data.get("title", "Unknown Position"),
+            company=job_data.get("company", "Unknown Company"),
+            location=job_data.get("location"),
+            description=job_data.get("description", ""),
+            skills=job_data.get("skills", []),
+            requirements=job_data.get("requirements", []),
+            url=job_data.get("url", ""),
+            source_platform=job_data.get("source_platform", "")
+        )
+        
+        # Create resume data object (simplified for MVP)
+        if request_data.resume_data:
+            resume_data = ResumeData(
+                name=request_data.resume_data.get("name", ""),
+                contact=request_data.resume_data.get("contact", {}),
+                summary=request_data.resume_data.get("summary", ""),
+                experience=[
+                    ResumeSection(
+                        title=exp.get("title", ""),
+                        company=exp.get("company", ""),
+                        location=exp.get("location", ""),
+                        start_date=exp.get("start_date", ""),
+                        end_date=exp.get("end_date", ""),
+                        bullets=exp.get("bullets", [])
+                    ) for exp in request_data.resume_data.get("experience", [])
+                ],
+                skills=request_data.resume_data.get("skills", [])
+            )
+        else:
+            # Create sample resume for testing
+            resume_data = ResumeData(
+                name="Sample User",
+                contact={"email": "user@example.com"},
+                summary="Experienced professional with diverse skill set",
+                experience=[
+                    ResumeSection(
+                        title="Software Engineer",
+                        company="Tech Company",
+                        bullets=["Developed applications", "Worked with teams", "Delivered projects"]
+                    )
+                ],
+                skills=["JavaScript", "Python", "React", "Node.js"]
+            )
+        
+        # Tailor the resume
+        tailored_resume = await tailoring_service.tailor_resume(resume_data, job_posting)
+        
+        return ResumeTailoringResponse(
+            tailored_resume={
+                "name": tailored_resume.resume_data.name,
+                "contact": tailored_resume.resume_data.contact,
+                "summary": tailored_resume.resume_data.summary,
+                "experience": [
+                    {
+                        "title": exp.title,
+                        "company": exp.company,
+                        "location": exp.location,
+                        "start_date": exp.start_date,
+                        "end_date": exp.end_date,
+                        "bullets": exp.bullets
+                    } for exp in tailored_resume.resume_data.experience
+                ],
+                "education": [
+                    {
+                        "title": edu.title,
+                        "company": edu.company,
+                        "location": edu.location,
+                        "start_date": edu.start_date,
+                        "end_date": edu.end_date
+                    } for edu in tailored_resume.resume_data.education
+                ],
+                "skills": tailored_resume.resume_data.skills,
+                "projects": [
+                    {
+                        "title": proj.title,
+                        "bullets": proj.bullets
+                    } for proj in tailored_resume.resume_data.projects
+                ]
+            },
+            optimization_score=tailored_resume.optimization_score,
+            keyword_matches=tailored_resume.keyword_matches,
+            suggested_improvements=tailored_resume.suggested_improvements,
+            tailoring_notes=tailored_resume.tailoring_notes
+        )
+        
+    except Exception as e:
+        logger.error(f"Error tailoring resume: {e}")
+        raise HTTPException(status_code=500, detail="Failed to tailor resume")
+
+class ApplicationHistoryItem(BaseModel):
+    id: str
+    job_title: str
+    company: str
+    applied_date: datetime
+    resume_version: str
+    status: str
+    url: Optional[str] = None
+
+class ApplicationHistoryResponse(BaseModel):
+    applications: List[ApplicationHistoryItem]
+    total_count: int
+
+@app.get("/api/applications/history", response_model=ApplicationHistoryResponse)
+async def get_application_history(
+    user_id: AuthenticatedUserIdWithRLS,
+    limit: int = 50,
+    offset: int = 0
+):
+    """
+    Get user's job application history
+    """
+    logger.info(f"Getting application history for user: {user_id}")
+    
+    try:
+        # In a full implementation, this would query the database
+        # For now, return sample data
+        sample_applications = [
+            ApplicationHistoryItem(
+                id="app_1",
+                job_title="Software Engineer",
+                company="Tech Corp",
+                applied_date=datetime.now(timezone.utc),
+                resume_version="tech_corp_swe_2025",
+                status="pending",
+                url="https://example.com/jobs/1"
+            )
+        ]
+        
+        return ApplicationHistoryResponse(
+            applications=sample_applications,
+            total_count=len(sample_applications)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting application history: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get application history")
+
+# --- END Job Copilot Endpoints ---
+
+# --- Job Copilot Test Endpoints (NO AUTH) ---
+# These endpoints are for testing the job copilot functionality without authentication
+# Remove or secure these before production deployment
+
+@app.post("/api/test/job/detect", response_model=JobDetectionResponse)
+async def test_detect_job_posting(request_data: JobDetectionRequest):
+    """Test endpoint for job detection without authentication."""
+    try:
+        logger.info(f"Test Job Detection: Processing URL: {request_data.url}")
+        
+        # Use the job detection service
+        job_posting = job_detector.detect_job_page(request_data.url, request_data.page_content)
+        
+        if job_posting:
+            # Convert JobPosting dataclass to dict for response
+            job_dict = {
+                "title": job_posting.title,
+                "company": job_posting.company,
+                "location": job_posting.location,
+                "description": job_posting.description,
+                "skills": job_posting.skills,
+                "requirements": job_posting.requirements,
+                "salary": job_posting.salary_range,
+                "employment_type": job_posting.employment_type,
+                "seniority_level": job_posting.experience_level,
+                "url": job_posting.url,
+                "platform": job_posting.source_platform
+            }
+            
+            logger.info(f"Test Job Detection: Successfully detected job: {job_posting.title} at {job_posting.company}")
+            return JobDetectionResponse(
+                job_detected=True,
+                job_posting=job_dict,
+                message=f"Job detected: {job_posting.title} at {job_posting.company}"
+            )
+        else:
+            logger.info(f"Test Job Detection: No job detected for URL: {request_data.url}")
+            return JobDetectionResponse(
+                job_detected=False,
+                job_posting=None,
+                message="No job posting detected on this page"
+            )
+            
+    except Exception as e:
+        logger.error(f"Test Job Detection Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Job detection failed: {str(e)}")
+
+@app.post("/api/test/resume/tailor", response_model=ResumeTailoringResponse)
+async def test_tailor_resume(request_data: ResumeTailoringRequest):
+    """Test endpoint for resume tailoring without authentication."""
+    try:
+        logger.info("Test Resume Tailoring: Processing request")
+        
+        # Initialize the resume tailoring service
+        tailoring_service = ResumeTailoringService(DEEPSEEK_API_KEY or "dummy_key_for_testing")
+        
+        # Convert job_posting dict to JobPosting dataclass
+        job_posting = JobPosting(
+            title=request_data.job_posting.get("title", ""),
+            company=request_data.job_posting.get("company", ""),
+            location=request_data.job_posting.get("location"),
+            description=request_data.job_posting.get("description", ""),
+            skills=request_data.job_posting.get("skills", []),
+            requirements=request_data.job_posting.get("requirements", []),
+            salary_range=request_data.job_posting.get("salary"),
+            employment_type=request_data.job_posting.get("employment_type"),
+            experience_level=request_data.job_posting.get("seniority_level"),
+            url=request_data.job_posting.get("url", ""),
+            source_platform=request_data.job_posting.get("platform", "")
+        )
+        
+        # Use sample resume data if none provided
+        if request_data.resume_data:
+            # Convert resume_data dict to ResumeData dataclass
+            experience = []
+            if "experience" in request_data.resume_data:
+                for exp in request_data.resume_data["experience"]:
+                    experience.append(ResumeSection(
+                        title=exp.get('title', ''),
+                        company=exp.get('company', ''),
+                        bullets=[f"Worked with {', '.join(exp.get('skills', []))}"]
+                    ))
+            
+            resume_data = ResumeData(
+                name=request_data.resume_data.get("name", "Test User"),
+                contact=request_data.resume_data.get("contact", {}),
+                summary=request_data.resume_data.get("summary", "Experienced professional"),
+                experience=experience,
+                skills=request_data.resume_data.get("skills", [])
+            )
+        else:
+            # Create sample resume data for testing
+            resume_data = ResumeData(
+                name="John Doe",
+                contact={"email": "john@example.com", "phone": "(555) 123-4567"},
+                summary="Software engineer with 5 years of experience in web development",
+                experience=[
+                    ResumeSection(
+                        title="Software Engineer",
+                        company="Tech Corp",
+                        bullets=[
+                            "Developed web applications using Python and React",
+                            "Led team of 3 developers on microservices architecture", 
+                            "Improved application performance by 40%"
+                        ]
+                    )
+                ],
+                skills=["Python", "React", "JavaScript", "SQL", "AWS"]
+            )
+        
+        # Tailor the resume
+        tailored_resume = await tailoring_service.tailor_resume(resume_data, job_posting)
+        
+        # Convert TailoredResume dataclass to dict for response
+        tailored_dict = {
+            "name": tailored_resume.resume_data.name,
+            "contact": tailored_resume.resume_data.contact,
+            "summary": tailored_resume.resume_data.summary,
+            "experience": [
+                {
+                    "title": exp.title,
+                    "company": exp.company,
+                    "bullets": exp.bullets
+                } for exp in tailored_resume.resume_data.experience
+            ],
+            "skills": tailored_resume.resume_data.skills,
+            "optimization_score": tailored_resume.optimization_score,
+            "keyword_matches": tailored_resume.keyword_matches,
+            "suggested_improvements": tailored_resume.suggested_improvements
+        }
+        
+        logger.info(f"Test Resume Tailoring: Completed with score {tailored_resume.optimization_score}")
+        return ResumeTailoringResponse(
+            tailored_resume=tailored_dict,
+            optimization_score=tailored_resume.optimization_score,
+            keyword_matches=tailored_resume.keyword_matches,
+            suggested_improvements=tailored_resume.suggested_improvements,
+            tailoring_notes=tailored_resume.tailoring_notes
+        )
+        
+    except Exception as e:
+        logger.error(f"Test Resume Tailoring Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Resume tailoring failed: {str(e)}")
+
+@app.get("/api/test/applications/history", response_model=ApplicationHistoryResponse)
+async def test_get_application_history(limit: int = 50, offset: int = 0):
+    """Test endpoint for application history without authentication."""
+    try:
+        logger.info("Test Application History: Returning sample data")
+        
+        # Return sample application history for testing
+        sample_applications = [
+            ApplicationHistoryItem(
+                id="test_1",
+                job_title="Senior Software Engineer",
+                company="Tech Corp",
+                applied_date=datetime.now(timezone.utc) - timedelta(days=5),
+                resume_version="Tailored for Tech Corp",
+                status="Applied",
+                url="https://techcorp.com/jobs/senior-engineer"
+            ),
+            ApplicationHistoryItem(
+                id="test_2", 
+                job_title="Full Stack Developer",
+                company="StartupXYZ",
+                applied_date=datetime.now(timezone.utc) - timedelta(days=12),
+                resume_version="Tailored for StartupXYZ",
+                status="Interview Scheduled",
+                url="https://startupxyz.com/careers/fullstack"
+            )
+        ]
+        
+        return ApplicationHistoryResponse(
+            applications=sample_applications,
+            total_count=len(sample_applications)
+        )
+        
+    except Exception as e:
+        logger.error(f"Test Application History Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get application history: {str(e)}")
+
+# --- END Test Endpoints ---

@@ -1,35 +1,26 @@
 {
   "manifest_version": 3,
-  "name": "Tildra: AI Summarizer & Job Copilot",
-  "version": "1.2.0",
-  "description": "Instantly summarize webpages or tailor your resume and auto-fill job applications with AI. Your smart job hunting copilot.",
+  "name": "Tildra - AI Article Summarizer",
+  "version": "3.1.1",
+  "description": "Instantly summarize any article or webpage with AI. Get key points, insights, and save time reading.",
   "permissions": [
     "activeTab",
-    "scripting",
     "storage",
-    "cookies",
-    "contextMenus",
-    "management"
+    "tabs",
+    "scripting"
   ],
   "host_permissions": [
     "https://tildra.fly.dev/*",
     "https://www.tildra.xyz/*",
-    "http://localhost:3000/*",
-    "http://127.0.0.1:3000/*",
-    "http://localhost:8000/*",
-    "http://127.0.0.1:8000/*",
-    "*://*.linkedin.com/*",
-    "*://*.indeed.com/*",
-    "*://*.glassdoor.com/*",
-    "*://boards.greenhouse.io/*",
-    "*://*.lever.co/*",
-    "*://jobs.ashbyhq.com/*"
+    "http://localhost:*/*",
+    "<all_urls>"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background-simple.js"
   },
   "action": {
     "default_popup": "popup.html",
+    "default_title": "Tildra - Summarize this page",
     "default_icon": {
       "16": "favicon/favicon-96x96.png",
       "48": "favicon/favicon-96x96.png",
@@ -38,29 +29,19 @@
   },
   "icons": {
     "16": "favicon/favicon-96x96.png",
-    "48": "favicon/favicon-96x96.png",
+    "48": "favicon/favicon-96x96.png", 
     "128": "favicon/web-app-manifest-192x192.png"
   },
   "content_scripts": [
     {
-      "matches": [
-        "*://*.linkedin.com/jobs/view/*",
-        "*://*.linkedin.com/jobs/collections/*",
-        "*://*.indeed.com/viewjob*",
-        "*://*.indeed.com/jobs*",
-        "*://*.glassdoor.com/Job/*",
-        "*://boards.greenhouse.io/*",
-        "*://*.lever.co/*",
-        "*://jobs.ashbyhq.com/*"
-      ],
+      "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "css": [],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["readability.js"],
+      "resources": ["popup-simple.js"],
       "matches": ["<all_urls>"]
     }
   ]

@@ -18,109 +18,212 @@
     <link rel="manifest" href="favicon/site.webmanifest" />
 </head>
 <body>
-    <!-- Overall Container -->
+    <!-- Overall Container with Sidebar Layout -->
     <div class="popup-container">
-
-        <!-- HEADER -->
-        <header class="header">
-            <h1 class="logo-text">
-                <img src="favicon/favicon-96x96.png" alt="Tildra Logo" class="logo-icon" width="32" height="32">
-                Tildra
-            </h1>
-            <div class="header-actions">
-                <button id="sections-tab" class="settings-button" aria-label="Open settings" title="Settings" role="tab" aria-controls="panel-sections" aria-selected="false">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"></path></svg>
+        <!-- Content Wrapper -->
+        <div class="content-wrapper">
+            <!-- SIDEBAR NAVIGATION -->
+            <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="favicon/favicon-96x96.png" alt="Tildra Logo" class="logo-icon" width="24" height="24">
+                <h1 class="logo-text">Tildra</h1>
+            </div>
+            
+            <nav class="sidebar-nav" role="navigation">
+                <button id="summarize-tab" class="nav-item active" role="button" aria-controls="panel-summarize" data-panel="summarize">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span class="nav-label">Summarize</span>
                 </button>
-                <button class="open-tab-button" aria-label="Open Tildra in new tab" title="Open in new tab">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                
+                <button id="job-copilot-tab" class="nav-item" role="button" aria-controls="panel-job-copilot" data-panel="job-copilot">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                        <path d="M9 14l2 2 4-4"></path>
+                    </svg>
+                    <span class="nav-label">Job Copilot</span>
+                    <span id="job-copilot-badge" class="nav-badge" style="display: none;">!</span>
+                </button>
+                
+                <button id="history-tab" class="nav-item" role="button" aria-controls="panel-history" data-panel="history">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span class="nav-label">History</span>
+                </button>
+                
+                <button id="followup-tab" class="nav-item pro-item" role="button" aria-controls="panel-followup" data-panel="followup">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9 17 14.74 18.18 21.02 12 17.77 5.82 21.02 7 14.74 2 9 8.91 8.26 12 2"></polygon>
+                    </svg>
+                    <span class="nav-label">PRO</span>
+                </button>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button id="sections-tab" class="nav-item settings-item" role="button" aria-controls="panel-sections" data-panel="sections" title="Settings">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"></path>
+                    </svg>
+                    <span class="nav-label">Settings</span>
+                </button>
+                
+                <button class="nav-item open-tab-item" aria-label="Open Tildra in new tab" title="Open in new tab">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    <span class="nav-label">Open Tab</span>
                 </button>
             </div>
-        </header>
+        </aside>
 
-        <!-- TABS -->
-        <nav class="tabs" role="tablist">
-            <button id="summarize-tab" class="tab active" role="tab" aria-controls="panel-summarize" aria-selected="true">
-                <span>Summarize</span>
-            </button>
-            <button id="history-tab" class="tab" role="tab" aria-controls="panel-history" aria-selected="false">
-                <span>History</span>
-            </button>
-            <button id="followup-tab" class="tab" role="tab" aria-controls="panel-followup" aria-selected="false">
-                <span>PRO</span>
-            </button>
-        </nav>
-
-        <!-- PANELS / MAIN CONTENT -->
-        <main class="panels">
+        <!-- MAIN CONTENT AREA -->
+        <main class="main-content">
             <!-- Summarize Panel -->
-            <section id="panel-summarize" class="panel active" role="tabpanel" aria-labelledby="summarize-tab">
-                <!-- NEW: Job Copilot Detection Display -->
-                <div id="job-copilot-display-area" class="job-copilot-info" style="margin-bottom: 15px; padding: 10px; border: 1px solid var(--border-color, #e0e0e0); border-radius: 6px; display: none;">
-                    <h4 style="margin-top: 0; margin-bottom: 8px; font-size: 1em; font-weight: 600;">Job Copilot</h4>
-                    <div id="job-copilot-status" style="font-style: italic; color: var(--text-muted, #555);">Detecting job details...</div>
-                    <div id="job-copilot-details" style="display:none; margin-top: 8px;">
-                        <p style="margin: 3px 0; font-size: 0.9em;"><strong>Title:</strong> <span id="job-title-display"></span></p>
-                        <p style="margin: 3px 0; font-size: 0.9em;"><strong>Company:</strong> <span id="job-company-display"></span></p>
-                        <p style="margin: 3px 0; font-size: 0.9em;"><strong>Source:</strong> <span id="job-source-display"></span></p>
-                        <details style="margin-top: 5px;">
-                            <summary style="font-size: 0.85em; cursor: pointer;">Description Snippet</summary>
-                            <p id="job-description-snippet" style="font-size: 0.8em; max-height: 100px; overflow-y: auto; background-color: var(--background-alt, #f9f9f9); padding: 5px; border-radius: 4px; margin-top: 3px;"></p>
-                        </details>
+            <section id="panel-summarize" class="panel active" role="main" aria-labelledby="summarize-tab">
+                <div class="panel-header">
+                    <h2 class="panel-title">Article Summarizer</h2>
+                    <p class="panel-subtitle">Get AI-powered summaries of any webpage</p>
+                    <div class="upgrade-notice">
+                        <span class="upgrade-text">✨ Free plan: Limited summaries</span>
+                        <a href="https://www.tildra.xyz" target="_blank" class="upgrade-link">Upgrade</a>
                     </div>
                 </div>
-                <!-- END: Job Copilot Detection Display -->
-
-                <details class="accordion" open>
-                  <summary class="accordion-header" tabindex="0" aria-expanded="true">
-                    <span class="accordion-title">Summarize Controls</span>
-                  </summary>
-                  <div class="accordion-content">
+                
+                <div class="panel-content">
                     <div class="summary-options">
-                      <label for="summary-length" class="option-label">Summary Length</label>
-                      <select id="summary-length" class="summary-length-select" aria-label="Choose summary length">
-                        <option value="brief">Brief (2-3 key points)</option>
-                        <option value="standard" selected>Standard (4-6 key points)</option>
-                        <option value="detailed">Detailed (7+ key points)</option>
-                      </select>
+                        <label for="summary-length" class="option-label">Summary Length</label>
+                        <select id="summary-length" class="summary-length-select" aria-label="Choose summary length">
+                            <option value="brief">Brief (2-3 key points)</option>
+                            <option value="standard" selected>Standard (4-6 key points)</option>
+                            <option value="detailed">Detailed (7+ key points)</option>
+                        </select>
                     </div>
+                    
                     <div class="action-section">
-                      <button id="summarize-button" class="button-primary" aria-label="Summarize this page">
-                        <span class="button-text">Summarize</span>
-                        <span class="button-icon" style="display: none;">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"></path></svg>
-                        </span>
-                      </button>
-                    </div>
-                    <div class="loading-progress" id="loading-progress" style="display: none;">
-                      <div class="progress-bar">
-                        <div class="progress-fill"></div>
-                      </div>
-                      <div class="progress-text">Analyzing content...</div>
-                      <div class="progress-subtext">This may take a few moments</div>
-                    </div>
-                    <div class="status-section" id="status-section">
-                      <div id="error" class="error" style="display: none;"></div>
-                    </div>
-                    <div id="summary-container" class="summary-container" style="display: none;">
-                      <div class="summary-header">
-                        <div class="summary-title-section">
-                          <h3>Summary</h3>
-                          <div class="summary-meta">
-                            <span id="reading-time" class="reading-time">📖 ~2 min read</span>
-                            <span class="summary-length-badge" id="summary-length-badge">Standard</span>
-                          </div>
-                        </div>
-                        <button id="copy-button" class="icon-button" title="Copy Summary" aria-label="Copy summary">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
+                        <button id="summarize-button" class="button-primary" aria-label="Summarize this page">
+                            <span class="button-text">Summarize This Page</span>
+                            <span class="button-icon" style="display: none;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 12a9 9 0 11-6.219-8.56"></path>
+                                </svg>
+                            </span>
                         </button>
-                      </div>
-                      <h4>TL;DR</h4>
-                      <p id="tldr" class="summary-text"></p>
-                      <h4>Key Points</h4>
-                      <ul id="key-points" class="key-points-list"></ul>
                     </div>
-                  </div>
-                </details>
+                    
+                    <div class="loading-progress" id="loading-progress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">Analyzing content...</div>
+                        <div class="progress-subtext">This may take a few moments</div>
+                    </div>
+                    
+                    <div class="status-section" id="status-section">
+                        <div id="error" class="error" style="display: none;"></div>
+                    </div>
+                    
+                    <div id="summary-container" class="summary-container" style="display: none;">
+                        <div class="summary-header">
+                            <div class="summary-title-section">
+                                <h3>Summary</h3>
+                                <div class="summary-meta">
+                                    <span id="reading-time" class="reading-time">📖 ~2 min read</span>
+                                    <span class="summary-length-badge" id="summary-length-badge">Standard</span>
+                                </div>
+                            </div>
+                            <button id="copy-button" class="icon-button" title="Copy Summary" aria-label="Copy summary">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <h4>TL;DR</h4>
+                        <p id="tldr" class="summary-text"></p>
+                        <h4>Key Points</h4>
+                        <ul id="key-points" class="key-points-list"></ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Job Copilot Panel -->
+            <section id="panel-job-copilot" class="panel" role="main" aria-labelledby="job-copilot-tab" hidden>
+                <div class="panel-header">
+                    <h2 class="panel-title">Job Copilot</h2>
+                    <p class="panel-subtitle">AI-powered job application assistant</p>
+                </div>
+                
+                <div class="panel-content">
+                    <div id="job-copilot-status" class="status-card">
+                        <div class="status-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+                        <div class="status-content">
+                            <h3 class="status-title">Detecting Job Details...</h3>
+                            <p class="status-message">Analyzing this page for job postings</p>
+                        </div>
+                    </div>
+                    
+                    <!-- NEW: Resume Upload Dialog (Initially Hidden) -->
+                    <div id="resume-upload-dialog" class="dialog-overlay" style="display: none;">
+                      <div class="dialog-box">
+                        <h3 class="dialog-title">Upload a New Resume</h3>
+                        <p class="dialog-description">
+                          Upload your resume in a common format (.pdf, .docx, .txt) to get started.
+                        </p>
+                        <div class="dialog-content">
+                          <input type="file" id="resume-file-input" accept=".pdf,.doc,.docx,.txt" class="file-input">
+                          <label for="resume-file-input" class="file-label">
+                            <span class="file-icon">📁</span>
+                            <span class="file-text">Choose a file...</span>
+                          </label>
+                          <div id="resume-upload-status" class="upload-status"></div>
+                        </div>
+                        <div class="dialog-actions">
+                          <button id="upload-resume-confirm" class="action-btn primary" disabled>Upload and Tailor</button>
+                          <button id="upload-resume-cancel" class="action-btn secondary">Cancel</button>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- End Resume Upload Dialog -->
+
+                    <div id="job-copilot-content" style="display: none;">
+                       <!-- Dynamic content will be inserted here -->
+                    </div>
+                    
+                    <div class="quick-actions">
+                        <button id="manual-job-detect" class="button-secondary">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <path d="m21 21-4.35-4.35"></path>
+                            </svg>
+                            <span>Scan for Jobs</span>
+                        </button>
+                        <button id="upload-resume" class="button-secondary">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                            </svg>
+                            <span>Upload Resume</span>
+                        </button>
+                    </div>
+                </div>
             </section>
 
             <!-- Multi-step Onboarding Panel -->
@@ -305,14 +408,8 @@
               </div>
             </section>
         </main>
-
-        <!-- FOOTER / UPSELL -->
-        <hr class="footer-divider" />
-        <footer class="footer">
-            <span class="footer-sparkle">✨</span> Summaries limited on free plan. <a href="https://www.tildra.xyz" target="_blank" id="upgrade-link">Upgrade</a>
-        </footer>
-
+        </div> <!-- End content-wrapper -->
     </div>
-    <script src="popup.js"></script> 
+    <script src="popup-simple.js"></script> 
 </body>
 </html> 

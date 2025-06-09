@@ -5,25 +5,46 @@ let EFFECTIVE_API_URL_BASE = 'https://tildra.fly.dev'; // Default to Production
 let EFFECTIVE_COOKIE_DOMAIN_URL = 'https://www.tildra.xyz'; // Default to Production
 let IS_DEV_MODE = false; // Default to Production
 
-chrome.management.getSelf(function(info) {
-  // The logic that previously changed URLs based on info.installType has been removed
-  // to ensure production URLs are used when loading the extension unpacked for testing against prod.
-  // The EFFECTIVE_API_URL_BASE, EFFECTIVE_COOKIE_DOMAIN_URL, and IS_DEV_MODE 
-  // will now consistently use the defaults set at the top of this script.
-
-  // This log will now reflect the top-level defaults.
-  if (IS_DEV_MODE) { 
-    console.log('[Tildra Background] Running in DEVELOPMENT mode (this indicates an override, check script).');
-  } else {
-    console.log('[Tildra Background] Running in PRODUCTION mode (using top-level defaults).');
-  }
-  
-  console.log(`[Tildra Background] API URL: ${EFFECTIVE_API_URL_BASE}`);
-  console.log(`[Tildra Background] Cookie Domain: ${EFFECTIVE_COOKIE_DOMAIN_URL}`);
-  
-  // Re-initialize any constants that depend on these, if necessary, or use these vars directly.
-});
+// Initialize configuration on load
+console.log('[Tildra Background] Extension loaded in PRODUCTION mode.');
+console.log(`[Tildra Background] API URL: ${EFFECTIVE_API_URL_BASE}`);
+console.log(`[Tildra Background] Cookie Domain: ${EFFECTIVE_COOKIE_DOMAIN_URL}`);
 // --- Environment Configuration --- END
+
+// --- Request Deduplication --- START
+const pendingRequests = new Map(); // Track ongoing requests by content hash
+
+// Generate a simple hash for request deduplication
+function generateRequestHash(content, url, title) {
+  const combined = `${content?.substring(0, 1000) || ''}|${url || ''}|${title || ''}`;
+  let hash = 0;
+  for (let i = 0; i < combined.length; i++) {
+    const char = combined.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString();
+}
+
+// Clean up old pending requests to prevent memory leaks
+function cleanupOldRequests() {
+  for (const [hash, promise] of pendingRequests.entries()) {
+    Promise.race([promise, Promise.resolve('timeout')])
+      .then(result => {
+        if (result === 'timeout') {
+          // Promise is still pending - keep it for now
+        }
+      })
+      .catch(() => {
+        // Promise was rejected, safe to remove
+        pendingRequests.delete(hash);
+      });
+  }
+}
+
+// Run cleanup every 5 minutes
+setInterval(cleanupOldRequests, 5 * 60 * 1000);
+// --- Request Deduplication --- END
 
 // Register context menu items on installation
 chrome.runtime.onInstalled.addListener(() => {
@@ -137,6 +158,19 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       iconUrl: 'favicon/favicon-96x96.png',
       title: 'Tildra - Cannot Summarize',
       message: 'Cannot summarize this page. Please navigate to a regular webpage and try again.',
+      priority: 1
+    });
+    return;
+  }
+
+  // Check rate limiting before processing context menu actions
+  const rateLimitCheck = shouldRateLimit();
+  if (rateLimitCheck.limited) {
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'favicon/favicon-96x96.png',
+      title: 'Tildra - Rate Limited',
+      message: 'You\'re making requests too quickly. Please wait before trying again.',
       priority: 1
     });
     return;
@@ -350,7 +384,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true; // Indicates asynchronous response for summarizeAPI
   }
 
-  if (msg.action === 'getConfig') {
+  if (msg.action === 'getBgConfig') {
     sendResponse({
       apiUrlBase: EFFECTIVE_API_URL_BASE,
       cookieDomainUrl: EFFECTIVE_COOKIE_DOMAIN_URL,
@@ -361,7 +395,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // --- NEW JOB COPILOT MESSAGE HANDLERS ---
   if (msg.type === "JOB_PAGE_DETECTED") {
-    console.log("[Tildra Background] JOB_PAGE_DETECTED:", msg.data, "Tab ID:", tabId);
+    console.log("[Tildra Background] JOB_PAGE_DETECTED:", msg.data, "Tab ID:", sender.tab?.id);
     if (sender.tab && sender.tab.id) {
       activeJobDetailsByTabId[sender.tab.id] = {
         ...msg.data,
@@ -403,19 +437,93 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true; // Indicate async if data retrieval was async (not in this simple case)
   }
 
+  // NEW: Handle enhanced job tailoring completion
+  if (msg.type === "JOB_TAILORING_COMPLETE") {
+    console.log("[Tildra Background] JOB_TAILORING_COMPLETE:", msg.data, "Tab ID:", sender.tab?.id);
+    if (sender.tab && sender.tab.id) {
+      // Store the enhanced job data with tailoring results
+      activeJobDetailsByTabId[sender.tab.id] = {
+        ...activeJobDetailsByTabId[sender.tab.id], // Keep existing job data
+        ...msg.data,
+        timestamp: Date.now(),
+        tailoringComplete: true
+      };
+      
+      // Update badge to indicate tailoring is complete
+      chrome.action.setBadgeText({ text: "✓", tabId: sender.tab.id });
+      chrome.action.setBadgeBackgroundColor({ color: "#00C851", tabId: sender.tab.id }); // Green for completion
+      
+      // Inform the popup to display the final tailored results
+      chrome.tabs.sendMessage(sender.tab.id, {
+        type: "JOB_TAILORING_DISPLAY_UPDATE",
+        data: activeJobDetailsByTabId[sender.tab.id]
+      });
+      
+      sendResponse({ status: "TAILORING_DATA_RECEIVED", tabId: sender.tab.id });
+    } else {
+      console.warn("[Tildra Background] JOB_TAILORING_COMPLETE but no sender.tab.id found.");
+      sendResponse({ status: "ERROR", message: "Missing tab ID for JOB_TAILORING_COMPLETE." });
+    }
+    return true;
+  }
+
+  // Asynchronous enhancement of job details
+  if (msg.type === 'ENHANCE_JOB_DETAILS') {
+    console.log('[Tildra Background] Received request to enhance job details:', msg.data);
+    
+    enhanceJobDetailsWithAPI(msg.data, msg.tabId)
+        .then(enhancedData => {
+            console.log('[Tildra Background] Enhancement successful, sending tailored data to UI.');
+            // This message updates the popup with the full, AI-enhanced job details
+            chrome.runtime.sendMessage({
+                type: "JOB_TAILORING_DISPLAY_UPDATE",
+                data: enhancedData
+            });
+        })
+        .catch(error => {
+            console.error('[Tildra Background] Job detail enhancement failed:', error);
+            // We can optionally send a failure message, but for now, we'll just log it.
+            // The UI will still show the basic info from the initial scrape.
+        });
+
+    return true; // Indicates asynchronous response
+  }
+
+  if (msg.action === 'TAILOR_RESUME_WITH_NEW_FILE') {
+    const { tabId, resumeText } = msg;
+    console.log(`[Tildra Background] Received new resume file for tailoring on tab ${tabId}`);
+
+    // We need the existing job details to re-tailor.
+    const jobDetails = activeJobDetailsByTabId[tabId];
+
+    if (jobDetails && jobDetails.jobDescription) {
+      // Create a payload similar to the original enhancement request
+      const enhancementPayload = {
+        jobTitle: jobDetails.jobTitle,
+        companyName: jobDetails.companyName,
+        jobDescription: jobDetails.jobDescription,
+        source: jobDetails.source,
+        pageUrl: jobDetails.pageUrl,
+        // Crucially, add the new resume text to the payload
+        resume_text: resumeText,
+      };
+
+      console.log("[Tildra Background] Re-running enhancement with new resume.");
+      
+      // Call the same enhancement function, it should now use the new resume
+      enhanceJobDetailsWithAPI(enhancementPayload, tabId);
+
+    } else {
+      console.warn(`[Tildra Background] Could not re-tailor resume because no existing job details were found for tab ${tabId}`);
+    }
+  }
+
   return false; // unknown message
 }); 
 
 // Use dynamic URL for backend
 const getApiUrl = () => {
-  // In production, chrome.runtime.id should be defined
-  // You might need to adjust this logic based on how you deploy
-  // if (chrome.runtime.id) {
-  //   return 'https://tildra.fly.dev'; // Production URL
-  // } else {
-  //   return 'http://localhost:8000'; // Development URL
-  // }
-  // For simplicity, always using the deployed URL for now:
+  // Production URL for Chrome Web Store submission
   return 'https://tildra.fly.dev';
 };
 
@@ -446,11 +554,15 @@ async function getAuthToken() {
 
 // --- API Interaction --- 
 
-async function fetchFromApi(url, method = 'GET', body = null) {
-  const token = await getAuthToken();
+async function fetchFromApi(url, method = 'GET', body = null, providedToken = null) {
+  // Use provided token first, fallback to getting fresh token from cookies
+  let token = providedToken;
+  if (!token) {
+    token = await getAuthToken();
+  }
+  
   if (!token) {
     console.warn("No auth token found. API request might fail.");
-    // Depending on the endpoint, you might want to throw an error or proceed
     // For summarization, we require auth, so throw an error.
     if (url.includes('/summarize')) { 
       throw new Error("Authentication required. Please log in on Tildra.");
@@ -475,7 +587,19 @@ async function fetchFromApi(url, method = 'GET', body = null) {
 
   try {
     const response = await fetch(url, options);
-    if (!response.ok) throw new Error(`API error ${response.status}`);
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error("Authentication failed. Token may be expired. Please log in again.");
+      }
+      if (response.status === 429) {
+        // Enhanced 429 error handling
+        const rateLimitError = new Error("Daily summary limit reached! Upgrade for unlimited summaries or wait for reset.");
+        rateLimitError.isRateLimit = true;
+        rateLimitError.status = 429;
+        throw rateLimitError;
+      }
+      throw new Error(`API error ${response.status}`);
+    }
     return await response.json();
   } catch (error) {
     console.error('Fetch API error:', error);
@@ -487,52 +611,95 @@ async function fetchFromApi(url, method = 'GET', body = null) {
 
 async function handleSummarizationRequest(payload, tabId) {
   console.log("Handling summarization request for tab:", tabId);
-  const { content, textContent, url, title } = payload;
+  const { content, textContent, url, title, token, summaryLength } = payload;
 
   // Prefer textContent from Readability if available, otherwise use content (HTML) or fallback
-  const textToSummarize = textContent || content; // Assuming `content` might be raw HTML if textContent failed
+  const textToSummarize = textContent || content;
 
   if (!textToSummarize && !url) {
     console.error("No content or URL provided for summarization.");
     throw new Error("No content available to summarize.");
   }
 
-  // Notify popup/tab that processing has started
-  if (tabId) {
-      chrome.runtime.sendMessage({ // Send to popup/potentially other listeners
+  // Generate request hash for deduplication
+  const requestHash = generateRequestHash(textToSummarize, url, title);
+  
+  // Check if this exact request is already pending
+  if (pendingRequests.has(requestHash)) {
+    console.log(`[Tildra Background] Duplicate request detected for hash: ${requestHash}. Waiting for existing request.`);
+    try {
+      return await pendingRequests.get(requestHash);
+    } catch (error) {
+      // If the pending request failed, we'll try again below
+      pendingRequests.delete(requestHash);
+    }
+  }
+
+  // Create promise for this request
+  const requestPromise = (async () => {
+    try {
+
+      // Notify popup/tab that processing has started
+      if (tabId) {
+        chrome.runtime.sendMessage({
           type: "SUMMARIZE_START",
           payload: { title: title || "Page" }
-      });
-  }
+        });
+      }
 
-  try {
-    console.log(`Sending content (length: ${textToSummarize?.length}) or URL (${url}) to API...`);
-    const apiPayload = {
-      article_text: textToSummarize, // Renamed field as expected by API
-      url: url,                  // Include URL
-      title: title               // Include Title
-    };
-    const summaryData = await fetchFromApi(SUMMARIZE_API_URL, 'POST', apiPayload);
+      console.log(`Sending content (length: ${textToSummarize?.length}) or URL (${url}) to API...`);
+      const apiPayload = {
+        article_text: textToSummarize,
+        url: url,
+        title: title,
+        summary_length: summaryLength || 'standard'
+      };
+      
+      const summaryData = await fetchFromApi(SUMMARIZE_API_URL, 'POST', apiPayload, token);
 
-    console.log("API Summary successful:", summaryData);
+      console.log("API Summary successful:", summaryData);
 
-    // Send successful summary back
-    chrome.runtime.sendMessage({ 
+      // Send successful summary back
+      chrome.runtime.sendMessage({ 
         type: "SUMMARIZE_SUCCESS",
         payload: { ...summaryData, originalTitle: title, originalUrl: url }
-    });
+      });
 
-    return summaryData; // Resolve the promise for the original caller
+      return summaryData;
 
-  } catch (error) {
-    console.error("Summarization failed:", error);
-    // Send error back
-    chrome.runtime.sendMessage({ 
+    } catch (error) {
+      console.error("Summarization failed:", error);
+      
+      // Enhanced error handling for different types of errors
+      let errorMessage = error.message || "An unknown error occurred during summarization.";
+      
+      if (error.status === 429) {
+        errorMessage = "Daily summary limit reached! Upgrade for unlimited summaries or wait for reset.";
+      } else if (error.message?.includes("Authentication")) {
+        errorMessage = "Please log in to Tildra to continue using summaries.";
+      }
+      
+      // Send error back
+      chrome.runtime.sendMessage({ 
         type: "SUMMARIZE_ERROR",
-        payload: { message: error.message || "An unknown error occurred during summarization.", originalTitle: title }
-    });
-    throw error; // Reject the promise for the original caller
-  }
+        payload: { 
+          message: errorMessage, 
+          originalTitle: title,
+          isRateLimit: error.status === 429
+        }
+      });
+      
+      throw error;
+    } finally {
+      // Always clean up pending request
+      pendingRequests.delete(requestHash);
+    }
+  })();
+
+  // Store the promise to prevent duplicate requests
+  pendingRequests.set(requestHash, requestPromise);
+
+  return requestPromise;
 }
 
 // --- Tab Management for cleaning up job details and badges ---
@@ -558,3 +725,66 @@ chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
 });
 
 console.log("Tildra Background Script Finished Loading"); 
+
+// --- NEW: API Logic for Job Enhancement ---
+async function enhanceJobDetailsWithAPI(jobData, tabId) {
+    const { jobTitle, companyName, jobDescription, source, pageUrl, resume_text } = jobData;
+    
+    // Use the correct API endpoint that actually exists
+    const DETECT_API_URL = `${API_URL_BASE}/api/job/detect`;
+    console.log(`[Tildra Background] Sending to job detection API: ${DETECT_API_URL}`);
+    
+    const apiPayload = {
+        url: pageUrl,
+        page_content: jobDescription // Send the scraped content for analysis
+    };
+
+    // If a new resume is provided, add it to the payload
+    if (resume_text) {
+      apiPayload.resume_text = resume_text;
+      console.log("[Tildra Background] Attaching new resume text to the API payload.");
+    }
+
+    try {
+        const token = await getAuthToken();
+        const response = await fetchFromApi(DETECT_API_URL, 'POST', apiPayload, token);
+        
+        console.log("[Tildra Background] API Enhancement successful:", response);
+        
+        if (response.job_detected && response.job_posting) {
+            return {
+                jobTitle: response.job_posting.title || jobTitle,
+                companyName: response.job_posting.company || companyName,
+                jobDescription: response.job_posting.description || jobDescription,
+                skills: response.job_posting.skills || [],
+                requirements: response.job_posting.requirements || [],
+                location: response.job_posting.location,
+                source: response.job_posting.source_platform || source,
+                pageUrl: pageUrl
+            };
+        } else {
+            // If API doesn't detect a job, return the original scraped data
+            return {
+                jobTitle,
+                companyName,
+                jobDescription,
+                skills: [],
+                requirements: [],
+                source,
+                pageUrl
+            };
+        }
+    } catch (error) {
+        console.error("[Tildra Background] API Enhancement failed:", error);
+        // Return original data if API fails
+        return {
+            jobTitle,
+            companyName,
+            jobDescription,
+            skills: [],
+            requirements: [],
+            source,
+            pageUrl
+        };
+    }
+} 
