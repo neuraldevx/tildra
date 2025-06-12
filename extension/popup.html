@@ -162,137 +162,72 @@
                 <div class="panel-header">
                     <h2 class="panel-title">Job Copilot</h2>
                     <p class="panel-subtitle">AI-powered job application assistant</p>
-                    
-                    <!-- PROMINENT TOP ACTION BUTTONS -->
-                    <div class="top-action-buttons">
-                        <button id="manual-job-detect" class="action-button primary-action">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="11" cy="11" r="8"></circle>
-                                <path d="m21 21-4.35-4.35"></path>
-                            </svg>
-                            <span>🔍 Scan for Jobs</span>
-                        </button>
-                        <button id="upload-resume" class="action-button secondary-action">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                <polyline points="14 2 14 8 20 8"></polyline>
-                                <line x1="16" y1="13" x2="8" y2="13"></line>
-                                <line x1="16" y1="17" x2="8" y2="17"></line>
-                            </svg>
-                            <span>📄 Upload Resume</span>
-                        </button>
-                        <button id="select-template" class="action-button tertiary-action">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                <line x1="9" y1="9" x2="15" y2="9"></line>
-                                <line x1="9" y1="12" x2="15" y2="12"></line>
-                                <line x1="9" y1="15" x2="11" y2="15"></line>
-                            </svg>
-                            <span>📋 Use Template</span>
-                        </button>
-                    </div>
                 </div>
                 
                 <div class="panel-content">
-                    <div id="job-copilot-status" class="status-card">
-                        <div class="status-icon">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <polyline points="12 6 12 12 16 14"></polyline>
+                    <!-- Coming Soon Content -->
+                    <div class="coming-soon-container">
+                        <div class="coming-soon-icon">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                                <path d="M9 14l2 2 4-4"></path>
                             </svg>
                         </div>
-                        <div class="status-content">
-                            <h3 class="status-title">Detecting Job Details...</h3>
-                            <p class="status-message">Analyzing this page for job postings</p>
-                        </div>
-                    </div>
-                    
-                    <!-- Resume Upload Dialog -->
-                    <div id="resume-upload-dialog" class="dialog-overlay" style="display: none;">
-                      <div class="dialog-box">
-                        <h3 class="dialog-title">📄 Upload Your Resume</h3>
-                        <p class="dialog-description">
-                          Upload your resume in any format (.pdf, .docx, .txt, .tex, .latex) for AI-powered tailoring.
+                        
+                        <h3 class="coming-soon-title">Coming Soon! 🚀</h3>
+                        <p class="coming-soon-description">
+                            We're building an amazing AI-powered job application assistant that will help you:
                         </p>
-                        <div class="dialog-content">
-                          <input type="file" id="resume-file-input" accept=".pdf,.doc,.docx,.txt,.tex,.latex" class="file-input">
-                          <label for="resume-file-input" class="file-label">
-                            <span class="file-icon">📁</span>
-                            <span class="file-text">Choose a file...</span>
-                          </label>
-                          <div id="resume-upload-status" class="upload-status"></div>
-                        </div>
-                        <div class="dialog-actions">
-                          <button id="upload-resume-confirm" class="action-btn primary" disabled>📤 Upload and Analyze</button>
-                          <button id="upload-resume-cancel" class="action-btn secondary">✕ Cancel</button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Template Selection Dialog -->
-                    <div id="template-selection-dialog" class="dialog-overlay" style="display: none;">
-                      <div class="dialog-box large">
-                        <h3 class="dialog-title">📋 Choose Resume Template</h3>
-                        <p class="dialog-description">
-                          Select a professional LaTeX template that will be tailored to match the job requirements.
-                        </p>
-                        <div class="dialog-content">
-                          <div class="template-grid">
-                            <div class="template-option" data-template="professional">
-                              <div class="template-preview">
-                                <div class="template-thumbnail">
-                                  <div class="template-header">Jacob Christensen</div>
-                                  <div class="template-section">Education</div>
-                                  <div class="template-section">Experience</div>
-                                  <div class="template-section">Projects</div>
-                                  <div class="template-section">Skills</div>
-                                </div>
-                              </div>
-                              <h4>Professional Template</h4>
-                              <p>Clean, ATS-friendly format perfect for tech roles</p>
-                              <button class="select-template-btn" data-template="professional">Select This Template</button>
+                        
+                        <div class="coming-soon-features">
+                            <div class="feature-item">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.35-4.35"></path>
+                                </svg>
+                                <span>Automatically detect job postings on any career site</span>
                             </div>
-                            
-                            <div class="template-option" data-template="modern">
-                              <div class="template-preview">
-                                <div class="template-thumbnail modern">
-                                  <div class="template-header">Your Name</div>
-                                  <div class="template-section">Summary</div>
-                                  <div class="template-section">Experience</div>
-                                  <div class="template-section">Skills</div>
-                                </div>
-                              </div>
-                              <h4>Modern Template</h4>
-                              <p>Stylish design with clean typography</p>
-                              <button class="select-template-btn" data-template="modern">Select This Template</button>
+                            <div class="feature-item">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                </svg>
+                                <span>Tailor your resume to match job requirements</span>
                             </div>
-                            
-                            <div class="template-option" data-template="academic">
-                              <div class="template-preview">
-                                <div class="template-thumbnail academic">
-                                  <div class="template-header">Academic Name</div>
-                                  <div class="template-section">Education</div>
-                                  <div class="template-section">Research</div>
-                                  <div class="template-section">Publications</div>
-                                </div>
-                              </div>
-                              <h4>Academic Template</h4>
-                              <p>Perfect for research and academic positions</p>
-                              <button class="select-template-btn" data-template="academic">Select This Template</button>
+                            <div class="feature-item">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 3h18v18H3zM9 9h6m-6 4h6m-6 4h4"></path>
+                                </svg>
+                                <span>Generate personalized cover letters instantly</span>
                             </div>
-                          </div>
+                            <div class="feature-item">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                                <span>Track your application history and progress</span>
+                            </div>
                         </div>
-                        <div class="dialog-actions">
-                          <button id="template-cancel" class="action-btn secondary">✕ Cancel</button>
+                        
+                        <div class="coming-soon-cta">
+                            <p class="cta-text">Want early access? Join our waitlist!</p>
+                            <a href="https://www.tildra.xyz" target="_blank" class="cta-button">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                                Join Waitlist
+                            </a>
                         </div>
-                      </div>
+                        
+                        <div class="coming-soon-timeline">
+                            <p class="timeline-text">Expected launch: <strong>Q2 2025</strong></p>
+                        </div>
                     </div>
-
-                    <div id="job-copilot-content" style="display: none;">
-                       <!-- Dynamic content will be inserted here -->
-                    </div>
-                    
-                    <!-- Action buttons moved to top of panel -->
                 </div>
             </section>
 
@@ -480,6 +415,6 @@
         </main>
         </div> <!-- End content-wrapper -->
     </div>
-    <script src="popup-simple.js"></script> 
+    <script src="popup.js"></script> 
 </body>
 </html> 

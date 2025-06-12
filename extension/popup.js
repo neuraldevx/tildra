@@ -324,9 +324,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Sidebar Navigation Logic (Updated for new layout)
   function switchTab(targetPanel) {
+    console.log('[Tildra Debug] switchTab called with:', targetPanel);
+    
     // Get all nav items and panels
     const navItems = document.querySelectorAll('.nav-item');
     const allPanels = [summarizePanel, historyPanel, followupPanel, jobCopilotPanel, sectionsPanel];
+
+    console.log('[Tildra Debug] Found panels:', {
+      summarizePanel: !!summarizePanel,
+      historyPanel: !!historyPanel,
+      followupPanel: !!followupPanel,
+      jobCopilotPanel: !!jobCopilotPanel,
+      sectionsPanel: !!sectionsPanel
+    });
 
     // Remove active class from all nav items
     navItems.forEach(item => item.classList.remove('active'));
@@ -342,31 +352,46 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show target panel and activate corresponding nav item
     let targetNavItem;
     if (targetPanel === 'summarize' || targetPanel === summarizePanel) {
-      summarizePanel.hidden = false;
-      summarizePanel.classList.add('active');
+      console.log('[Tildra Debug] Showing summarize panel');
+      if (summarizePanel) {
+        summarizePanel.hidden = false;
+        summarizePanel.classList.add('active');
+        console.log('[Tildra Debug] Summarize panel shown, hidden:', summarizePanel.hidden);
+      }
       targetNavItem = document.querySelector('[data-panel="summarize"]');
     } else if (targetPanel === 'job-copilot' || targetPanel === jobCopilotPanel) {
-      jobCopilotPanel.hidden = false;
-      jobCopilotPanel.classList.add('active');
+      if (jobCopilotPanel) {
+        jobCopilotPanel.hidden = false;
+        jobCopilotPanel.classList.add('active');
+      }
       targetNavItem = document.querySelector('[data-panel="job-copilot"]');
     } else if (targetPanel === 'history' || targetPanel === historyPanel) {
-      historyPanel.hidden = false;
-      historyPanel.classList.add('active');
+      if (historyPanel) {
+        historyPanel.hidden = false;
+        historyPanel.classList.add('active');
+      }
       targetNavItem = document.querySelector('[data-panel="history"]');
       loadHistorySummaries(); // Load history when switching to history panel
     } else if (targetPanel === 'followup' || targetPanel === followupPanel) {
-      followupPanel.hidden = false;
-      followupPanel.classList.add('active');
+      if (followupPanel) {
+        followupPanel.hidden = false;
+        followupPanel.classList.add('active');
+      }
       targetNavItem = document.querySelector('[data-panel="followup"]');
     } else if (targetPanel === 'sections' || targetPanel === sectionsPanel) {
-      sectionsPanel.hidden = false;
-      sectionsPanel.classList.add('active');
+      if (sectionsPanel) {
+        sectionsPanel.hidden = false;
+        sectionsPanel.classList.add('active');
+      }
       targetNavItem = document.querySelector('[data-panel="sections"]');
     }
 
     // Activate the target nav item
     if (targetNavItem) {
       targetNavItem.classList.add('active');
+      console.log('[Tildra Debug] Activated nav item:', targetNavItem);
+    } else {
+      console.warn('[Tildra Debug] No nav item found for panel:', targetPanel);
     }
   }
 
@@ -406,56 +431,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Handle manual job detection button
-  const manualJobDetectBtn = document.getElementById('manual-job-detect');
-  if (manualJobDetectBtn) {
-    manualJobDetectBtn.addEventListener('click', () => {
-      // Disable button during scan
-      manualJobDetectBtn.disabled = true;
-      manualJobDetectBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12a9 9 0 11-6.219-8.56"></path>
-        </svg>
-        <span>Scanning...</span>
-      `;
-      
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0] && tabs[0].id) {
-            triggerJobDetection(tabs[0].id).finally(() => {
-              // Re-enable button after scan completes
-              setTimeout(() => {
-                manualJobDetectBtn.disabled = false;
-                manualJobDetectBtn.innerHTML = `
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                  </svg>
-                  <span>Scan for Jobs</span>
-                `;
-              }, 3000);
-            });
-        } else {
-          // Re-enable if no tab found
-          manualJobDetectBtn.disabled = false;
-          manualJobDetectBtn.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="m21 21-4.35-4.35"></path>
-            </svg>
-            <span>Scan for Jobs</span>
-          `;
-          showJobDetectionStatus("❌ Cannot access current tab");
-        }
-      });
-    });
-  }
+  // REMOVED: Job Copilot buttons no longer exist in coming soon design
 
-  // Handle resume upload button
-  const uploadResumeBtn = document.getElementById('upload-resume');
-  if (uploadResumeBtn) {
-    uploadResumeBtn.addEventListener('click', () => {
-      showResumeUploadDialog();
-    });
-  }
+  // Handle resume upload button  
+  // REMOVED: Job Copilot buttons no longer exist in coming soon design
 
   // Add this function near the top of the file after other helper functions
   function isProtectedPage(url) {
@@ -489,13 +468,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      console.log('[Tildra Debug] Current tab:', currentTab.url);
+
       // Check if this is a protected page
       if (isProtectedPage(currentTab.url)) {
         displayError("Cannot summarize this page. Please navigate to a regular webpage (news article, blog post, etc.) and try again.");
         return;
       }
 
-      // Inject Readability.js first
+      console.log('[Tildra Debug] Starting content extraction...');
+
+      // Inject Readability.js first, then content extraction
       chrome.scripting.executeScript({ target: { tabId: currentTab.id }, files: ["readability.js"] }, () => {
         if (chrome.runtime.lastError) {
           console.error("Inject Readability Error:", chrome.runtime.lastError.message);
@@ -514,18 +497,27 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        // Inject function to get content
-        chrome.scripting.executeScript({ target: { tabId: currentTab.id }, function: getArticleContent }, async (injectionResults) => {
-          if (chrome.runtime.lastError || !injectionResults || !injectionResults[0]) {
-            let msg = chrome.runtime.lastError ? chrome.runtime.lastError.message : "Content script error.";
-            if (msg.includes("Cannot access a chrome:// URL")) msg = "Cannot summarize Chrome pages.";
-            else if (msg.includes("Cannot access contents")) msg = "Cannot access this page.";
-            console.error("Injection Error:", msg);
-            displayError(msg);
+        console.log('[Tildra Debug] Readability.js injected, now extracting content...');
+
+                 // Inject function to get content
+         chrome.scripting.executeScript({ target: { tabId: currentTab.id }, function: getArticleContent }, async (injectionResults) => {
+          if (chrome.runtime.lastError) {
+            console.error("Content extraction error:", chrome.runtime.lastError.message);
+            displayError(`Content extraction failed: ${chrome.runtime.lastError.message}`);
+            return;
+          }
+
+          console.log('[Tildra Debug] Content extraction completed, processing results...');
+
+          if (!injectionResults || !injectionResults[0]) {
+            console.error("No injection results received");
+            displayError("Content script error.");
             return;
           }
 
           const result = injectionResults[0].result;
+          console.log('[Tildra Debug] Extraction result:', result);
+
           if (result.error) {
             console.error("Content Extraction Error:", result.error);
             displayError(result.error);
@@ -533,25 +525,33 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           const articleText = result.content;
+          console.log('[Tildra Debug] Article text length:', articleText?.length);
+
           if (!articleText || articleText.trim().length < 50) {
             displayError("Not enough content found to summarize.");
             return;
           }
 
+          console.log('[Tildra Debug] Getting session token...');
+
           let sessionToken = null;
           try {
             sessionToken = await getClerkSessionToken();
+            console.log('[Tildra Debug] Session token obtained:', !!sessionToken);
             if (!sessionToken) {
               displayError("Please log in to tildra.xyz first.");
               return;
             }
           } catch (error) {
+            console.error('[Tildra Debug] Auth error:', error);
             displayError(`Auth Error: ${error.message}`);
             return;
           }
 
           // Get selected summary length
           const summaryLength = summaryLengthSelect.value || 'standard';
+
+          console.log('[Tildra Debug] Sending API request to background script...');
 
           // Use background script for the API call
           chrome.runtime.sendMessage(
@@ -565,11 +565,35 @@ document.addEventListener('DOMContentLoaded', () => {
               tabId: currentTab.id // Include the tab ID for the background script
             }, 
             (response) => {
+              console.log('[Tildra Debug] Received response from background script:', response);
               if (chrome.runtime.lastError) {
                 console.error("BG message error:", chrome.runtime.lastError.message);
                 displayError(`Communication error: ${chrome.runtime.lastError.message}`);
               } else if (response && response.success) {
                 displaySummary(response.summaryData);
+                // --- NEW: Save summary to local history ---
+                chrome.storage.local.get(['summaryHistory'], (res) => {
+                  const existingHistory = res.summaryHistory || [];
+                  const newHistoryItem = {
+                    id: (crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(),
+                    title: currentTab.title || currentTab.url || 'Untitled',
+                    summary: response.summaryData.tldr,
+                    keyPoints: response.summaryData.key_points,
+                    url: currentTab.url,
+                    timestamp: new Date().toISOString()
+                  };
+                  // Add new item at the start and limit to 100 entries to avoid unbounded growth
+                  const updatedHistory = [newHistoryItem, ...existingHistory].slice(0, 100);
+                  chrome.storage.local.set({ 'summaryHistory': updatedHistory }, () => {
+                    if (chrome.runtime.lastError) {
+                      console.error('Error saving summary history:', chrome.runtime.lastError);
+                    } else {
+                      console.log('Summary saved to history. Total items:', updatedHistory.length);
+                      // Refresh history list in UI if user is on that tab
+                      loadHistorySummaries();
+                    }
+                  });
+                });
               } else if (response && response.expired) {
                 displayError("Session expired. Please log back in to tildra.xyz.");
               } else if (response && response.isUsageLimit) {
@@ -609,8 +633,8 @@ document.addEventListener('DOMContentLoaded', () => {
               }
             }
           );
-        }); // End function injection callback
-      }); // End file injection callback
+        }); // End content extraction callback
+      }); // End readability injection callback
     }); // End tabs.query callback
   }); // End summarizeButton click listener
 
@@ -737,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
               itemContent.addEventListener('click', () => {
                 // Display the summary in the summary tab
                 displaySummary({ tldr: item.summary, key_points: item.keyPoints });
-                switchTab(summarizeTab); // Switch view to summarize tab
+                switchTab('summarize'); // Switch view to summarize tab
               });
           }
           
@@ -869,7 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!result.hasSeenOnboarding) {
         showOnboarding();
       } else {
-        switchTab(summarizeTab); // Default to summarize tab
+        switchTab('summarize'); // Default to summarize tab
       }
     });
   }
@@ -942,7 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log("[Tildra Popup] Onboarding completed and marked as seen");
       
       // Switch to the summarize tab
-      switchTab(summarizeTab);
+      switchTab('summarize');
       
       // Now initialize the main interface for the first time
       updateProStatusUI();
@@ -1201,584 +1225,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  initializePopup(); // Call initialization logic
-
-  // Developer function to reset onboarding (for testing)
-  window.resetOnboarding = function() {
-    chrome.storage.local.remove(['hasSeenOnboarding', 'hasSeenFirstSummary'], () => {
-      console.log('Onboarding state reset. Close and reopen the extension to see onboarding again.');
-      console.log('You can also call showOnboarding() directly to test the modal.');
-    });
-  };
-
-  // Developer function to manually show onboarding (for testing)
-  window.showOnboarding = function() {
-    showOnboarding();
-  };
-
-  // NEW: Message listener for job tailoring updates
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log('[Tildra Popup] Received message:', message);
-    
-    if (message.type === 'JOB_PAGE_DETECTED') {
-      console.log('[Tildra Popup] Received JOB_PAGE_DETECTED with data:', message.data);
-      // Display basic job details immediately
-      displayJobDetails(message.data);
-      showJobDetectionStatus('Job detected! Processing additional details...');
-      // Auto-switch to job copilot tab to show the results
-      switchTab(jobCopilotPanel);
-      
-    } else if (message.type === 'JOB_TAILORING_DISPLAY_UPDATE') {
-      console.log('[Tildra Popup] Received JOB_TAILORING_DISPLAY_UPDATE with data:', message.data);
-      displayJobTailoringResults(message.data);
-      // Automatically switch to the Job Copilot tab to show the user the results
-      switchTab(jobCopilotPanel);
-
-    } else if (message.type === 'JOB_PAGE_SCRAPE_FAILED') {
-        console.log("[Tildra Popup] Job scrape failed message received.");
-        // We only want to show the 'not found' status if the user is actively on the Job Copilot tab
-        if (jobCopilotPanel.classList.contains('active')) {
-            showJobDetectionStatus("No job details found on this page. Try navigating to a specific job posting and click 'Scan for Jobs' if needed.");
-        }
-    } else if (message.type === 'SUMMARIZE_SUCCESS' || message.type === 'SUMMARIZE_ERROR') {
-      // Handle existing summary messages if needed
-      console.log('[Tildra Popup] Summary message received:', message.type);
-    }
-  });
-
-  // NEW: Check for existing job tailoring data on popup open
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]) {
-      chrome.runtime.sendMessage({
-        action: "GET_CURRENT_TAB_JOB_DETAILS",
-        tabId: tabs[0].id
-      }, (response) => {
-        if (response && response.status === "SUCCESS" && response.data) {
-          console.log('[Tildra Popup] Found existing job data:', response.data);
-          
-          if (response.data.tailoringComplete) {
-            // Display the full tailoring results
-            displayJobTailoringResults(response.data);
-            // Auto-switch to job copilot tab
-            const jobCopilotTab = document.getElementById('job-copilot-tab');
-            if (jobCopilotTab) {
-              switchTab(jobCopilotTab);
-            }
-          } else {
-            // Show basic job detection status
-            showJobDetectionStatus('Job detected. Processing resume tailoring...');
-          }
-        }
-      });
-    }
-  });
-
-  // --- NEW Function to display job details ---
-  function displayJobDetails(jobData) {
-    if (!jobCopilotDisplayArea || !jobCopilotStatus || !jobCopilotDetailsDiv || !jobTitleDisplay || !jobCompanyDisplay || !jobSourceDisplay || !jobDescriptionSnippet) {
-        console.warn("[Tildra Popup] One or more Job Copilot UI elements are missing. Cannot display job details.");
-        return;
-    }
-
-    jobCopilotDisplayArea.style.display = 'block'; // Show the area
-    jobCopilotStatus.style.display = 'none'; // Hide the 'Detecting...' status
-    jobCopilotDetailsDiv.style.display = 'block';
-
-    jobTitleDisplay.textContent = jobData.jobTitle || 'N/A';
-    jobCompanyDisplay.textContent = jobData.companyName || 'N/A';
-    jobSourceDisplay.textContent = jobData.source || 'N/A';
-    jobDescriptionSnippet.textContent = jobData.jobDescription ? jobData.jobDescription.substring(0, 250) + '...' : 'Not available';
-    
-    console.log("[Tildra Popup] Displayed job details:", jobData);
-  }
-
-  function showJobDetectionStatus(message) {
-    if (!jobCopilotDisplayArea || !jobCopilotStatus || !jobCopilotDetailsDiv) return;
-    jobCopilotDisplayArea.style.display = 'block';
-    jobCopilotStatus.textContent = message;
-    jobCopilotStatus.style.display = 'block';
-    jobCopilotDetailsDiv.style.display = 'none';
-  }
-
-  // --- NEW Enhanced Job Copilot Functions ---
-  function displayJobTailoringResults(data) {
-    const { jobPosting, tailoredResume, optimizationScore, keywordMatches, suggestedImprovements } = data;
-    
-    // Update the job copilot panel with results
-    const statusCard = document.getElementById('job-copilot-status');
-    const content = document.getElementById('job-copilot-content');
-    
-    if (!content) return;
-    
-    // Hide status card and show results
-    if (statusCard) statusCard.style.display = 'none';
-    content.style.display = 'block';
-    
-    // Show job copilot badge
-    const badge = document.getElementById('job-copilot-badge');
-    if (badge) {
-      badge.style.display = 'block';
-      badge.textContent = '✓';
-      badge.style.background = '#10b981';
-    }
-
-    content.innerHTML = `
-      <div class="job-copilot-container">
-        <!-- Job Summary Section -->
-        <div class="job-summary-section">
-          <h3 class="section-title">🎯 Job Detected</h3>
-          <div class="job-card">
-            <div class="job-title">${jobPosting.title}</div>
-            <div class="job-company">${jobPosting.company}</div>
-            <div class="job-location">${jobPosting.location || 'Location not specified'}</div>
-            <div class="job-source">Source: ${jobPosting.source_platform}</div>
-          </div>
-        </div>
-
-        <!-- Optimization Score Section -->
-        <div class="optimization-section">
-          <h3 class="section-title">📊 Resume Match Score</h3>
-          <div class="score-display">
-            <div class="score-circle">
-              <span class="score-number">${Math.round(optimizationScore)}%</span>
-            </div>
-            <div class="score-description">
-              ${optimizationScore >= 80 ? 'Excellent match!' : 
-                optimizationScore >= 60 ? 'Good match with room for improvement' : 
-                'Needs optimization for better ATS alignment'}
-            </div>
-          </div>
-        </div>
-
-        <!-- Keyword Matches Section -->
-        <div class="keywords-section">
-          <h3 class="section-title">🔍 Keyword Matches</h3>
-          <div class="keywords-list">
-            ${keywordMatches.length > 0 ? 
-              keywordMatches.map(keyword => `<span class="keyword-tag">${keyword}</span>`).join('') :
-              '<span class="no-matches">No keyword matches found</span>'
-            }
-          </div>
-        </div>
-
-        <!-- Suggested Improvements Section -->
-        <div class="improvements-section">
-          <h3 class="section-title">💡 Suggestions</h3>
-          <ul class="improvements-list">
-            ${suggestedImprovements.length > 0 ?
-              suggestedImprovements.map(improvement => `<li>${improvement}</li>`).join('') :
-              '<li>Your resume looks good for this position!</li>'
-            }
-          </ul>
-        </div>
-
-        <!-- Action Buttons Section -->
-        <div class="actions-section">
-          <button id="view-tailored-resume" class="action-btn primary">
-            📄 View Tailored Resume
-          </button>
-          <button id="generate-cover-letter" class="action-btn secondary">
-            ✍️ Generate Cover Letter
-          </button>
-          <button id="tailor-new-resume" class="action-btn secondary">
-            🔄 Try Different Resume
-          </button>
-        </div>
-
-        <!-- Resume Preview Section (Initially Hidden) -->
-        <div id="resume-preview-section" class="resume-preview-section" style="display: none;">
-          <h3 class="section-title">📋 Tailored Resume Preview</h3>
-          <div class="resume-content">
-            <div class="resume-header">
-              <h4>${tailoredResume.name}</h4>
-              <p class="contact-info">${tailoredResume.contact.email || ''} | ${tailoredResume.contact.phone || ''}</p>
-            </div>
-            
-            ${tailoredResume.summary ? `
-            <div class="resume-section">
-              <h5>Professional Summary</h5>
-              <p>${tailoredResume.summary}</p>
-            </div>
-            ` : ''}
-
-            <div class="resume-section">
-              <h5>Skills (Optimized)</h5>
-              <div class="skills-list">
-                ${tailoredResume.skills ? tailoredResume.skills.map(skill => 
-                  `<span class="skill-tag ${keywordMatches.includes(skill) ? 'highlighted' : ''}">${skill}</span>`
-                ).join('') : 'No skills listed'}
-              </div>
-            </div>
-
-            ${tailoredResume.experience && tailoredResume.experience.length > 0 ? `
-            <div class="resume-section">
-              <h5>Experience</h5>
-              ${tailoredResume.experience.slice(0, 2).map(exp => `
-                <div class="experience-item">
-                  <div class="exp-header">
-                    <strong>${exp.title}</strong> at ${exp.company}
-                    <span class="exp-dates">${exp.start_date} - ${exp.end_date}</span>
-                  </div>
-                  <ul class="exp-bullets">
-                    ${exp.bullets ? exp.bullets.slice(0, 3).map(bullet => 
-                      `<li>${bullet}</li>`
-                    ).join('') : ''}
-                  </ul>
-                </div>
-              `).join('')}
-            </div>
-            ` : ''}
-          </div>
-          
-          <div class="preview-actions">
-            <button id="download-resume-pdf" class="action-btn primary">
-              📥 Download as PDF
-            </button>
-            <button id="copy-resume-text" class="action-btn secondary">
-              📋 Copy Text
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Add event listeners for the new buttons
-    addJobCopilotEventListeners(data);
-  }
-
-  function addJobCopilotEventListeners(data) {
-    const viewResumeBtn = document.getElementById('view-tailored-resume');
-    const generateCoverBtn = document.getElementById('generate-cover-letter');
-    const tailorNewBtn = document.getElementById('tailor-new-resume');
-    const resumePreviewSection = document.getElementById('resume-preview-section');
-    const downloadPdfBtn = document.getElementById('download-resume-pdf');
-    const copyTextBtn = document.getElementById('copy-resume-text');
-
-    if (viewResumeBtn) {
-      viewResumeBtn.addEventListener('click', () => {
-        if (resumePreviewSection) {
-          resumePreviewSection.style.display = resumePreviewSection.style.display === 'none' ? 'block' : 'none';
-          viewResumeBtn.textContent = resumePreviewSection.style.display === 'none' ? '📄 View Tailored Resume' : '🔼 Hide Resume';
-        }
-      });
-    }
-
-    if (generateCoverBtn) {
-      generateCoverBtn.addEventListener('click', () => {
-        generateCoverLetterForJob(data);
-      });
-    }
-
-    if (tailorNewBtn) {
-      tailorNewBtn.addEventListener('click', () => {
-        showResumeUploadDialog();
-      });
-    }
-
-    if (downloadPdfBtn) {
-      downloadPdfBtn.addEventListener('click', () => {
-        downloadResumeAsPDF(data.tailoredResume, data.jobPosting);
-      });
-    }
-
-    if (copyTextBtn) {
-      copyTextBtn.addEventListener('click', () => {
-        copyResumeToClipboard(data.tailoredResume);
-      });
-    }
-  }
-
-  async function generateCoverLetterForJob(data) {
-    try {
-      const token = await getClerkSessionToken();
-      if (!token) {
-        displayError('Please log in to generate cover letters');
-        return;
-      }
-
-      // Show loading state
-      showJobDetectionStatus('Generating personalized cover letter...');
-
-      const response = await fetch(`${BG_CONFIG.apiUrlBase}/api/resume/generate-cover-letter`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          resume_data: data.tailoredResume,
-          job_posting: data.jobPosting
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        displayCoverLetter(result.cover_letter);
-      } else {
-        displayError('Failed to generate cover letter. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error generating cover letter:', error);
-      displayError('Error generating cover letter');
-    }
-  }
-
-  function displayCoverLetter(coverLetterText) {
-    const panel = document.getElementById('panel-job-copilot');
-    const existingCoverLetter = document.getElementById('cover-letter-section');
-    
-    if (existingCoverLetter) {
-      existingCoverLetter.remove();
-    }
-
-    const coverLetterHTML = `
-      <div id="cover-letter-section" class="cover-letter-section">
-        <h3 class="section-title">✍️ Generated Cover Letter</h3>
-        <div class="cover-letter-content">
-          <pre class="cover-letter-text">${coverLetterText}</pre>
-        </div>
-        <div class="cover-letter-actions">
-          <button id="copy-cover-letter" class="action-btn primary">📋 Copy Cover Letter</button>
-          <button id="edit-cover-letter" class="action-btn secondary">✏️ Edit</button>
-        </div>
-      </div>
-    `;
-
-    panel.insertAdjacentHTML('beforeend', coverLetterHTML);
-
-    // Add event listeners
-    document.getElementById('copy-cover-letter')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(coverLetterText).then(() => {
-        document.getElementById('copy-cover-letter').textContent = '✅ Copied!';
-        setTimeout(() => {
-          document.getElementById('copy-cover-letter').textContent = '📋 Copy Cover Letter';
-        }, 2000);
-      });
-    });
-  }
-
-  async function downloadResumeAsPDF(resumeData, jobPosting) {
-    try {
-      const token = await getClerkSessionToken();
-      if (!token) {
-        displayError('Please log in to download resumes');
-        return;
-      }
-
-      // Convert our resume data to the API format
-      const apiResumeData = {
-        name: resumeData.name,
-        contact: {
-          email: resumeData.contact.email,
-          phone: resumeData.contact.phone,
-          website: resumeData.contact.website,
-          address: resumeData.contact.address
-        },
-        summary: resumeData.summary,
-        experience: resumeData.experience.map(exp => ({
-          title: exp.title,
-          company: exp.company,
-          location: exp.location,
-          startDate: exp.start_date,
-          endDate: exp.end_date,
-          bullets: exp.bullets
-        })),
-        education: resumeData.education || [],
-        skills: resumeData.skills || [],
-        projects: resumeData.projects || []
-      };
-
-      const response = await fetch(`${BG_CONFIG.apiUrlBase}/api/resume/generate-pdf`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(apiResumeData)
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${resumeData.name.replace(/\s+/g, '_')}_${jobPosting.company.replace(/\s+/g, '_')}_Resume.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
-        displayError('Failed to generate PDF. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error downloading PDF:', error);
-      displayError('Error downloading resume PDF');
-    }
-  }
-
-  function copyResumeToClipboard(resumeData) {
-    navigator.clipboard.writeText(resumeData)
-      .then(() => {
-        showToast('Resume copied to clipboard!');
-      })
-      .catch(err => {
-        logError('Failed to copy resume text: ', err);
-        showToast('Error copying resume.', 'error');
-      });
-  }
-
-  async function triggerJobDetection(tabId) {
-    if (!tabId) {
-        console.log("No tabId provided to triggerJobDetection");
-        showJobDetectionStatus("Error: Cannot detect job on this page");
-        return;
-    }
-
-    // Show scanning status
-    showJobDetectionStatus("🔍 Scanning page for job details...");
-
-    try {
-        // A lightweight way to check if the content script is injected and alive.
-        // This will throw an error if the script cannot be executed, which we catch.
-        await chrome.scripting.executeScript({
-            target: { tabId: tabId },
-            func: () => { window.tildraContentScriptExists = true; },
-        });
-
-        // If the above didn't throw, we can safely send the message.
-        const response = await chrome.tabs.sendMessage(tabId, { action: 'triggerJobDetection' });
-        console.log('Job detection triggered successfully:', response);
-        
-        if (response && response.success) {
-            showJobDetectionStatus("✅ Job detected! Processing details...");
-            // Wait a bit for the background script to process and store the job details
-            setTimeout(() => {
-                // Query for updated job details
-                chrome.runtime.sendMessage({
-                    action: "GET_CURRENT_TAB_JOB_DETAILS",
-                    tabId: tabId
-                }, (response) => {
-                    if (response && response.status === "SUCCESS") {
-                        displayJobDetails(response.data);
-                    } else {
-                        showJobDetectionStatus("⚠️ Job detected but couldn't process details. Try refreshing the page.");
-                    }
-                });
-            }, 2000);
-        } else {
-            showJobDetectionStatus("❌ No job posting found on this page. Try navigating to a specific job posting first.");
-        }
-
-    } catch (error) {
-        // Catch errors from both executeScript and sendMessage
-        if (error.message.includes('Receiving end does not exist') || 
-            error.message.includes('Could not establish connection') ||
-            error.message.includes('No script context available for execution') ||
-            error.message.includes('The tab was closed')) {
-            console.log(`Content script not available in tab ${tabId}. This is normal on non-job pages or special browser pages.`);
-            showJobDetectionStatus("❌ Cannot scan this page. Try navigating to a job posting on a career site.");
-        } else {
-            console.error('An unexpected error occurred while triggering job detection:', error);
-            showJobDetectionStatus("❌ Error scanning page. Please try again or refresh the page.");
-        }
-    }
-}
-
-  function showResumeUploadDialog() {
-    const dialog = document.getElementById('resume-upload-dialog');
-    if (dialog) {
-      dialog.style.display = 'flex'; // Use flex to center the dialog box
-    }
-  }
-
-  function hideResumeUploadDialog() {
-    const dialog = document.getElementById('resume-upload-dialog');
-    if (dialog) {
-      dialog.style.display = 'none';
-    }
-    // Also reset the file input and status
-    const fileInput = document.getElementById('resume-file-input');
-    const statusDisplay = document.getElementById('resume-upload-status');
-    const confirmButton = document.getElementById('upload-resume-confirm');
-    const fileText = document.querySelector('.file-label .file-text');
-
-    if(fileInput) fileInput.value = ''; // Clear the selected file
-    if(statusDisplay) statusDisplay.textContent = '';
-    if(confirmButton) confirmButton.disabled = true;
-    if(fileText) fileText.textContent = 'Choose a file...';
-  }
-
-  function handleResumeFileSelection() {
-    const fileInput = document.getElementById('resume-file-input');
-    const statusDisplay = document.getElementById('resume-upload-status');
-    const confirmButton = document.getElementById('upload-resume-confirm');
-    const fileText = document.querySelector('.file-label .file-text');
-
-    if (fileInput.files.length > 0) {
-      const file = fileInput.files[0];
-      if (fileText) fileText.textContent = file.name;
-      if (statusDisplay) statusDisplay.textContent = `Selected: ${file.name}`;
-      if (confirmButton) confirmButton.disabled = false;
-    } else {
-      if (fileText) fileText.textContent = 'Choose a file...';
-      if (confirmButton) confirmButton.disabled = true;
-    }
-  }
-
-  async function uploadAndTailorResume() {
-    const fileInput = document.getElementById('resume-file-input');
-    const statusDisplay = document.getElementById('resume-upload-status');
-    const file = fileInput.files[0];
-
-    if (!file) {
-      if (statusDisplay) statusDisplay.textContent = 'Please select a file first.';
-      return;
-    }
-
-    if (statusDisplay) statusDisplay.textContent = 'Uploading and processing...';
-
-    // This is where you would send the file to the background script
-    // For now, we'll log it and close the dialog.
-    console.log(`[Tildra Popup] Uploading ${file.name} for tailoring.`);
-    
-    // In a real implementation, you would use FileReader to read the file
-    // and send the content to the background script.
-    // Example:
-    const reader = new FileReader();
-    reader.onload = function(event) {
-      const resumeText = event.target.result;
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0] && tabs[0].id) {
-          chrome.runtime.sendMessage({
-            action: 'TAILOR_RESUME_WITH_NEW_FILE',
-            tabId: tabs[0].id,
-            resumeText: resumeText,
-          });
-        }
-      });
-    };
-    reader.readAsText(file);
-
-
-    // After sending, hide the dialog
-    hideResumeUploadDialog();
-    showJobDetectionStatus('Tailoring new resume...');
-  }
-
   // Event listener setup needs to be inside the DOMContentLoaded event
-  const cancelUploadBtn = document.getElementById('upload-resume-cancel');
-  const fileInput = document.getElementById('resume-file-input');
-  const confirmUploadBtn = document.getElementById('upload-resume-confirm');
+  // REMOVED: Upload resume dialog elements no longer exist in coming soon design
 
-  if(cancelUploadBtn) {
-    cancelUploadBtn.addEventListener('click', hideResumeUploadDialog);
-  }
-
-  if(fileInput) {
-    fileInput.addEventListener('change', handleResumeFileSelection);
-  }
-
-  if(confirmUploadBtn) {
-    confirmUploadBtn.addEventListener('click', uploadAndTailorResume);
-  }
+  // Initialize the popup
+  initializePopup();
 });
