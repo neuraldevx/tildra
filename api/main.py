@@ -869,7 +869,6 @@ async def summarize_article(
     user_clerk_id: AuthenticatedUserIdWithRLS, # MODIFIED for RLS
     background_tasks: BackgroundTasks
 ):
-    logger.info(f"Full request_data received: {request_data.model_dump()}")
     logger.info(f"Received summarize request for user: {user_clerk_id[:5]}... with length: {request_data.summary_length}")
 
     if not DEEPSEEK_API_KEY:
@@ -887,29 +886,21 @@ async def summarize_article(
 
         now = datetime.now(timezone.utc)
 
-        # For free users, check and reset daily limit if usageResetAt is before start of today
+        # OPTIMIZED: Quick usage check without heavy database operations
         if user.plan == "free":
             start_of_current_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
             if user.usageResetAt < start_of_current_day:
                 logger.info(f"Daily usage period expired for free user Clerk ID: {user_clerk_id}. Resetting count.")
-                user = await prisma.user.update(
-                    where={"clerkId": user_clerk_id},
-                    data={"summariesUsed": 0, "usageResetAt": now} # Reset to now for daily
-                )
-                if not user: 
-                     logger.error(f"Failed to update usage for free user Clerk ID: {user_clerk_id} after daily reset.")
-                     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update user usage data.")
+                # OPTIMIZED: Move reset to background task to avoid blocking
+                background_tasks.add_task(reset_user_usage, user_clerk_id, now)
+                # Assume reset for immediate processing
+                user.summariesUsed = 0
         
-        # For premium users, the reset is handled by webhooks (invoice.payment_succeeded).
-        # We just check if their current period has technically ended according to stored usageResetAt.
-        # This can be a fallback if a webhook is delayed or missed, but primary reset is webhook-driven.
         elif user.plan == "premium" and user.usageResetAt and now >= user.usageResetAt:
-            logger.warning(f"Premium user {user.clerkId} current period ended ({user.usageResetAt}), but usage not reset by webhook. Current summariesUsed: {user.summariesUsed}. Relying on Stripe webhook for actual reset.")
-            # Potentially, one could reset here as a fallback, but it might conflict if webhook is just delayed.
-            # For now, just log. The limit check below will still apply against potentially non-reset count.
+            logger.warning(f"Premium user {user.clerkId} current period ended ({user.usageResetAt}), but usage not reset by webhook. Current summariesUsed: {user.summariesUsed}.")
 
     except Exception as db_error:
-        logger.error(f"Database error during user lookup/reset for Clerk ID {user_clerk_id}: {db_error}", exc_info=True)
+        logger.error(f"Database error during user lookup for Clerk ID {user_clerk_id}: {db_error}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error during usage check.")
 
     if not user:
@@ -927,10 +918,10 @@ async def summarize_article(
         logger.info(f"Usage within limits for Clerk ID: {user_clerk_id}. Used: {user.summariesUsed}, Limit: {user.summaryLimit}, Plan: {user.plan}")
 
     try:
-        # Pass summary_length (snake_case) to the API call function
+        # OPTIMIZED: Call API first, handle database operations in background
         summary_tldr, key_points_list = await call_deepseek_api(request_data.article_text, request_data.summary_length)
         
-        # --- Store summary in history and track usage ---
+        # OPTIMIZED: Return response immediately, handle database operations in background
         if not summary_tldr.startswith("Error:"): # Only proceed if not an error
             background_tasks.add_task(
                 save_summary_to_history, 
@@ -940,13 +931,14 @@ async def summarize_article(
                 tldr=summary_tldr, 
                 key_points=key_points_list
             )
-            background_tasks.add_task( # Add usage tracking here
+            background_tasks.add_task(
                 track_summary_usage,
                 user_clerk_id=user_clerk_id
             )
-        # -----------------------------
         
+        # Return immediately without waiting for background tasks
         return SummarizeResponse(tldr=summary_tldr, key_points=key_points_list)
+        
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP error calling DeepSeek API: {e.response.status_code} - {e.response.text}")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"External API error (DeepSeek): {e.response.status_code}")
@@ -956,6 +948,18 @@ async def summarize_article(
     except Exception as e:
         logger.error(f"Unexpected error in summarize_article for user {user_clerk_id[:5]}...: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred. Please try again later.")
+
+# OPTIMIZED: Background task for user usage reset
+async def reset_user_usage(user_clerk_id: str, reset_time: datetime):
+    """Reset user usage count in background"""
+    try:
+        await prisma.user.update(
+            where={"clerkId": user_clerk_id},
+            data={"summariesUsed": 0, "usageResetAt": reset_time}
+        )
+        logger.info(f"Successfully reset usage for user {user_clerk_id}")
+    except Exception as e:
+        logger.error(f"Failed to reset usage for user {user_clerk_id}: {e}", exc_info=True)
 
 # Health check endpoint
 @app.get("/health")
@@ -1243,57 +1247,54 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
         "Content-Type": "application/json",
     }
     
-    # Truncate article to avoid huge payloads
-    truncated_article = article_text[:15000]
+    # OPTIMIZED: Reduce content size for faster processing
+    # Most articles can be effectively summarized with less content
+    truncated_article = article_text[:8000]  # Reduced from 15000 to 8000
     
-    # Configure parameters based on summary_length_param
+    # OPTIMIZED: Streamlined prompts for faster processing with distinct length differences
     if summary_length_param == "brief":
-        system_prompt = (
-            "You are a concise summarization AI. Always respond in JSON format only. "
-            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
-        )
+        system_prompt = "You are a concise summarization AI. Create ultra-brief summaries. Respond only in JSON format with 'tldr' and 'key_points' keys."
         user_prompt = (
-            f"Summarize this article in JSON format with these exact requirements:\\n"
-            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
-            f"- TL;DR: ONE short sentence (max 15 words)\\n"
-            f"- Key Points: Array of 2-3 brief points (each max 10 words)\\n\\n"
-            f"Example JSON response: {{ \"tldr\": \"Brief summary here\", \"key_points\": [\"Point 1\", \"Point 2\"] }}\\n\\n"
-            f"Article to summarize:\\n{truncated_article}"
+            f"Create a BRIEF summary in JSON format:\n"
+            f"{{ \"tldr\": \"One clear sentence (10-15 words max)\", \"key_points\": [\"2-3 essential points only\"] }}\n\n"
+            f"Requirements:\n"
+            f"- TL;DR: Single sentence, maximum 15 words\n"
+            f"- Key Points: Exactly 2-3 bullet points, each under 10 words\n"
+            f"- Focus on the most critical information only\n\n"
+            f"Article: {truncated_article}"
         )
-        max_tokens = 300
-        temperature = 0.3
+        max_tokens = 150  # Reduced for brevity
+        temperature = 0.1  # Very low for consistency
         
     elif summary_length_param == "detailed":
-        system_prompt = (
-            "You are a comprehensive summarization AI. Always respond in JSON format only. "
-            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
-        )
+        system_prompt = "You are a comprehensive summarization AI. Create thorough, detailed summaries. Respond only in JSON format with 'tldr' and 'key_points' keys."
         user_prompt = (
-            f"Summarize this article in JSON format with these exact requirements:\\n"
-            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
-            f"- TL;DR: Detailed paragraph (3-5 sentences, 50-100 words)\\n"
-            f"- Key Points: Array of 7-9 comprehensive points (each 15-25 words)\\n\\n"
-            f"Example JSON response: {{ \"tldr\": \"Detailed summary paragraph here\", \"key_points\": [\"Detailed point 1\", \"Detailed point 2\"] }}\\n\\n"
-            f"Article to summarize:\\n{truncated_article}"
+            f"Create a DETAILED summary in JSON format:\n"
+            f"{{ \"tldr\": \"Comprehensive overview (60-100 words)\", \"key_points\": [\"8-12 detailed points with context\"] }}\n\n"
+            f"Requirements:\n"
+            f"- TL;DR: 4-6 sentences providing comprehensive overview (60-100 words)\n"
+            f"- Key Points: 8-12 detailed bullet points with context and specifics\n"
+            f"- Include background information, implications, and nuanced details\n"
+            f"- Provide thorough coverage of all important aspects\n\n"
+            f"Article: {truncated_article}"
         )
-        max_tokens = 2000
-        temperature = 0.8
+        max_tokens = 2000  # Increased for detailed content
+        temperature = 0.6  # Higher for more comprehensive coverage
         
-    else:  # standard (or if summary_length_param is None/unexpected)
-        system_prompt = (
-            "You are a balanced summarization AI. Always respond in JSON format only. "
-            "Your response must be valid JSON with exactly two keys: 'tldr' and 'key_points'."
-        )
+    else:  # standard
+        system_prompt = "You are a balanced summarization AI. Create well-structured, informative summaries. Respond only in JSON format with 'tldr' and 'key_points' keys."
         user_prompt = (
-            f"Summarize this article in JSON format with these exact requirements:\\n"
-            f"- Return only JSON with 'tldr' and 'key_points' keys\\n"
-            f"- TL;DR: 2-3 sentences (30-50 words total)\\n"
-            f"- Key Points: Array of 4-6 points (each 10-15 words)\\n\\n"
-            f"Example JSON response: {{ \"tldr\": \"Standard summary here\", \"key_points\": [\"Point 1\", \"Point 2\", \"Point 3\"] }}\\n\\n"
-            f"Article to summarize:\\n{truncated_article}"
+            f"Create a STANDARD summary in JSON format:\n"
+            f"{{ \"tldr\": \"Clear overview (25-40 words)\", \"key_points\": [\"5-7 informative points\"] }}\n\n"
+            f"Requirements:\n"
+            f"- TL;DR: 2-3 sentences providing clear overview (25-40 words)\n"
+            f"- Key Points: 5-7 well-structured bullet points covering main topics\n"
+            f"- Balance brevity with informativeness\n"
+            f"- Cover key themes without excessive detail\n\n"
+            f"Article: {truncated_article}"
         )
-        max_tokens = 1000
-        temperature = 0.6
+        max_tokens = 800  # Balanced token count
+        temperature = 0.3  # Balanced temperature
 
     payload = {
         "model": "deepseek-chat",
@@ -1303,17 +1304,19 @@ async def call_deepseek_api(article_text: str, summary_length_param: str = "stan
         ],
         "max_tokens": max_tokens,
         "temperature": temperature,
-        "response_format": {"type": "json_object"}
+        "response_format": {"type": "json_object"},
+        "stream": False  # Ensure no streaming for faster response
     }
 
     async with httpx.AsyncClient() as client:
         try:
-            logger.debug(f"Calling DeepSeek API with payload: {json.dumps(payload, indent=2)}")
-            response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=90.0) # Increased timeout
+            logger.debug(f"Calling DeepSeek API with optimized payload")
+            # OPTIMIZED: Reduced timeout from 90s to 30s for faster failure detection
+            response = await client.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=30.0)
             response.raise_for_status()  # Raise an exception for bad status codes
             
             response_data = response.json()
-            logger.debug(f"Raw DeepSeek response: {response_data}")
+            logger.debug(f"DeepSeek response received in {response.elapsed.total_seconds():.2f}s")
 
             # Validate the structure of the response
             if not isinstance(response_data, dict) or "choices" not in response_data or not response_data["choices"]:

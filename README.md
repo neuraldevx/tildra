@@ -1,75 +1,109 @@
-# Tildra 🔍✂️ – AI TL;DR Chrome Extension
+# Tildra
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+AI-powered content summarization platform that transforms lengthy articles into concise, actionable summaries.
 
-Tildra is a Chrome extension + web app that gives you instant, AI-generated summaries (TL;DRs) of any article on the web. Save time, stay informed.
+## Overview
+
+Tildra is a SaaS platform designed to help professionals save time by automatically generating intelligent summaries of web content. Our AI-powered system extracts key insights and presents them in a structured format, enabling users to quickly process information and make informed decisions.
+
+## Architecture
+
+### Core Components
+
+- **Web Application**: Next.js frontend with TypeScript and Tailwind CSS
+- **API Backend**: FastAPI with Python, providing summarization and user management
+- **Browser Extension**: Chrome extension for seamless content extraction
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: Clerk for user management and security
+- **Payment Processing**: Stripe integration for subscription management
+
+### Technology Stack
+
+**Frontend**
+- Next.js 14 with App Router
+- TypeScript
+- Tailwind CSS
+- Shadcn/ui components
+
+**Backend**
+- FastAPI (Python)
+- Prisma ORM
+- PostgreSQL database
+- JWT authentication
+- Stripe payments
+
+**Infrastructure**
+- Fly.io deployment
+- Docker containerization
+- Chrome Web Store distribution
 
 ## Features
 
-*   **Instant Summaries:** Get concise TL;DRs and key takeaways in seconds.
-*   **AI-Powered:** Leverages advanced AI (configurable, e.g., Claude, DeepSeek) for accurate summarization.
-*   **Chrome Extension:** Summarize directly while browsing.
-*   **Web App:** Paste URLs or text for summarization.
-*   **Customizable:** Choose summary length and model preferences (future).
-*   **History:** Access your past summaries (future).
+### Core Functionality
+- Intelligent content summarization
+- Key point extraction
+- Reading time estimation
+- Export capabilities
+- Usage analytics
 
-## Tech Stack
+### Premium Features
+- Unlimited summaries
+- Advanced AI models
+- Priority processing
+- Extended history
+- Custom formatting
 
-*   **Frontend (Web App):** Next.js, React, Tailwind CSS, Shadcn/ui
-*   **Frontend (Extension):** Plain JavaScript, HTML, CSS
-*   **Backend:** Python (FastAPI), Prisma (ORM)
-*   **Database:** PostgreSQL (via Neon / Fly Postgres)
-*   **AI:** DeepSeek API (or other LLM APIs)
-*   **Deployment:** Fly.io
+### Browser Extension
+- One-click summarization
+- Context menu integration
+- Local storage sync
+- Cross-site compatibility
 
-## Getting Started
+## API Endpoints
 
-1.  **Clone:** `git clone https://github.com/yourusername/tildra.git`
-2.  **Setup Backend:**
-    *   Navigate to `api/`
-    *   Create a `.env` file (see `.env.example`)
-    *   Install dependencies: `pip install -r requirements.txt`
-    *   Run migrations: `npx prisma migrate dev`
-    *   Start server: `uvicorn main:app --reload`
-3.  **Setup Frontend (Web):**
-    *   Navigate to `app/`
-    *   Install dependencies: `npm install` (or `yarn` or `pnpm install`)
-    *   Run: `npm run dev`
-4.  **Setup Frontend (Extension):**
-    *   Open Chrome > Extensions > Manage Extensions
-    *   Enable "Developer mode"
-    *   Click "Load unpacked" and select the `extension/` directory.
+### Summary Generation
+```
+POST /summarize
+```
+Generates AI-powered summaries from article content.
 
-## Contributing
+### User Management
+```
+GET /api/user/status
+POST /api/user/settings
+```
+Handles user authentication and preferences.
 
-Contributions welcome! Please open an issue or PR.
+### Subscription Management
+```
+POST /api/create-checkout-session
+POST /api/create-portal-session
+```
+Manages Stripe subscription workflows.
 
-## ✨ Features
-- 🧠 One-click TL;DR for any webpage
-- 📌 Saves summary history to your dashboard
-- 🔐 Google login via Supabase
-- 🚀 Built with React (Next.js), Supabase, OpenAI API
-- ⚡️ Freemium: 10 free summaries/day, upgrade for more
+## Database Schema
 
-## 🛠 Tech Stack
-- Frontend: React (Next.js)
-- Chrome Extension: Vanilla JS + Readability.js
-- Backend: Supabase (Auth + DB)
-- AI: OpenAI GPT-4 API
-- Hosting: Vercel
+The application uses PostgreSQL with the following core tables:
+- `User`: User profiles and authentication data
+- `Summary`: Generated summaries and metadata
+- `Subscription`: Payment and plan information
 
-## 🧪 Getting Started
-1. Clone the repo  
-   `git clone https://github.com/your-username/snip-summary`
-2. Install dependencies  
-   `cd app && npm install`
-3. Add your environment variables (OpenAI key, Supabase keys)
-4. Run locally  
-   `npm run dev`
+## Deployment
 
-Extension is inside `/extension/` — load as unpacked in Chrome DevTools.
+The application is containerized using Docker and deployed on Fly.io with automatic scaling and health monitoring.
 
-## 📦 Coming Soon
-- Export to Notion, Email, PDF
-- Stripe-based Pro subscription
-- Team dashboards
+## Security
+
+- JWT-based authentication
+- CORS protection
+- Rate limiting
+- Input validation
+- Secure webhook handling
+
+## Support
+
+For technical support or business inquiries, contact: support@tildra.xyz
+
+## License
+
+Proprietary software. All rights reserved.
