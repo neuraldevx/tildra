@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Settings,
   Zap,
@@ -14,8 +15,17 @@ import {
   FileText,
   TrendingUp,
   Users,
-  Star
+  Star,
+  BarChart3,
+  Target,
+  Brain
 } from "lucide-react"
+
+// Import new analytics components
+import { AnalyticsDashboard } from '@/components/analytics/analytics-dashboard';
+import { PersonalizedInsights } from '@/components/analytics/personalized-insights';
+import { GoalTracker } from '@/components/analytics/goal-tracker';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import {
   Dialog,
   DialogContent,
@@ -218,6 +228,18 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSummary, setSelectedSummary] = useState<HistoryItem | null>(null);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  
+  // Analytics data
+  const { 
+    metrics, 
+    goals, 
+    insights, 
+    isLoading: analyticsLoading, 
+    error: analyticsError,
+    createGoal,
+    updateGoal,
+    deleteGoal
+  } = useAnalytics();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -564,7 +586,45 @@ export default function DashboardPage() {
   return (
     <SignedIn> {/* Ensure UI is only rendered for signed-in users */}
       <div className="container max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-8">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <div className="flex items-center gap-2">
+            {is_pro ? (
+              <Badge variant="default" className="bg-gradient-to-r from-green-500 to-emerald-600">
+                Premium
+              </Badge>
+            ) : (
+              <Link href="/pricing">
+                <Button variant="outline" size="sm">
+                  Upgrade to Premium
+                </Button>
+              </Link>
+            )}
+          </div>
+        </div>
+
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <Star className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="insights" className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              Insights
+            </TabsTrigger>
+            <TabsTrigger value="goals" className="flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Goals
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab - Original Dashboard Content */}
+          <TabsContent value="overview" className="space-y-6">
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="overflow-hidden border-border/40 shadow-sm hover:shadow-md transition-shadow duration-300">
@@ -878,6 +938,67 @@ export default function DashboardPage() {
             </DialogContent>
           </Dialog>
         )}
+
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics" className="space-y-6">
+            {metrics ? (
+              <AnalyticsDashboard 
+                metrics={metrics} 
+                isLoading={analyticsLoading} 
+              />
+            ) : (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">
+                  {analyticsLoading ? 'Loading analytics...' : 'No analytics data available yet. Start summarizing to see your progress!'}
+                </p>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Insights Tab */}
+          <TabsContent value="insights" className="space-y-6">
+            {metrics ? (
+              <PersonalizedInsights 
+                metrics={metrics}
+                insights={insights}
+                isLoading={analyticsLoading}
+                onGoalClick={() => {
+                  // Switch to goals tab when user clicks on goal-related insights
+                  document.querySelector('[value="goals"]')?.click();
+                }}
+              />
+            ) : (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">
+                  {analyticsLoading ? 'Loading insights...' : 'Complete a few summaries to see personalized insights and recommendations!'}
+                </p>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Goals Tab */}
+          <TabsContent value="goals" className="space-y-6">
+            {metrics ? (
+              <GoalTracker
+                goals={goals}
+                metrics={metrics}
+                onCreateGoal={createGoal}
+                onUpdateGoal={updateGoal}
+                onDeleteGoal={deleteGoal}
+                isLoading={analyticsLoading}
+              />
+            ) : (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">
+                  {analyticsLoading ? 'Loading goal tracker...' : 'Set up goals to track your productivity and stay motivated!'}
+                </p>
+              </Card>
+            )}
+          </TabsContent>
+
+        </Tabs>
       </div>
     </SignedIn>
   );

@@ -104,7 +104,7 @@ async def shutdown():
 # --- Clerk JWKS Configuration (Manual Verification) ---
 # Determine this from the 'iss' claim in your JWTs
 # Ensure this matches your Clerk instance's issuer URL
-CLERK_ISSUER = os.getenv("CLERK_ISSUER_URL", "https://clerk.tildra.xyz") # CHANGED: Use production Clerk domain
+CLERK_ISSUER = os.getenv("CLERK_ISSUER_URL", "https://actual-marmot-36.clerk.accounts.dev")
 if not CLERK_ISSUER.startswith("https://"): # Basic validation
     logger.critical("CLERK_ISSUER_URL environment variable must be a valid HTTPS URL.")
     raise ValueError("Invalid CLERK_ISSUER_URL")
@@ -120,7 +120,7 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 PREMIUM_PRICE_ID_MONTHLY = os.getenv("PREMIUM_PRICE_ID_MONTHLY")
 PREMIUM_PRICE_ID_YEARLY = os.getenv("PREMIUM_PRICE_ID_YEARLY")
 # Get your frontend URL for success/cancel redirects
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.tildra.xyz") # CHANGED: Use production URL instead of localhost
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 SUCCESS_URL = f"{FRONTEND_URL}/payment/success" # Define SUCCESS_URL
 CANCEL_URL = f"{FRONTEND_URL}/payment/cancel"   # Define CANCEL_URL
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET") # <-- Load webhook secret
@@ -305,6 +305,31 @@ async def get_authenticated_user_id_with_rls_context(request: Request, db_prisma
             issuer=CLERK_ISSUER,
         )
         user_id = claims.get('sub')
+        
+        # Check if user exists in DB, create if not (development fallback)
+        if user_id:
+            existing_user = await db_prisma.user.find_unique(where={"clerkId": user_id})
+            if not existing_user:
+                # Extract email from JWT claims
+                email = claims.get('email') or f"{user_id}@dev.local"
+                logger.info(f"Creating missing user for Clerk ID: {user_id} with email: {email}")
+                try:
+                    await db_prisma.user.create(
+                        data={
+                            "clerkId": user_id,
+                            "email": email,
+                            "firstName": claims.get('given_name') or "Dev",
+                            "lastName": claims.get('family_name') or "User",
+                            "plan": "free",
+                            "summariesUsed": 0,
+                            "summaryLimit": 5,
+                            "totalSummariesMade": 0
+                        }
+                    )
+                    logger.info(f"Successfully created user for Clerk ID: {user_id}")
+                except Exception as create_error:
+                    logger.error(f"Failed to create user for Clerk ID {user_id}: {create_error}")
+                    # Continue anyway - the endpoint will handle the missing user
 
     except jwt.exceptions.PyJWKClientError as e:
         logger.error(f"Auth failed (RLS): Error fetching/finding JWKS key - {e}")
@@ -2129,3 +2154,311 @@ async def test_get_application_history(limit: int = 50, offset: int = 0):
         raise HTTPException(status_code=500, detail=f"Failed to get application history: {str(e)}")
 
 # --- END Test Endpoints ---
+
+# --- Analytics API Endpoints ---
+
+# Analytics response models
+class AnalyticsMetricsResponse(BaseModel):
+    totalTimeSaved: float  # in minutes
+    totalSummaries: int
+    averageReadingTimeReduction: float  # percentage
+    weeklyTimeSaved: float
+    monthlyTimeSaved: float
+    productivityScore: int  # 0-100
+    streakDays: int
+    topCategories: List[Dict[str, Any]]
+    weeklyData: List[Dict[str, Any]]
+    monthlyData: List[Dict[str, Any]]
+
+class UserGoalResponse(BaseModel):
+    id: str
+    userId: str
+    type: str
+    target: int
+    current: int
+    period: str
+    createdAt: datetime
+    updatedAt: datetime
+    isActive: bool
+
+class UserGoalCreateRequest(BaseModel):
+    type: str
+    target: int
+    period: str
+
+class UserGoalUpdateRequest(BaseModel):
+    target: Optional[int] = None
+    isActive: Optional[bool] = None
+
+class InsightDataResponse(BaseModel):
+    type: str
+    title: str
+    description: str
+    value: Optional[float] = None
+    trend: Optional[str] = None
+    actionable: Optional[str] = None
+    priority: str
+    icon: Optional[str] = None
+
+@app.get("/api/analytics/metrics", response_model=AnalyticsMetricsResponse)
+async def get_analytics_metrics(user_id: AuthenticatedUserId):
+    """Get comprehensive analytics metrics for the authenticated user."""
+    try:
+        logger.info(f"Fetching analytics metrics for user: {user_id}")
+        
+        # Get user data
+        user = await prisma.user.find_unique(where={"clerkId": user_id})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get all summaries for the user
+        summaries = await prisma.summaryhistory.find_many(
+            where={"userId": user.id},
+            order_by={"createdAt": "desc"}
+        )
+        
+        # Get current date boundaries
+        now = datetime.now(timezone.utc)
+        week_ago = now - timedelta(days=7)
+        month_ago = now - timedelta(days=30)
+        
+        # Calculate metrics
+        total_summaries = len(summaries)
+        
+        # Calculate time saved (estimated based on word count reduction)
+        total_time_saved = 0
+        weekly_time_saved = 0
+        monthly_time_saved = 0
+        category_stats = {}
+        
+        for summary in summaries:
+            # Estimate original word count (rough estimate based on URL and typical article lengths)
+            estimated_original_words = 800  # Average article length
+            summary_words = len(summary.tldr.split()) + sum(len(point.split()) for point in summary.keyPoints)
+            
+            # Estimate time saved (200 words per minute reading speed)
+            time_saved = max(0, (estimated_original_words - summary_words) / 200 * 60)  # in minutes
+            total_time_saved += time_saved
+            
+            # Weekly time saved
+            if summary.createdAt >= week_ago:
+                weekly_time_saved += time_saved
+                
+            # Monthly time saved
+            if summary.createdAt >= month_ago:
+                monthly_time_saved += time_saved
+            
+            # Category analysis (basic categorization based on URL domain)
+            category = "General"
+            if summary.url:
+                domain = summary.url.split("//")[-1].split("/")[0].lower()
+                if any(tech in domain for tech in ['github', 'stackoverflow', 'dev.to', 'medium']):
+                    category = "Technology"
+                elif any(news in domain for news in ['news', 'cnn', 'bbc', 'reuters']):
+                    category = "News"
+                elif any(biz in domain for biz in ['business', 'forbes', 'wsj', 'bloomberg']):
+                    category = "Business"
+                elif any(sci in domain for sci in ['science', 'nature', 'arxiv']):
+                    category = "Science"
+            
+            if category not in category_stats:
+                category_stats[category] = {"count": 0, "timeSaved": 0, "averageLength": 0}
+            category_stats[category]["count"] += 1
+            category_stats[category]["timeSaved"] += time_saved
+            category_stats[category]["averageLength"] += len(summary.tldr.split())
+        
+        # Calculate averages for categories
+        top_categories = []
+        for category, stats in category_stats.items():
+            if stats["count"] > 0:
+                stats["averageLength"] = stats["averageLength"] / stats["count"]
+            top_categories.append({
+                "category": category,
+                "count": stats["count"],
+                "timeSaved": stats["timeSaved"],
+                "averageLength": stats["averageLength"]
+            })
+        
+        # Sort by count
+        top_categories.sort(key=lambda x: x["count"], reverse=True)
+        
+        # Calculate reading time reduction percentage
+        avg_reduction = 75 if total_summaries > 0 else 0  # Rough estimate
+        
+        # Calculate productivity score (0-100)
+        productivity_score = min(100, max(0, int(
+            (weekly_time_saved / 60) * 10 +  # 10 points per hour saved weekly
+            (total_summaries / 10) * 5 +     # 5 points per 10 summaries
+            (len([s for s in summaries if s.createdAt >= week_ago]) / 7) * 15  # Daily consistency
+        )))
+        
+        # Calculate streak (simplified - consecutive days with summaries)
+        streak_days = 0
+        current_date = now.date()
+        for i in range(30):  # Check last 30 days
+            check_date = current_date - timedelta(days=i)
+            has_summary = any(s.createdAt.date() == check_date for s in summaries)
+            if has_summary:
+                streak_days += 1
+            else:
+                break
+        
+        # Generate weekly/monthly data for charts
+        weekly_data = []
+        for i in range(7):
+            week_start = now - timedelta(days=6-i)
+            week_summaries = [s for s in summaries if week_start.date() <= s.createdAt.date() < (week_start + timedelta(days=1)).date()]
+            week_time_saved = sum((800 - len(s.tldr.split()) - sum(len(p.split()) for p in s.keyPoints)) / 200 * 60 
+                                 for s in week_summaries)
+            weekly_data.append({
+                "week": week_start.strftime("%a"),
+                "summaries": len(week_summaries),
+                "timeSaved": max(0, week_time_saved),
+                "avgWordsReduced": 400 if week_summaries else 0
+            })
+        
+        monthly_data = []
+        for i in range(6):  # Last 6 months
+            month_start = (now.replace(day=1) - timedelta(days=30*i)).replace(day=1)
+            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            month_summaries = [s for s in summaries if month_start <= s.createdAt <= month_end]
+            month_time_saved = sum((800 - len(s.tldr.split()) - sum(len(p.split()) for p in s.keyPoints)) / 200 * 60 
+                                  for s in month_summaries)
+            monthly_data.append({
+                "month": month_start.strftime("%b"),
+                "summaries": len(month_summaries),
+                "timeSaved": max(0, month_time_saved),
+                "avgWordsReduced": 400 if month_summaries else 0
+            })
+        
+        monthly_data.reverse()  # Show oldest to newest
+        
+        return AnalyticsMetricsResponse(
+            totalTimeSaved=total_time_saved,
+            totalSummaries=total_summaries,
+            averageReadingTimeReduction=avg_reduction,
+            weeklyTimeSaved=weekly_time_saved,
+            monthlyTimeSaved=monthly_time_saved,
+            productivityScore=productivity_score,
+            streakDays=streak_days,
+            topCategories=top_categories,
+            weeklyData=weekly_data,
+            monthlyData=monthly_data
+        )
+        
+    except Exception as e:
+        logger.error(f"Analytics metrics error for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get analytics metrics: {str(e)}")
+
+@app.get("/api/analytics/insights", response_model=List[InsightDataResponse])
+async def get_analytics_insights(user_id: AuthenticatedUserId):
+    """Get personalized insights for the authenticated user."""
+    try:
+        logger.info(f"Fetching analytics insights for user: {user_id}")
+        
+        # For now, return static insights - this would be enhanced with real data analysis
+        insights = [
+            InsightDataResponse(
+                type="time_saved",
+                title="Great progress this week!",
+                description="You've saved significant time with your summaries. Keep up the consistent usage.",
+                value=120.0,
+                trend="up",
+                actionable="Try summarizing longer articles to maximize your time savings.",
+                priority="medium",
+                icon="clock"
+            ),
+            InsightDataResponse(
+                type="efficiency_tip",
+                title="Optimize your reading workflow",
+                description="You tend to summarize shorter content. Longer articles yield better time savings.",
+                actionable="Focus on articles over 1000 words for maximum efficiency gains.",
+                priority="high",
+                icon="lightbulb"
+            )
+        ]
+        
+        return insights
+        
+    except Exception as e:
+        logger.error(f"Analytics insights error for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get analytics insights: {str(e)}")
+
+@app.get("/api/goals", response_model=List[UserGoalResponse])
+async def get_user_goals(user_id: AuthenticatedUserId):
+    """Get all goals for the authenticated user."""
+    try:
+        logger.info(f"Fetching goals for user: {user_id}")
+        
+        # For now, return empty list - would need to add goals table to schema
+        # This is a placeholder implementation
+        return []
+        
+    except Exception as e:
+        logger.error(f"Get goals error for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get goals: {str(e)}")
+
+@app.post("/api/goals", response_model=UserGoalResponse)
+async def create_user_goal(goal_data: UserGoalCreateRequest, user_id: AuthenticatedUserId):
+    """Create a new goal for the authenticated user."""
+    try:
+        logger.info(f"Creating goal for user: {user_id}")
+        
+        # Placeholder implementation - would need goals table
+        mock_goal = UserGoalResponse(
+            id="mock_goal_id",
+            userId=user_id,
+            type=goal_data.type,
+            target=goal_data.target,
+            current=0,
+            period=goal_data.period,
+            createdAt=datetime.now(timezone.utc),
+            updatedAt=datetime.now(timezone.utc),
+            isActive=True
+        )
+        
+        return mock_goal
+        
+    except Exception as e:
+        logger.error(f"Create goal error for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create goal: {str(e)}")
+
+@app.put("/api/goals/{goal_id}", response_model=UserGoalResponse)
+async def update_user_goal(goal_id: str, goal_updates: UserGoalUpdateRequest, user_id: AuthenticatedUserId):
+    """Update a goal for the authenticated user."""
+    try:
+        logger.info(f"Updating goal {goal_id} for user: {user_id}")
+        
+        # Placeholder implementation
+        mock_goal = UserGoalResponse(
+            id=goal_id,
+            userId=user_id,
+            type="daily_summaries",
+            target=goal_updates.target or 5,
+            current=0,
+            period="daily",
+            createdAt=datetime.now(timezone.utc) - timedelta(days=1),
+            updatedAt=datetime.now(timezone.utc),
+            isActive=goal_updates.isActive if goal_updates.isActive is not None else True
+        )
+        
+        return mock_goal
+        
+    except Exception as e:
+        logger.error(f"Update goal error for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to update goal: {str(e)}")
+
+@app.delete("/api/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_goal(goal_id: str, user_id: AuthenticatedUserId):
+    """Delete a goal for the authenticated user."""
+    try:
+        logger.info(f"Deleting goal {goal_id} for user: {user_id}")
+        
+        # Placeholder implementation - would delete from goals table
+        return
+        
+    except Exception as e:
+        logger.error(f"Delete goal error for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete goal: {str(e)}")
+
+# --- END Analytics API Endpoints ---
