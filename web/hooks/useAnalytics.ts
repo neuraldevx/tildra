@@ -22,18 +22,10 @@ export function useAnalytics(): UseAnalyticsReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const baseApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://tildra.fly.dev';
-
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const token = await getToken();
-    if (!token) {
-      throw new Error('Authentication token not available');
-    }
-
-    const response = await fetch(`${baseApiUrl}${url}`, {
+    const response = await fetch(url, {
       ...options,
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },

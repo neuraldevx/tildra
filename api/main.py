@@ -2201,7 +2201,7 @@ class InsightDataResponse(BaseModel):
     icon: Optional[str] = None
 
 @app.get("/api/analytics/metrics", response_model=AnalyticsMetricsResponse)
-async def get_analytics_metrics(user_id: AuthenticatedUserId):
+async def get_analytics_metrics(user_id: AuthenticatedUserIdWithRLS):
     """Get comprehensive analytics metrics for the authenticated user."""
     try:
         logger.info(f"Fetching analytics metrics for user: {user_id}")
@@ -2351,7 +2351,7 @@ async def get_analytics_metrics(user_id: AuthenticatedUserId):
         raise HTTPException(status_code=500, detail=f"Failed to get analytics metrics: {str(e)}")
 
 @app.get("/api/analytics/insights", response_model=List[InsightDataResponse])
-async def get_analytics_insights(user_id: AuthenticatedUserId):
+async def get_analytics_insights(user_id: AuthenticatedUserIdWithRLS):
     """Get personalized insights for the authenticated user."""
     try:
         logger.info(f"Fetching analytics insights for user: {user_id}")
@@ -2385,7 +2385,7 @@ async def get_analytics_insights(user_id: AuthenticatedUserId):
         raise HTTPException(status_code=500, detail=f"Failed to get analytics insights: {str(e)}")
 
 @app.get("/api/goals", response_model=List[UserGoalResponse])
-async def get_user_goals(user_id: AuthenticatedUserId):
+async def get_user_goals(user_id: AuthenticatedUserIdWithRLS):
     """Get all goals for the authenticated user."""
     try:
         logger.info(f"Fetching goals for user: {user_id}")
@@ -2399,7 +2399,7 @@ async def get_user_goals(user_id: AuthenticatedUserId):
         raise HTTPException(status_code=500, detail=f"Failed to get goals: {str(e)}")
 
 @app.post("/api/goals", response_model=UserGoalResponse)
-async def create_user_goal(goal_data: UserGoalCreateRequest, user_id: AuthenticatedUserId):
+async def create_user_goal(goal_data: UserGoalCreateRequest, user_id: AuthenticatedUserIdWithRLS):
     """Create a new goal for the authenticated user."""
     try:
         logger.info(f"Creating goal for user: {user_id}")
@@ -2424,7 +2424,7 @@ async def create_user_goal(goal_data: UserGoalCreateRequest, user_id: Authentica
         raise HTTPException(status_code=500, detail=f"Failed to create goal: {str(e)}")
 
 @app.put("/api/goals/{goal_id}", response_model=UserGoalResponse)
-async def update_user_goal(goal_id: str, goal_updates: UserGoalUpdateRequest, user_id: AuthenticatedUserId):
+async def update_user_goal(goal_id: str, goal_updates: UserGoalUpdateRequest, user_id: AuthenticatedUserIdWithRLS):
     """Update a goal for the authenticated user."""
     try:
         logger.info(f"Updating goal {goal_id} for user: {user_id}")
@@ -2449,7 +2449,7 @@ async def update_user_goal(goal_id: str, goal_updates: UserGoalUpdateRequest, us
         raise HTTPException(status_code=500, detail=f"Failed to update goal: {str(e)}")
 
 @app.delete("/api/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user_goal(goal_id: str, user_id: AuthenticatedUserId):
+async def delete_user_goal(goal_id: str, user_id: AuthenticatedUserIdWithRLS):
     """Delete a goal for the authenticated user."""
     try:
         logger.info(f"Deleting goal {goal_id} for user: {user_id}")

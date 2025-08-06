@@ -1,59 +1,65 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-
-// Debug logging
-console.log('[DEBUG] Environment variables:');
-console.log('INTERNAL_API_URL:', process.env.INTERNAL_API_URL);
-console.log('NEXT_PUBLIC_API_BASE_URL:', process.env.NEXT_PUBLIC_API_BASE_URL);
-
-const backendApiBaseUrl = process.env.INTERNAL_API_URL
-  || 'https://tildra.fly.dev';
-
-console.log('[DEBUG] Final backendApiBaseUrl:', backendApiBaseUrl);
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    const { userId, getToken } = await auth();
-    const token = await getToken();
+    const { userId } = await auth();
 
-    if (!userId || !token) {
-      console.error('[API Proxy /user/account-details] User not authenticated.');
+    if (!userId) {
+      console.error('[Account Details API] User not authenticated.');
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
-    const targetUrl = `${backendApiBaseUrl}/api/user/account-details`;
-    console.log(`[API Proxy /user/account-details] Forwarding request for ${userId} to ${targetUrl}`);
+    console.log(`[Account Details API] Fetching account details for user ${userId}`);
 
-    // Forward the request to the backend API
-    const backendResponse = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    // Get user details from database
+    const user = await prisma.user.findUnique({
+      where: {
+        clerkId: userId
       },
-      cache: 'no-store',
+      select: {
+        email: true,
+        plan: true,
+        summariesUsed: true,
+        summaryLimit: true,
+        stripeCustomerId: true,
+        stripeSubscriptionId: true,
+        stripePriceId: true,
+        stripeCurrentPeriodEnd: true,
+        totalSummariesMade: true,
+        createdAt: true
+      }
     });
 
-    // Handle response from the backend
-    if (!backendResponse.ok) {
-      console.error(`[API Proxy /user/account-details] Backend error (${backendResponse.status})`);
-      
-      // If the backend endpoint doesn't exist, return a basic response
-      if (backendResponse.status === 404) {
-        return new NextResponse(JSON.stringify({ 
-          message: 'Account details endpoint not implemented yet' 
-        }), { status: 404 });
-      }
-      
-      return new NextResponse(JSON.stringify({ error: 'Failed to fetch account details' }), {
-        status: backendResponse.status
-      });
+    if (!user) {
+      console.error(`[Account Details API] User not found in database: ${userId}`);
+      return new NextResponse(JSON.stringify({ error: 'User not found' }), { status: 404 });
     }
 
-    const responseBody = await backendResponse.json();
-    console.log(`[API Proxy /user/account-details] Successfully fetched account details for ${userId}`);
+    // Determine if user is pro based on plan and subscription
+    const isPro = user.plan === 'premium' || 
+                  (user.stripeSubscriptionId && user.stripeCurrentPeriodEnd && 
+                   new Date(user.stripeCurrentPeriodEnd) > new Date());
+
+    const accountDetails = {
+      email: user.email,
+      plan: isPro ? 'Premium' : 'Free',
+      summariesUsed: user.summariesUsed,
+      summaryLimit: isPro ? 1000 : user.summaryLimit, // Premium users get much higher limit
+      is_pro: isPro,
+      totalSummariesMade: user.totalSummariesMade,
+      memberSince: user.createdAt,
+      // Include subscription details if available
+      ...(user.stripeCustomerId && {
+        stripeCustomerId: user.stripeCustomerId,
+        hasActiveSubscription: isPro
+      })
+    };
+
+    console.log(`[Account Details API] Successfully fetched account details for ${userId}`);
     
-    return new NextResponse(JSON.stringify(responseBody), {
+    return new NextResponse(JSON.stringify(accountDetails), {
       status: 200,
       headers: {
         'Content-Type': 'application/json'
@@ -61,7 +67,7 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error('[API Proxy /user/account-details] Unexpected error:', error);
+    console.error('[Account Details API] Unexpected error:', error);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 } 

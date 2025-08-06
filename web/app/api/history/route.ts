@@ -1,53 +1,31 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    const { userId, getToken } = await auth();
-    const token = await getToken();
+    const { userId } = await auth();
 
-    if (!userId || !token) {
-      console.error('[API Proxy /history] User not authenticated.');
+    if (!userId) {
+      console.error('[History API] User not authenticated.');
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
-    const backendApiBaseUrl = process.env.INTERNAL_API_URL
-      || 'https://tildra.fly.dev';
+    console.log(`[History API] Fetching history for user ${userId}`);
 
-    const targetUrl = `${backendApiBaseUrl}/api/history`;
-    console.log(`[API Proxy /history] Forwarding request for ${userId} to ${targetUrl}`);
-
-    // Forward the request to the backend API
-    const backendResponse = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    // Get user's summary history from database
+    const summaries = await prisma.summaryHistory.findMany({
+      where: {
+        userId: userId
       },
-      cache: 'no-store',
+      orderBy: {
+        createdAt: 'desc'
+      }
     });
 
-    // Handle response from the backend
-    if (!backendResponse.ok) {
-      console.error(`[API Proxy /history] Backend error (${backendResponse.status})`);
-      
-      // If the backend endpoint doesn't exist, return an empty history
-      if (backendResponse.status === 404) {
-        return new NextResponse(JSON.stringify({ 
-          history: [],
-          message: 'History endpoint not implemented yet' 
-        }), { status: 200 });
-      }
-      
-      return new NextResponse(JSON.stringify({ error: 'Failed to fetch history' }), {
-        status: backendResponse.status
-      });
-    }
-
-    const responseBody = await backendResponse.json();
-    console.log(`[API Proxy /history] Successfully fetched history for ${userId}`);
+    console.log(`[History API] Successfully fetched ${summaries.length} summaries for ${userId}`);
     
-    return new NextResponse(JSON.stringify(responseBody), {
+    return new NextResponse(JSON.stringify(summaries), {
       status: 200,
       headers: {
         'Content-Type': 'application/json'
@@ -55,53 +33,37 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error('[API Proxy /history] Unexpected error:', error);
+    console.error('[History API] Unexpected error:', error);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 }
 
 export async function DELETE() {
   try {
-    const { userId, getToken } = await auth();
-    const token = await getToken();
+    const { userId } = await auth();
 
-    if (!userId || !token) {
-      console.error('[API Proxy /history DELETE] User not authenticated.');
+    if (!userId) {
+      console.error('[History API DELETE] User not authenticated.');
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
-    const backendApiBaseUrl = process.env.INTERNAL_API_URL
-      || 'https://tildra.fly.dev';
+    console.log(`[History API DELETE] Clearing history for user ${userId}`);
 
-    const targetUrl = `${backendApiBaseUrl}/api/history`;
-    console.log(`[API Proxy /history DELETE] Forwarding delete request for ${userId} to ${targetUrl}`);
-
-    // Forward the DELETE request to the backend API
-    const backendResponse = await fetch(targetUrl, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
+    // Delete all summaries for this user
+    const deleteResult = await prisma.summaryHistory.deleteMany({
+      where: {
+        userId: userId
+      }
     });
 
-    // Handle response from the backend
-    if (!backendResponse.ok) {
-      console.error(`[API Proxy /history DELETE] Backend error (${backendResponse.status})`);
-      return new NextResponse(JSON.stringify({ error: 'Failed to clear history' }), {
-        status: backendResponse.status
-      });
-    }
-
-    console.log(`[API Proxy /history DELETE] Successfully cleared history for ${userId}`);
+    console.log(`[History API DELETE] Successfully cleared ${deleteResult.count} summaries for ${userId}`);
     
     return new NextResponse(null, {
       status: 204
     });
 
   } catch (error) {
-    console.error('[API Proxy /history DELETE] Unexpected error:', error);
+    console.error('[History API DELETE] Unexpected error:', error);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 }

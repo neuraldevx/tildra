@@ -30,6 +30,7 @@ model User {
   summaryNotifications   Boolean?         @default(true)
   marketingEmails        Boolean?         @default(false)
   summaryHistory         SummaryHistory[]
+  goals                  Goal[]
 
   @@map("users")
 }
@@ -47,4 +48,20 @@ model SummaryHistory {
 
   @@index([userId])
   @@map("summary_history")
+}
+
+model Goal {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [clerkId])
+  type      String   // 'daily_summaries' | 'weekly_time_saved' | 'monthly_summaries' | 'reading_efficiency'
+  target    Int
+  current   Int      @default(0)
+  period    String   // 'daily' | 'weekly' | 'monthly'
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("goals")
 }

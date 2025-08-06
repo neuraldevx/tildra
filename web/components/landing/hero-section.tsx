@@ -288,12 +288,12 @@ export function HeroSection() {
                   )}
                   onClick={() => {
                     // Add Chrome extension download logic
-                    window.open('https://chrome.google.com/webstore/detail/tildra/jjcdkjjdonfmpenonghicgejhlojldmh', '_blank');
+                    window.open('https://chromewebstore.google.com/detail/tildra-ai-powered-article/hoidpdngehcfbjcbbejokfohepkjlepc?hl=en', '_blank');
                   }}
                 >
                   <a href="#" onClick={(e) => {
                     e.preventDefault();
-                    window.open('https://chrome.google.com/webstore/detail/tildra/jjcdkjjdonfmpenonghicgejhlojldmh', '_blank');
+                    window.open('https://chromewebstore.google.com/detail/tildra-ai-powered-article/hoidpdngehcfbjcbbejokfohepkjlepc?hl=en', '_blank');
                   }}>
                     <Chrome className="mr-2 h-5 w-5" />
                     Get Chrome Extension

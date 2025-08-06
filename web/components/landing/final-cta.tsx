@@ -77,7 +77,7 @@ export function FinalCTA() {
             </Button>
 
             <a 
-              href="https://chrome.google.com/webstore/detail/tildra/jjcdkjjdonfmpenonghicgejhlojldmh"
+              href="https://chromewebstore.google.com/detail/tildra-ai-powered-article/hoidpdngehcfbjcbbejokfohepkjlepc?hl=en"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 backdrop-blur-sm px-6 py-3 text-base font-semibold transform hover:scale-105 transition-all duration-300 rounded-md border"

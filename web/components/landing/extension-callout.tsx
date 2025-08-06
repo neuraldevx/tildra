@@ -199,7 +199,7 @@ function AnimatedDownloadButton() {
 
   return (
     <a 
-      href="https://chrome.google.com/webstore/detail/tildra/jjcdkjjdonfmpenonghicgejhlojldmh" 
+      href="https://chromewebstore.google.com/detail/tildra-ai-powered-article/hoidpdngehcfbjcbbejokfohepkjlepc?hl=en" 
       target="_blank"
       rel="noopener noreferrer"
       className="inline-block"

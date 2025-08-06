@@ -1,50 +1,49 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    const { userId, getToken } = await auth();
-    const token = await getToken();
+    const { userId } = await auth();
 
-    if (!userId || !token) {
-      console.error('[API Proxy /goals] User not authenticated.');
+    if (!userId) {
+      console.error('[Goals API] User not authenticated.');
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
-    const backendApiBaseUrl = process.env.INTERNAL_API_URL
-      || 'https://tildra.fly.dev';
+    console.log(`[Goals API] Fetching goals for user ${userId}`);
 
-    const targetUrl = `${backendApiBaseUrl}/api/goals`;
-    console.log(`[API Proxy /goals] Forwarding GET request for ${userId} to ${targetUrl}`);
-
-    // Forward the request to the backend API
-    const backendResponse = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    // Get user's goals from database
+    const goals = await prisma.goal.findMany({
+      where: {
+        userId: userId
       },
-      cache: 'no-store',
+      orderBy: {
+        createdAt: 'desc'
+      }
     });
 
-    // Handle response from the backend
-    if (!backendResponse.ok) {
-      console.error(`[API Proxy /goals] Backend error (${backendResponse.status})`);
+    // Update current values for each goal based on recent activity
+    const updatedGoals = await Promise.all(goals.map(async (goal) => {
+      const currentValue = await calculateCurrentGoalValue(userId, goal.type, goal.period);
       
-      // If the backend endpoint doesn't exist, return empty goals
-      if (backendResponse.status === 404) {
-        return new NextResponse(JSON.stringify([]), { status: 200 });
+      // Update the goal in database if current value changed
+      if (currentValue !== goal.current) {
+        await prisma.goal.update({
+          where: { id: goal.id },
+          data: { current: currentValue }
+        });
       }
       
-      return new NextResponse(JSON.stringify({ error: 'Failed to fetch goals' }), {
-        status: backendResponse.status
-      });
-    }
+      return {
+        ...goal,
+        current: currentValue
+      };
+    }));
 
-    const responseBody = await backendResponse.json();
-    console.log(`[API Proxy /goals] Successfully fetched goals for ${userId}`);
+    console.log(`[Goals API] Successfully fetched ${updatedGoals.length} goals for ${userId}`);
     
-    return new NextResponse(JSON.stringify(responseBody), {
+    return new NextResponse(JSON.stringify(updatedGoals), {
       status: 200,
       headers: {
         'Content-Type': 'application/json'
@@ -52,52 +51,66 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error('[API Proxy /goals] Unexpected error:', error);
+    console.error('[Goals API] Unexpected error:', error);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const { userId, getToken } = await auth();
-    const token = await getToken();
+    const { userId } = await auth();
 
-    if (!userId || !token) {
-      console.error('[API Proxy /goals POST] User not authenticated.');
+    if (!userId) {
+      console.error('[Goals API POST] User not authenticated.');
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
     const body = await request.json();
-    
-    const backendApiBaseUrl = process.env.INTERNAL_API_URL
-      || 'https://tildra.fly.dev';
+    const { type, target, period, isActive = true } = body;
 
-    const targetUrl = `${backendApiBaseUrl}/api/goals`;
-    console.log(`[API Proxy /goals POST] Forwarding POST request for ${userId} to ${targetUrl}`);
-
-    // Forward the request to the backend API
-    const backendResponse = await fetch(targetUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-    });
-
-    // Handle response from the backend
-    if (!backendResponse.ok) {
-      console.error(`[API Proxy /goals POST] Backend error (${backendResponse.status})`);
-      return new NextResponse(JSON.stringify({ error: 'Failed to create goal' }), {
-        status: backendResponse.status
-      });
+    // Validate required fields
+    if (!type || !target || !period) {
+      return new NextResponse(JSON.stringify({ 
+        error: 'Missing required fields: type, target, and period are required' 
+      }), { status: 400 });
     }
 
-    const responseBody = await backendResponse.json();
-    console.log(`[API Proxy /goals POST] Successfully created goal for ${userId}`);
+    // Validate goal type
+    const validGoalTypes = ['daily_summaries', 'weekly_time_saved', 'monthly_summaries', 'reading_efficiency'];
+    if (!validGoalTypes.includes(type)) {
+      return new NextResponse(JSON.stringify({ 
+        error: 'Invalid goal type. Must be one of: ' + validGoalTypes.join(', ')
+      }), { status: 400 });
+    }
+
+    // Validate period
+    const validPeriods = ['daily', 'weekly', 'monthly'];
+    if (!validPeriods.includes(period)) {
+      return new NextResponse(JSON.stringify({ 
+        error: 'Invalid period. Must be one of: ' + validPeriods.join(', ')
+      }), { status: 400 });
+    }
+
+    console.log(`[Goals API POST] Creating goal for user ${userId}`);
+
+    // Calculate current value for this goal
+    const currentValue = await calculateCurrentGoalValue(userId, type, period);
+
+    // Create the goal
+    const goal = await prisma.goal.create({
+      data: {
+        userId,
+        type,
+        target: parseInt(target),
+        current: currentValue,
+        period,
+        isActive
+      }
+    });
+
+    console.log(`[Goals API POST] Successfully created goal ${goal.id} for ${userId}`);
     
-    return new NextResponse(JSON.stringify(responseBody), {
+    return new NextResponse(JSON.stringify(goal), {
       status: 201,
       headers: {
         'Content-Type': 'application/json'
@@ -105,7 +118,80 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
-    console.error('[API Proxy /goals POST] Unexpected error:', error);
+    console.error('[Goals API POST] Unexpected error:', error);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
+}
+
+async function calculateCurrentGoalValue(userId: string, goalType: string, period: string): Promise<number> {
+  const now = new Date();
+  let startDate: Date;
+
+  // Calculate period start date
+  switch (period) {
+    case 'daily':
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      break;
+    case 'weekly':
+      const dayOfWeek = now.getDay();
+      const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Make Monday the first day
+      startDate = new Date(now.getTime() - mondayOffset * 24 * 60 * 60 * 1000);
+      startDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+      break;
+    case 'monthly':
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      break;
+    default:
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  const endDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // Tomorrow to include today
+
+  // Get summaries in the period
+  const summaries = await prisma.summaryHistory.findMany({
+    where: {
+      userId: userId,
+      createdAt: {
+        gte: startDate,
+        lt: endDate
+      }
+    }
+  });
+
+  switch (goalType) {
+    case 'daily_summaries':
+      return period === 'daily' ? summaries.length : Math.round(summaries.length / getDaysBetween(startDate, now));
+    
+    case 'weekly_time_saved':
+      const timeSaved = summaries.reduce((total, summary) => {
+        const originalLength = summary.title ? summary.title.length + (summary.url ? 500 : 0) : 500;
+        const summaryLength = summary.tldr.length + (summary.keyPoints?.join(' ').length || 0);
+        const wordsReduction = Math.max(originalLength - summaryLength, 0);
+        return total + Math.max(wordsReduction / 250 * 60, 2); // Min 2 minutes saved
+      }, 0);
+      return Math.round(timeSaved);
+    
+    case 'monthly_summaries':
+      return summaries.length;
+    
+    case 'reading_efficiency':
+      if (summaries.length === 0) return 0;
+      // Calculate average efficiency (estimated based on summary length vs original)
+      const efficiency = summaries.reduce((total, summary) => {
+        const originalLength = summary.title ? summary.title.length + (summary.url ? 500 : 0) : 500;
+        const summaryLength = summary.tldr.length + (summary.keyPoints?.join(' ').length || 0);
+        const reduction = Math.max((originalLength - summaryLength) / originalLength * 100, 50);
+        return total + reduction;
+      }, 0);
+      return Math.round(efficiency / summaries.length);
+    
+    default:
+      return 0;
+  }
+}
+
+function getDaysBetween(startDate: Date, endDate: Date): number {
+  const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return Math.max(diffDays, 1);
 }
