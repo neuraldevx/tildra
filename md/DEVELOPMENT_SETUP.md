@@ -136,3 +136,8 @@ Your development environment now includes:
 - ✅ **Production unchanged** - All existing functionality preserved
 
 **Your development environment is ready! 🎉**
+
+
+
+
+https://actual-marmot-36.clerk.accounts.dev/.well-known/jwks.json
